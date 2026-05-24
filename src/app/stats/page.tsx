@@ -1,9 +1,12 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useEffect, useRef } from "react"
 import { useDebounce } from "@/hooks/useDebounce"
-import { DisclaimerBanner } from "@/components/legal/DisclaimerBanner"
-import { PageHeader } from "@/components/ui/primitives"
+import { PageHeader, Card } from "@/components/ui/primitives"
+import { Icon } from "@/components/ui/icons"
+import { usePlan } from "@/lib/plan"
+import { useUpgradeModal } from "@/components/premium"
+import Link from "next/link"
 
 interface TeamResult { id: string; name: string; slug: string; league: string; country: string; flag: string }
 interface TeamStats {
@@ -27,7 +30,6 @@ const FORM_COLOR: Record<string, string> = {
   L: "bg-red-500/80 text-white",
 }
 
-// Real ESPN team IDs + league slugs
 const QUICK: TeamResult[] = [
   { id: "86",  name: "Real Madrid",     slug: "esp.1", league: "LaLiga",         country: "España",     flag: "🇪🇸" },
   { id: "382", name: "Manchester City", slug: "eng.1", league: "Premier League", country: "Inglaterra", flag: "🏴󠁧󠁢󠁥󠁮󠁧󠁿" },
@@ -46,11 +48,21 @@ async function getTeamStats(id: string, slug: string) {
 }
 
 export default function StatsPage() {
+  const { isPremium } = usePlan()
+  const upgrade = useUpgradeModal()
+
   const [query, setQuery] = useState("")
   const [results, setResults] = useState<TeamResult[]>([])
   const [stats, setStats] = useState<TeamStats | null>(null)
   const [loadingSearch, setLoadingSearch] = useState(false)
   const [loadingTeam, setLoadingTeam] = useState(false)
+
+  // Análisis IA
+  const [analysis, setAnalysis] = useState("")
+  const [analysisLoading, setAnalysisLoading] = useState(false)
+  const [analysisError, setAnalysisError] = useState("")
+  const analysisRef = useRef<HTMLDivElement>(null)
+
   const debouncedQuery = useDebounce(query, 300)
 
   useEffect(() => {
@@ -65,6 +77,9 @@ export default function StatsPage() {
   async function loadTeam(t: TeamResult) {
     setResults([])
     setQuery(t.name)
+    setStats(null)
+    setAnalysis("")
+    setAnalysisError("")
     setLoadingTeam(true)
     try {
       const data = await getTeamStats(String(t.id), t.slug)
@@ -74,23 +89,75 @@ export default function StatsPage() {
     }
   }
 
+  async function runAnalysis() {
+    if (!stats) return
+    if (!isPremium) { upgrade.show("stats_advanced"); return }
+
+    setAnalysisLoading(true)
+    setAnalysis("")
+    setAnalysisError("")
+
+    try {
+      const res = await fetch("/api/stats/analyze", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(stats),
+      })
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}))
+        setAnalysisError(err.error ?? "Error al generar el análisis.")
+        return
+      }
+
+      const reader = res.body?.getReader()
+      if (!reader) { setAnalysisError("No se pudo leer la respuesta."); return }
+
+      const decoder = new TextDecoder()
+      let buffer = ""
+
+      while (true) {
+        const { value, done } = await reader.read()
+        if (done) break
+        buffer += decoder.decode(value, { stream: true })
+        const lines = buffer.split("\n")
+        buffer = lines.pop() ?? ""
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue
+          const raw = line.slice(6).trim()
+          if (raw === "[DONE]") break
+          try {
+            const { text } = JSON.parse(raw)
+            setAnalysis((prev) => prev + text)
+          } catch {}
+        }
+      }
+
+      // Scroll al análisis cuando termine
+      setTimeout(() => analysisRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 100)
+
+    } catch (e: any) {
+      setAnalysisError(e.message ?? "Error de red")
+    } finally {
+      setAnalysisLoading(false)
+    }
+  }
+
   return (
     <div className="px-4 py-6 max-w-4xl mx-auto safe-x">
       <PageHeader icon="stats" title="Estadísticas"
-        subtitle="Busca cualquier equipo de las 5 grandes ligas · Datos reales de ESPN" />
-
-      <div className="mb-4">
-        <DisclaimerBanner variant="stats" />
-      </div>
+        subtitle="Busca cualquier equipo del mundo · Datos reales de ESPN" />
 
       {/* Search */}
       <div className="relative mb-6">
-        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500 text-sm">🔍</span>
+        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500">
+          <Icon name="stats" className="w-4 h-4" />
+        </span>
         <input
           type="text"
           value={query}
-          onChange={(e) => { setQuery(e.target.value); setStats(null) }}
-          placeholder="Ej: Real Madrid, Fiorentina, Dortmund…"
+          onChange={(e) => { setQuery(e.target.value); setStats(null); setAnalysis(""); setAnalysisError("") }}
+          placeholder="Busca un equipo: Real Madrid, Boca Juniors, Al Nassr…"
           className="w-full bg-zinc-900 border border-zinc-700 focus:border-zinc-500
             text-white placeholder-zinc-600 rounded-2xl pl-10 pr-4 py-3.5 text-sm outline-none transition-colors"
         />
@@ -101,12 +168,9 @@ export default function StatsPage() {
           <div className="absolute top-full mt-2 w-full bg-zinc-900 border border-zinc-700
             rounded-2xl overflow-hidden z-20 shadow-2xl">
             {results.map((t) => (
-              <button
-                key={`${t.slug}-${t.id}`}
-                onClick={() => loadTeam(t)}
+              <button key={`${t.slug}-${t.id}`} onClick={() => loadTeam(t)}
                 className="w-full flex items-center gap-3 px-4 py-3 hover:bg-zinc-800
-                  transition-colors text-left border-b border-zinc-800 last:border-0"
-              >
+                  transition-colors text-left border-b border-zinc-800 last:border-0">
                 <span className="text-xl">{t.flag}</span>
                 <div>
                   <p className="text-sm font-medium text-white">{t.name}</p>
@@ -127,32 +191,43 @@ export default function StatsPage() {
         </div>
       )}
 
-      {/* Stats */}
-      {stats && !loadingTeam && <TeamStatsView stats={stats} />}
+      {/* Stats + AI button */}
+      {stats && !loadingTeam && (
+        <TeamStatsView
+          stats={stats}
+          isPremium={isPremium}
+          onAnalyze={runAnalysis}
+          analysisLoading={analysisLoading}
+          analysis={analysis}
+          analysisError={analysisError}
+          analysisRef={analysisRef}
+        />
+      )}
 
       {/* Empty state */}
       {!stats && !loadingTeam && (
         <div className="text-center py-16 space-y-3">
           <p className="text-5xl">📊</p>
           <p className="text-zinc-400 font-medium">Busca un equipo para ver sus estadísticas</p>
-          <p className="text-xs text-zinc-600">Todos los equipos de LaLiga, Premier, Bundesliga, Serie A y Ligue 1</p>
+          <p className="text-xs text-zinc-600">Más de 300 equipos de 19 ligas en todo el mundo</p>
           <div className="flex flex-wrap justify-center gap-2 mt-4">
             {QUICK.map((t) => (
-              <button
-                key={t.id}
-                onClick={() => loadTeam(t)}
+              <button key={t.id} onClick={() => loadTeam(t)}
                 className="text-xs px-3 py-1.5 bg-zinc-900 border border-zinc-800
-                  text-zinc-400 hover:text-white rounded-xl transition-colors"
-              >
+                  text-zinc-400 hover:text-white rounded-xl transition-colors">
                 {t.flag} {t.name}
               </button>
             ))}
           </div>
         </div>
       )}
+
+      <upgrade.Modal />
     </div>
   )
 }
+
+// ─── Stat card ────────────────────────────────────────────────────────────────
 
 function StatCard({ icon, value, label, color }: { icon: string; value: string; label: string; color: string }) {
   return (
@@ -164,7 +239,29 @@ function StatCard({ icon, value, label, color }: { icon: string; value: string; 
   )
 }
 
-function TeamStatsView({ stats }: { stats: TeamStats }) {
+// ─── Render del markdown simple (negrita, saltos de línea) ────────────────────
+
+function AnalysisText({ text }: { text: string }) {
+  // Convierte **negrita** y saltos de línea en HTML mínimo
+  const html = text
+    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
+    .split("\n")
+    .map((line) => `<p class="${line.startsWith("<strong>") ? "text-white font-bold mt-4 first:mt-0" : "text-zinc-300 text-sm leading-relaxed"}">${line || "&nbsp;"}</p>`)
+    .join("")
+  return <div dangerouslySetInnerHTML={{ __html: html }} className="space-y-0.5" />
+}
+
+// ─── Vista completa del equipo ────────────────────────────────────────────────
+
+function TeamStatsView({ stats, isPremium, onAnalyze, analysisLoading, analysis, analysisError, analysisRef }: {
+  stats: TeamStats
+  isPremium: boolean
+  onAnalyze: () => void
+  analysisLoading: boolean
+  analysis: string
+  analysisError: string
+  analysisRef: React.RefObject<HTMLDivElement>
+}) {
   const cleanSheetPct = stats.played ? Math.round((stats.clean_sheets / stats.played) * 100) : 0
   const goalsPerGame = stats.played ? (stats.goals_for / stats.played).toFixed(2) : "—"
   const goalsAgainstPerGame = stats.played ? (stats.goals_against / stats.played).toFixed(2) : "—"
@@ -172,23 +269,52 @@ function TeamStatsView({ stats }: { stats: TeamStats }) {
 
   return (
     <div className="space-y-5">
-      {/* Header */}
+      {/* Header + botón análisis IA */}
       <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5">
-        <div className="flex items-start justify-between mb-4">
-          <div>
+        <div className="flex items-start justify-between mb-4 gap-3">
+          <div className="min-w-0">
             <h2 className="text-xl font-black text-white">{stats.name}</h2>
             <p className="text-sm text-zinc-500">{stats.league} · Temporada {stats.season}</p>
             <p className="text-xs text-zinc-600 mt-0.5">{stats.played} partidos · {points} puntos</p>
           </div>
-          <div className="text-right">
-            <p className="text-xs text-zinc-600 mb-1">Últimos {stats.form.length}</p>
-            <div className="flex gap-1 justify-end">
+          <div className="flex flex-col items-end gap-2 shrink-0">
+            <div className="flex gap-1">
               {stats.form.map((r, i) => (
                 <span key={i} className={`text-[10px] font-bold w-5 h-5 rounded flex items-center justify-center ${FORM_COLOR[r] ?? "bg-zinc-700"}`}>
                   {r}
                 </span>
               ))}
             </div>
+            {/* ── BOTÓN ANÁLISIS IA ───────────────────────────────── */}
+            <button
+              onClick={onAnalyze}
+              disabled={analysisLoading}
+              className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold tap transition-all ${
+                isPremium
+                  ? "bg-gradient-to-r from-emerald-500 to-cyan-500 text-zinc-950 hover:opacity-90 disabled:opacity-50"
+                  : "bg-zinc-800 border border-zinc-700 text-zinc-400 hover:border-zinc-600"
+              }`}
+            >
+              {analysisLoading ? (
+                <>
+                  <Icon name="settings" className="w-3.5 h-3.5 animate-spin" />
+                  Analizando…
+                </>
+              ) : isPremium ? (
+                <>
+                  <Icon name="spark" className="w-3.5 h-3.5" strokeWidth={2.2} />
+                  Análisis IA
+                </>
+              ) : (
+                <>
+                  <Icon name="lock" className="w-3.5 h-3.5" strokeWidth={2} />
+                  Análisis IA
+                  <span className="text-[9px] font-black bg-emerald-500/20 text-emerald-400 border border-emerald-800/60 px-1 py-0.5 rounded-full leading-none">
+                    ⭐
+                  </span>
+                </>
+              )}
+            </button>
           </div>
         </div>
 
@@ -209,14 +335,90 @@ function TeamStatsView({ stats }: { stats: TeamStats }) {
         </div>
       </div>
 
+      {/* ── ANÁLISIS IA — resultado ─────────────────────────────────────────── */}
+      {!isPremium && (
+        <div ref={analysisRef} className="rounded-2xl border border-emerald-800/40 bg-emerald-500/5 p-5">
+          <div className="flex items-center gap-3 mb-3">
+            <div className="grid place-items-center w-10 h-10 rounded-xl bg-emerald-500/10 shrink-0">
+              <Icon name="spark" className="w-5 h-5 text-emerald-400" />
+            </div>
+            <div>
+              <p className="text-sm font-black text-white">Análisis Scout IA</p>
+              <p className="text-xs text-zinc-500">Disponible en Premium ⭐ y Pro 👑</p>
+            </div>
+          </div>
+          {/* Vista previa difuminada de cómo se vería */}
+          <div className="relative rounded-xl overflow-hidden">
+            <div className="blur-[5px] opacity-40 pointer-events-none select-none space-y-1.5 px-1">
+              <p className="text-sm text-white font-bold">📊 Perfil general</p>
+              <p className="text-sm text-zinc-300 leading-relaxed">Equipo con presencia ofensiva clara, marcando por encima de la media de la liga con un volumen alto de tiros generados por partido. Su solidez defensiva varía notablemente según el contexto…</p>
+              <p className="text-sm text-white font-bold mt-2">🏟️ Comportamiento local vs visitante</p>
+              <p className="text-sm text-zinc-300 leading-relaxed">Como local domina con claridad: alta tasa de victoria y media goleadora superior. Fuera de casa el rendimiento cae significativamente, con más goles encajados y menor control del partido…</p>
+              <p className="text-sm text-white font-bold mt-2">💡 Oportunidades de mercado</p>
+              <p className="text-sm text-zinc-300 leading-relaxed">El porcentaje BTTS y Over 2.5 histórico sugiere que los mercados de goles tienen respaldo estadístico en partidos donde…</p>
+            </div>
+            <div className="absolute inset-0 bg-gradient-to-b from-transparent via-zinc-950/60 to-zinc-950/95 flex items-end justify-center pb-4">
+              <Link href="/pricing"
+                className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-cyan-500 text-zinc-950 font-bold text-sm tap">
+                <Icon name="crown" className="w-4 h-4" strokeWidth={2.2} />
+                Desbloquear con Premium
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {analysisError && (
+        <div className="flex items-start gap-2 rounded-xl border border-amber-800/50 bg-amber-500/8 px-4 py-3">
+          <Icon name="shield" className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+          <p className="text-sm text-amber-200/90 leading-snug">{analysisError}</p>
+        </div>
+      )}
+
+      {(analysis || analysisLoading) && (
+        <div ref={analysisRef} className="rounded-2xl border border-emerald-800/40 bg-gradient-to-b from-emerald-500/5 to-zinc-900 overflow-hidden animate-fade-in">
+          {/* Header del informe */}
+          <div className="flex items-center gap-3 px-5 py-4 border-b border-zinc-800">
+            <div className="grid place-items-center w-9 h-9 rounded-xl bg-emerald-500/15 shrink-0">
+              <Icon name="spark" className="w-4.5 h-4.5 text-emerald-400" strokeWidth={2} />
+            </div>
+            <div>
+              <p className="text-sm font-black text-white">Análisis Scout IA · {stats.name}</p>
+              <p className="text-[10px] text-zinc-500">Basado exclusivamente en datos reales de ESPN · {stats.season}</p>
+            </div>
+            {analysisLoading && (
+              <Icon name="settings" className="w-4 h-4 text-emerald-400 animate-spin ml-auto shrink-0" />
+            )}
+          </div>
+          {/* Contenido */}
+          <div className="px-5 py-4">
+            {analysis
+              ? <AnalysisText text={analysis} />
+              : <div className="space-y-2">
+                  {[...Array(5)].map((_, i) => (
+                    <div key={i} className={`h-3.5 bg-zinc-800 rounded animate-pulse ${i === 2 ? "w-3/4" : "w-full"}`} />
+                  ))}
+                </div>
+            }
+          </div>
+          {!analysisLoading && analysis && (
+            <div className="px-5 py-2.5 border-t border-zinc-800 bg-zinc-950/40">
+              <p className="text-[10px] text-zinc-700 text-center">
+                Análisis generado por IA · basado solo en estadísticas ESPN · no constituye consejo de apuesta · +18
+              </p>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* Goals & available metrics */}
       <div>
         <p className="text-xs text-zinc-600 uppercase tracking-wider mb-3">Goles y ofensiva</p>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <StatCard icon="⚽" value={String(stats.goals_for)}      label="Goles a favor"    color="text-emerald-400" />
-          <StatCard icon="🥅" value={String(stats.goals_against)}  label="Goles en contra"  color="text-red-400" />
-          <StatCard icon="🎯" value={goalsPerGame}                  label="Goles/partido"    color="text-amber-400" />
-          <StatCard icon="🛡️" value={goalsAgainstPerGame}           label="Encaj./partido"   color="text-blue-400" />
+          <StatCard icon="⚽" value={String(stats.goals_for)}     label="Goles a favor"   color="text-emerald-400" />
+          <StatCard icon="🥅" value={String(stats.goals_against)} label="Goles en contra" color="text-red-400" />
+          <StatCard icon="🎯" value={goalsPerGame}                 label="Goles/partido"   color="text-amber-400" />
+          <StatCard icon="🛡️" value={goalsAgainstPerGame}          label="Encaj./partido"  color="text-blue-400" />
         </div>
       </div>
 
@@ -244,23 +446,23 @@ function TeamStatsView({ stats }: { stats: TeamStats }) {
         </div>
       </div>
 
-      {/* Stats avanzadas (boxscore ESPN — últimos partidos) */}
+      {/* Stats avanzadas */}
       {(stats.advanced_samples ?? 0) > 0 && (
         <div>
           <p className="text-xs text-zinc-600 uppercase tracking-wider mb-3">
             Stats avanzadas · medias últimos {stats.advanced_samples} partidos
           </p>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <StatCard icon="⛳" value={stats.avg_corners_for != null ? stats.avg_corners_for.toFixed(1) : "—"}     label="Córners a favor/PJ"   color="text-emerald-400" />
+            <StatCard icon="⛳" value={stats.avg_corners_for != null ? stats.avg_corners_for.toFixed(1) : "—"}      label="Córners a favor/PJ"   color="text-emerald-400" />
             <StatCard icon="🚩" value={stats.avg_corners_against != null ? stats.avg_corners_against.toFixed(1) : "—"} label="Córners en contra/PJ" color="text-blue-400" />
-            <StatCard icon="🟨" value={stats.avg_yellows != null ? stats.avg_yellows.toFixed(1) : "—"}             label="Amarillas/PJ"         color="text-amber-400" />
-            <StatCard icon="🟥" value={stats.avg_reds != null ? stats.avg_reds.toFixed(2) : "—"}                   label="Rojas/PJ"             color="text-red-400" />
+            <StatCard icon="🟨" value={stats.avg_yellows != null ? stats.avg_yellows.toFixed(1) : "—"}              label="Amarillas/PJ"         color="text-amber-400" />
+            <StatCard icon="🟥" value={stats.avg_reds != null ? stats.avg_reds.toFixed(2) : "—"}                    label="Rojas/PJ"             color="text-red-400" />
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3">
-            <StatCard icon="⚔️" value={stats.avg_fouls != null ? stats.avg_fouls.toFixed(1) : "—"}                 label="Faltas/PJ"            color="text-rose-400" />
-            <StatCard icon="🎯" value={stats.avg_shots != null ? stats.avg_shots.toFixed(1) : "—"}                 label="Tiros/PJ"             color="text-violet-400" />
-            <StatCard icon="🎯" value={stats.avg_shots_on_target != null ? stats.avg_shots_on_target.toFixed(1) : "—"} label="A puerta/PJ"          color="text-violet-300" />
-            <StatCard icon="⚽" value={stats.avg_possession != null ? stats.avg_possession + "%" : "—"}            label="Posesión media"       color="text-cyan-400" />
+            <StatCard icon="⚔️" value={stats.avg_fouls != null ? stats.avg_fouls.toFixed(1) : "—"}                  label="Faltas/PJ"            color="text-rose-400" />
+            <StatCard icon="🎯" value={stats.avg_shots != null ? stats.avg_shots.toFixed(1) : "—"}                  label="Tiros/PJ"             color="text-violet-400" />
+            <StatCard icon="🎯" value={stats.avg_shots_on_target != null ? stats.avg_shots_on_target.toFixed(1) : "—"} label="A puerta/PJ"       color="text-violet-300" />
+            <StatCard icon="⚽" value={stats.avg_possession != null ? stats.avg_possession + "%" : "—"}             label="Posesión media"       color="text-cyan-400" />
           </div>
         </div>
       )}
@@ -300,7 +502,7 @@ function TeamStatsView({ stats }: { stats: TeamStats }) {
 
       {/* Data note */}
       <p className="text-[11px] text-zinc-700 text-center pb-2">
-        Datos reales de ESPN · stats avanzadas agregadas del boxscore de los últimos partidos · xG no disponible en esta fuente
+        Datos reales de ESPN · stats avanzadas del boxscore de los últimos partidos · xG no disponible en esta fuente
       </p>
     </div>
   )
