@@ -280,8 +280,6 @@ export default function PricingPage() {
 
 // ─── Tarjeta de plan ────────────────────────────────────────────────────────
 
-type Billing = "monthly" | "annual"
-
 function PlanCard({ planId, billing, currentPlan, justSet, checkoutLoading, onChoose }: {
   planId: PlanId; billing: Billing; currentPlan: PlanId
   justSet: PlanId | null; checkoutLoading: PlanId | null
