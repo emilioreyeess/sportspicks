@@ -7,18 +7,82 @@ export const maxDuration = 60
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
 
+// ─── Mapa completo de ligas ────────────────────────────────────────────────────
+
 const LEAGUE_SLUGS: Record<string, string> = {
+  // Europa top 5
   "serie a": "ita.1", "laliga": "esp.1", "la liga": "esp.1",
   "premier league": "eng.1", "premier": "eng.1", "bundesliga": "ger.1", "ligue 1": "fra.1",
+  // Europa resto
+  "primeira liga": "por.1", "liga nos": "por.1", "portugal": "por.1",
+  "eredivisie": "ned.1", "holanda": "ned.1", "paises bajos": "ned.1",
+  "super lig": "tur.1", "superlig": "tur.1", "turquia": "tur.1", "süper lig": "tur.1",
+  "scottish premiership": "sco.1", "escocia": "sco.1",
+  // Europa competiciones
+  "champions league": "uefa.champions", "ucl": "uefa.champions", "champions": "uefa.champions",
+  "europa league": "uefa.europa", "uel": "uefa.europa",
+  // Américas
+  "mls": "usa.1", "major league soccer": "usa.1", "estados unidos": "usa.1",
+  "liga argentina": "arg.1", "primera division": "arg.1", "liga profesional": "arg.1", "argentina": "arg.1",
+  "brasileirao": "bra.1", "serie a brasil": "bra.1", "campeonato brasileiro": "bra.1", "brasil": "bra.1",
+  "liga mx": "mex.1", "mexico": "mex.1", "liga bbva": "mex.1",
+  "liga betplay": "col.1", "colombia": "col.1",
+  // Oriente Medio
+  "saudi pro league": "sau.1", "arabia saudi": "sau.1", "saudi": "sau.1",
 }
 
-// Mapa rápido de IDs conocidos (atajo). Si un equipo no está, se resuelve dinámicamente.
+// Slugs disponibles para búsqueda global de equipos
+const ALL_BOT_SLUGS = [
+  "esp.1", "eng.1", "ger.1", "ita.1", "fra.1",
+  "usa.1", "arg.1", "bra.1", "por.1", "uefa.champions",
+  "mex.1", "ned.1", "tur.1", "sau.1", "sco.1",
+]
+
+// Nombres legibles por slug
+const SLUG_NAMES: Record<string, string> = {
+  "esp.1": "LaLiga", "eng.1": "Premier League", "ger.1": "Bundesliga",
+  "ita.1": "Serie A", "fra.1": "Ligue 1", "usa.1": "MLS",
+  "arg.1": "Liga Argentina", "bra.1": "Brasileirão", "por.1": "Primeira Liga",
+  "uefa.champions": "Champions League", "mex.1": "Liga MX", "ned.1": "Eredivisie",
+  "tur.1": "Süper Lig", "sau.1": "Saudi Pro League", "sco.1": "Scottish Premiership",
+  "col.1": "Liga BetPlay", "uefa.europa": "Europa League",
+}
+
+// Aliases para apodos y nombres cortos comunes
+const TEAM_ALIASES: Record<string, string> = {
+  barca: "barcelona", barça: "barcelona",
+  atletico: "atletico madrid", atleti: "atletico madrid",
+  "man city": "manchester city", mcfc: "manchester city",
+  "man utd": "manchester united", "man united": "manchester united", mufc: "manchester united",
+  spurs: "tottenham hotspur", tottenham: "tottenham hotspur",
+  boca: "boca juniors",
+  river: "river plate",
+  mengao: "flamengo",
+  "las palmas": "las palmas",
+  "inter miami": "inter miami cf",
+  psv: "psv eindhoven",
+  benfica: "sl benfica",
+  sporting: "sporting cp",
+  celtic: "celtic",
+  rangers: "rangers",
+  galatasaray: "galatasaray",
+  fenerbahce: "fenerbahce",
+  "al nassr": "al nassr",
+  "al hilal": "al hilal",
+  "al ittihad": "al ittihad",
+}
+
+// Mapa rápido de IDs para los equipos más populares
 const TEAM_IDS: Record<string, Record<string, number>> = {
   "ita.1": { atalanta:105, fiorentina:109, inter:110, internazionale:110, juventus:111, napoli:114, milan:103, "ac milan":103, roma:120, "as roma":120, lazio:112, torino:239, bologna:101, genoa:145 },
-  "esp.1": { "real madrid":86, barcelona:83, "atletico madrid":1068, sevilla:243, villarreal:102, "athletic club":532, "real sociedad":541, "real betis":244, "rayo vallecano":728, girona:9812, getafe:3842, "alaves":3833 },
-  "eng.1": { "manchester city":382, liverpool:364, arsenal:359, chelsea:363, "manchester united":360, "tottenham":367, "newcastle":361, "aston villa":1094, "west ham":371, brighton:331, "crystal palace":384 },
+  "esp.1": { "real madrid":86, barcelona:83, "atletico madrid":1068, sevilla:243, villarreal:102, "athletic club":532, "real sociedad":541, "real betis":244, "rayo vallecano":728, girona:9812, getafe:3842, "alaves":3833, "las palmas":9815 },
+  "eng.1": { "manchester city":382, liverpool:364, arsenal:359, chelsea:363, "manchester united":360, "tottenham hotspur":367, "newcastle":361, "aston villa":1094, "west ham":371, brighton:331, "crystal palace":384 },
   "ger.1": { "bayern munich":132, "bayer leverkusen":131, "borussia dortmund":124, "rb leipzig":11420, "eintracht frankfurt":126, "union berlin":10768 },
   "fra.1": { psg:160, marseille:516, lyon:519, lille:514, monaco:517, nice:518 },
+  "arg.1": { "boca juniors":8877, "river plate":8876, "racing club":8878, independiente:8879, "san lorenzo":8880 },
+  "bra.1": { flamengo:8573, palmeiras:9906, "sao paulo":8539, santos:8542, corinthians:8540 },
+  "sau.1": { "al nassr":20040, "al hilal":20038, "al ittihad":20035, "al ahli":20033 },
+  "usa.1": { "inter miami":17012, "la galaxy":12702, "seattle sounders":12997, "new york city":9720, "new england":12701 },
 }
 
 function findTeamIdStatic(name: string, slug: string): number | null {
@@ -52,7 +116,7 @@ async function fetchESPN(path: string) {
   return res.json()
 }
 
-// ─── Resolución dinámica de equipos (funciona para CUALQUIER equipo) ───────────
+// ─── Resolución dinámica de equipos — funciona para CUALQUIER liga ─────────────
 
 const teamListCache = new Map<string, { id: string; name: string }[]>()
 
@@ -67,11 +131,16 @@ async function leagueTeams(slug: string): Promise<{ id: string; name: string }[]
   } catch { return [] }
 }
 
+function applyAlias(name: string): string {
+  return TEAM_ALIASES[norm(name)] ?? name
+}
+
 async function resolveTeam(name: string, slug: string): Promise<{ id: string; name: string } | null> {
-  const stat = findTeamIdStatic(name, slug)
-  if (stat) return { id: String(stat), name }
+  const resolved = applyAlias(name)
+  const stat = findTeamIdStatic(resolved, slug)
+  if (stat) return { id: String(stat), name: resolved }
   const teams = await leagueTeams(slug)
-  const n = norm(name)
+  const n = norm(resolved)
   if (!n) return null
   const hit =
     teams.find(t => norm(t.name) === n) ??
@@ -80,8 +149,36 @@ async function resolveTeam(name: string, slug: string): Promise<{ id: string; na
   return hit ?? null
 }
 
+/** Busca un equipo en TODAS las ligas conocidas — para nombres sin liga especificada */
+async function resolveTeamGlobal(name: string): Promise<{ id: string; name: string; slug: string } | null> {
+  const resolved = applyAlias(name)
+  const n = norm(resolved)
+  if (!n) return null
+
+  // Primero revisar TEAM_IDS (más rápido)
+  for (const [slug, map] of Object.entries(TEAM_IDS)) {
+    const key = Object.keys(map).find(k => n.includes(k.replace(/ /g, "")) || k.replace(/ /g, "").includes(n))
+    if (key) return { id: String(map[key]), name: resolved, slug }
+  }
+
+  // Búsqueda dinámica en todas las ligas en paralelo
+  const results = await Promise.all(
+    ALL_BOT_SLUGS.map(async (slug) => {
+      const teams = await leagueTeams(slug)
+      const hit =
+        teams.find(t => norm(t.name) === n) ??
+        teams.find(t => norm(t.name).includes(n) || n.includes(norm(t.name))) ??
+        teams.find(t => { const tn = norm(t.name); return tn.length > 4 && n.length > 4 && tn.slice(0, 5) === n.slice(0, 5) })
+      return hit ? { ...hit, slug } : null
+    })
+  )
+  return results.find(Boolean) ?? null
+}
+
 function slugOf(league: string): string {
-  return LEAGUE_SLUGS[(league ?? "").toLowerCase().trim()] ?? "esp.1"
+  const key = (league ?? "").toLowerCase().trim()
+    .normalize("NFD").replace(/[̀-ͯ]/g, "")
+  return LEAGUE_SLUGS[key] ?? key // si el user pasa un slug directamente (ej: "arg.1") también funciona
 }
 
 // ─── Implementación de herramientas ────────────────────────────────────────────
@@ -99,9 +196,14 @@ async function getStandings(league: string): Promise<string> {
 }
 
 async function getRecentForm(teamName: string, league: string): Promise<string> {
-  const slug = slugOf(league)
-  const team = await resolveTeam(teamName, slug)
-  if (!team) return `No encontré "${teamName}" en ${league}. Revisa el nombre o la liga.`
+  let slug = slugOf(league)
+  let team = await resolveTeam(teamName, slug)
+  // Fallback: búsqueda global si no encontramos en el slug dado
+  if (!team) {
+    const global = await resolveTeamGlobal(teamName)
+    if (global) { team = { id: global.id, name: global.name }; slug = global.slug }
+  }
+  if (!team) return `No encontré "${teamName}" en ${league}. Prueba con search_team("${teamName}") para localizar la liga correcta.`
 
   const data = await fetchESPN(`${slug}/teams/${team.id}/schedule`)
   const events: any[] = data?.events ?? []
@@ -142,9 +244,13 @@ ${rows.join("\n")}
 }
 
 async function getH2H(team1: string, team2: string, league: string): Promise<string> {
-  const slug = slugOf(league)
-  const t1 = await resolveTeam(team1, slug)
-  if (!t1) return `No encontré "${team1}" en ${league}.`
+  let slug = slugOf(league)
+  let t1 = await resolveTeam(team1, slug)
+  if (!t1) {
+    const global = await resolveTeamGlobal(team1)
+    if (global) { t1 = { id: global.id, name: global.name }; slug = global.slug }
+  }
+  if (!t1) return `No encontré "${team1}" en ${league}. Prueba search_team("${team1}").`
   const t2 = await resolveTeam(team2, slug)
 
   const data = await fetchESPN(`${slug}/teams/${t1.id}/schedule`)
@@ -181,6 +287,15 @@ async function getH2H(team1: string, team2: string, league: string): Promise<str
 ${rows.join("\n")}
 
 Resumen: ${t1.name} ${t1w}V | ${team2} ${t2w}V | Empates ${draws} · Media goles ${(totalGoals/h2h.length).toFixed(1)}/partido`
+}
+
+async function searchTeam(team_name: string): Promise<string> {
+  const found = await resolveTeamGlobal(team_name)
+  if (!found) {
+    return `No encontré "${team_name}" en ninguna liga disponible (ESPN). Revisa el nombre del equipo — puede estar escrito de forma diferente en ESPN.`
+  }
+  const leagueName = SLUG_NAMES[found.slug] ?? found.slug
+  return `"${team_name}" encontrado: ${found.name} en ${leagueName}. Usa "${leagueName}" como parámetro de liga en el resto de herramientas.`
 }
 
 async function getRefereeInfo(team1: string, team2: string, league: string): Promise<string> {
@@ -242,13 +357,18 @@ Estadio: ${venue}`
 
 const TOOLS: Anthropic.Tool[] = [
   {
+    name: "search_team",
+    description: "Busca un equipo en TODAS las ligas disponibles (LaLiga, Premier, Bundesliga, Serie A, Ligue 1, MLS, Liga Argentina, Brasileirão, Primeira Liga, Liga MX, Eredivisie, Süper Lig, Saudi Pro League, Champions League y más). Úsala SIEMPRE cuando el usuario mencione un equipo sin especificar la liga, o cuando la liga no sea de las 5 grandes europeas.",
+    input_schema: { type: "object" as const, properties: { team_name: { type: "string", description: "Nombre del equipo a buscar. Acepta apodos: 'barca', 'atletico', 'river', 'boca', 'flamengo', 'inter miami', 'al nassr', etc." } }, required: ["team_name"] },
+  },
+  {
     name: "get_standings",
-    description: "Clasificación REAL de la liga con puntos, partidos jugados/restantes y contexto de motivación (campeón, descenso, Europa). Llama SIEMPRE antes de analizar un partido.",
-    input_schema: { type: "object" as const, properties: { league: { type: "string", description: "'Serie A', 'LaLiga', 'Premier League', 'Bundesliga', 'Ligue 1'" } }, required: ["league"] },
+    description: "Clasificación REAL de una liga con puntos, partidos jugados/restantes y contexto de motivación (campeón, descenso, Europa). Llama SIEMPRE antes de analizar un partido. Acepta cualquier liga: 'LaLiga', 'Premier League', 'Bundesliga', 'Serie A', 'Ligue 1', 'MLS', 'Liga Argentina', 'Brasileirão', 'Primeira Liga', 'Liga MX', 'Eredivisie', 'Süper Lig', 'Saudi Pro League', 'Champions League'.",
+    input_schema: { type: "object" as const, properties: { league: { type: "string", description: "Nombre de la liga. Si no la conoces, usa search_team primero." } }, required: ["league"] },
   },
   {
     name: "get_recent_form",
-    description: "Últimos 8 partidos reales de un equipo con goles, BTTS%, Over2.5% y porterías a cero. Llama para CADA equipo del partido.",
+    description: "Últimos 8 partidos reales de un equipo con goles, BTTS%, Over2.5% y porterías a cero. Llama para CADA equipo del partido. Funciona con cualquier equipo del mundo si conoces su liga.",
     input_schema: { type: "object" as const, properties: { team_name: { type: "string" }, league: { type: "string" } }, required: ["team_name", "league"] },
   },
   {
@@ -270,6 +390,7 @@ const TOOLS: Anthropic.Tool[] = [
 
 async function executeTool(name: string, input: Record<string, string>): Promise<string> {
   try {
+    if (name === "search_team")      return await searchTeam(input.team_name)
     if (name === "get_standings")    return await getStandings(input.league)
     if (name === "get_recent_form")  return await getRecentForm(input.team_name, input.league)
     if (name === "get_h2h")          return await getH2H(input.team1, input.team2, input.league)
@@ -281,7 +402,7 @@ async function executeTool(name: string, input: Record<string, string>): Promise
   }
 }
 
-const SYSTEM_PROMPT = `Eres PicksBot, analista de apuestas deportivas cuantitativo con acceso a datos REALES de ESPN.
+const SYSTEM_PROMPT = `Eres PicksBot, analista de fútbol global con acceso a datos REALES de ESPN para cualquier equipo del mundo.
 
 ═══════════════════════════════════
 REGLA Nº1 — CERO INVENCIÓN
@@ -291,9 +412,28 @@ TODO dato debe venir de las herramientas. Si una herramienta no devuelve un dato
 → di "ese dato no está disponible" y baja la confianza. NUNCA lo rellenes inventando.
 
 ═══════════════════════════════════
+COBERTURA GLOBAL
+═══════════════════════════════════
+Puedes analizar equipos de CUALQUIER liga disponible en ESPN:
+• Europa: LaLiga, Premier League, Bundesliga, Serie A, Ligue 1, Primeira Liga, Eredivisie, Süper Lig, Scottish Premiership
+• Competiciones: Champions League, Europa League
+• Américas: MLS, Liga Argentina, Brasileirão, Liga MX
+• Oriente Medio: Saudi Pro League (Al Nassr, Al Hilal, Al Ittihad…)
+
+SI el usuario menciona un equipo sin especificar la liga, o la liga no es de las 5 grandes europeas:
+→ USA search_team PRIMERO para encontrar en qué liga juega ese equipo.
+→ Ejemplos: "Boca Juniors", "River Plate", "Flamengo", "Inter Miami", "Al Nassr", "Ajax", "Benfica",
+  "Las Palmas", "Girona", "Celtic", "Galatasaray", "Palmeiras", "Monterrey", etc.
+
+═══════════════════════════════════
 PROTOCOLO OBLIGATORIO (ANTES DE RESPONDER)
 ═══════════════════════════════════
-Cuando el usuario mencione un partido o equipo, ejecuta estas herramientas:
+Cuando el usuario mencione un partido o equipo:
+
+SI NO CONOCES LA LIGA:
+0. search_team(nombre_equipo) → descubre liga y slug
+
+SIEMPRE (con la liga ya conocida):
 1. get_standings(liga) → posición real, puntos y contexto de motivación
 2. get_recent_form(equipo_local, liga) → forma, goles, BTTS%, Over2.5%
 3. get_recent_form(equipo_visitante, liga) → ídem visitante

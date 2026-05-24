@@ -5,7 +5,11 @@ export const maxDuration = 60
 
 const LEAGUE_NAMES: Record<string, string> = {
   "esp.1": "LaLiga", "eng.1": "Premier League", "ger.1": "Bundesliga",
-  "ita.1": "Serie A", "fra.1": "Ligue 1",
+  "ita.1": "Serie A", "fra.1": "Ligue 1", "usa.1": "MLS",
+  "arg.1": "Liga Argentina", "bra.1": "Brasileirão", "por.1": "Primeira Liga",
+  "uefa.champions": "Champions League", "mex.1": "Liga MX", "ned.1": "Eredivisie",
+  "tur.1": "Süper Lig", "sau.1": "Saudi Pro League", "sco.1": "Scottish Premiership",
+  "col.1": "Liga BetPlay", "uefa.europa": "Europa League", "jpn.1": "J1 League",
 }
 
 function parseScore(s: any): number {

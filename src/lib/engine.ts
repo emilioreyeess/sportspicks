@@ -23,11 +23,17 @@ export const LEAGUE_NAMES: Record<string, string> = {
   "bra.1":          "Brasileirão",
   "por.1":          "Primeira Liga",
   "uefa.champions": "Champions League",
+  "mex.1":          "Liga MX",
+  "ned.1":          "Eredivisie",
+  "tur.1":          "Süper Lig",
+  "sau.1":          "Saudi Pro League",
+  "sco.1":          "Scottish Premiership",
 }
 
 export const ALL_SLUGS = [
   "esp.1", "eng.1", "ger.1", "ita.1", "fra.1",
   "usa.1", "arg.1", "bra.1", "por.1", "uefa.champions",
+  "mex.1", "ned.1", "tur.1", "sau.1",
 ]
 
 /** Perfil cualitativo por competición — el motor lo usa como contexto, no genera picks. */
@@ -42,6 +48,11 @@ export const LEAGUE_PROFILE: Record<string, { label: string; intensity: number; 
   "bra.1":          { label: "Brasileirão · competitiva", intensity: 1.08, notes: "Igualada, sorpresas frecuentes" },
   "por.1":          { label: "Primeira",                intensity: 1.00, notes: "Top 3 vs resto, ojo con descenso" },
   "uefa.champions": { label: "Champions · alta tensión", intensity: 1.10, notes: "Tensión competitiva máxima" },
+  "mex.1":          { label: "Liga MX · competitiva",   intensity: 1.05, notes: "Ida y vuelta, equipos parejos" },
+  "ned.1":          { label: "Eredivisie · abierta",    intensity: 1.05, notes: "Ofensiva, muchos goles" },
+  "tur.1":          { label: "Süper Lig · intensa",     intensity: 1.08, notes: "Muy competitiva, alta intensidad" },
+  "sau.1":          { label: "Saudi Pro League",        intensity: 1.02, notes: "Liga en expansión, grandes fichajes" },
+  "sco.1":          { label: "Scottish Premiership",   intensity: 1.03, notes: "Celtic dominante, dinámicas claras" },
 }
 
 // ─── Helpers numéricos ─────────────────────────────────────────────────────────

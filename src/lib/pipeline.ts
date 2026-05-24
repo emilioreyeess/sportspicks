@@ -89,8 +89,8 @@ async function fetchDailyData(): Promise<DailyData> {
   }
 
   // Forma reciente real de cada equipo (acotado para limitar llamadas)
-  // Con 10 ligas necesitamos cuota más amplia para captar oportunidades en todas
-  const queue = raw.slice(0, 42)
+  // Con 14 ligas necesitamos cuota más amplia para captar oportunidades globales
+  const queue = raw.slice(0, 56)
   interface WithForm extends RawMatch { home: TeamForm; away: TeamForm }
   const withForm: WithForm[] = []
   await Promise.all(queue.map(async (m) => {
@@ -373,9 +373,9 @@ export function computeValuePicks(data: DailyData): { picks: any[]; note?: strin
 // ─── Combinadas ──────────────────────────────────────────────────────────────
 
 const COMBI_MODES: Record<string, { legs: number; minProb: number; minOdd: number; maxOdd: number; label: string; sort: "prob" | "odd" }> = {
-  safe:     { legs: 2, minProb: 0.58, minOdd: 1.20, maxOdd: 2.6,  label: "Segura",     sort: "prob" },
-  balanced: { legs: 3, minProb: 0.46, minOdd: 1.30, maxOdd: 4.5,  label: "Balanceada", sort: "prob" },
-  dream:    { legs: 5, minProb: 0.30, minOdd: 1.70, maxOdd: 15.0, label: "Soñadora",   sort: "odd"  },
+  safe:     { legs: 2, minProb: 0.58, minOdd: 1.20, maxOdd: 2.6, label: "Segura",     sort: "prob" },
+  balanced: { legs: 3, minProb: 0.50, minOdd: 1.30, maxOdd: 3.5, label: "Balanceada", sort: "prob" },
+  dream:    { legs: 4, minProb: 0.38, minOdd: 1.50, maxOdd: 8.0, label: "Soñadora",   sort: "odd"  },
 }
 
 /** Pool de selecciones candidatas para combinadas — pre-computado en el pipeline */
