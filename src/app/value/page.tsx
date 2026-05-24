@@ -62,28 +62,27 @@ export default function ValuePage() {
       <PageHeader icon="value" title="Value Picks"
         subtitle="Solo publicamos un pick cuando el modelo supera a la cuota real con respaldo de contexto." />
 
-      {/* Disclaimer GRANDE — Value ≠ Safe */}
-      <div className="mb-5 rounded-2xl border-2 border-amber-700/70 bg-gradient-to-br from-amber-500/15 to-amber-900/10 p-4 sm:p-5">
-        <div className="flex items-start gap-3">
-          <span className="grid place-items-center w-10 h-10 sm:w-12 sm:h-12 rounded-xl bg-amber-500/25 text-amber-300 shrink-0 text-xl sm:text-2xl">⚠️</span>
-          <div className="min-w-0">
-            <p className="text-sm sm:text-base font-black uppercase tracking-wide text-amber-300 leading-tight">
-              Value Picks = oportunidades de valor, NO apuestas seguras
-            </p>
-            <div className="mt-2 text-xs sm:text-sm text-amber-100/95 leading-relaxed space-y-1.5">
-              <p>
-                Buscamos <strong>discrepancias</strong> entre la probabilidad real del modelo y la cuota implícita de la casa.
-                Pueden incluir picks de mayor riesgo si existe valor estadístico.
-              </p>
-              <p>
-                <strong>NO recomendamos meter Value Picks en combinadas</strong> — están pensados para
-                oportunidades <strong>individuales</strong> con gestión adecuada del riesgo (stake bajo, bankroll controlado).
-              </p>
-              <p className="text-amber-300/90">
-                Cada pick lleva un badge de riesgo: <span className="font-bold">🟢 Conservador · 🟡 Medio · 🔴 Alto</span>.
-              </p>
-            </div>
-          </div>
+      {/* ¿Qué es un value pick? */}
+      <div className="mb-5 rounded-2xl border border-zinc-800 bg-zinc-900/60 p-4 sm:p-5 space-y-3">
+        <div className="flex items-center gap-2">
+          <Icon name="value" className="w-4.5 h-4.5 text-emerald-400 shrink-0" strokeWidth={2} />
+          <p className="text-sm font-black text-white">¿Qué es un value pick?</p>
+        </div>
+        <p className="text-sm text-zinc-400 leading-relaxed">
+          Un value pick no es un error de cuota ni una apuesta segura. Es una situación donde
+          nuestro modelo estima que la probabilidad real de un resultado es <span className="text-white font-semibold">mayor</span> que
+          la que refleja la cuota de la casa — lo que genera una ventaja estadística a largo plazo.
+        </p>
+        <p className="text-sm text-zinc-400 leading-relaxed">
+          Pueden incluir resultados con riesgo medio o alto. Un pick puede tener valor aunque el
+          favorito no gane ese día. La clave es el <span className="text-white font-semibold">edge acumulado</span>, no el resultado individual.
+        </p>
+        <div className="flex items-start gap-2 rounded-xl border border-zinc-700/60 bg-zinc-800/50 px-3.5 py-2.5">
+          <Icon name="shield" className="w-4 h-4 text-zinc-500 shrink-0 mt-0.5" strokeWidth={2} />
+          <p className="text-xs text-zinc-500 leading-relaxed">
+            Recomendamos jugarlos de forma <span className="text-zinc-300 font-semibold">individual</span> con stake bajo.
+            Meterlos en combinadas multiplica el riesgo y anula la ventaja estadística.
+          </p>
         </div>
       </div>
 
