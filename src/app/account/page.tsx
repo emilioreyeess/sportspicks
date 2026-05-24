@@ -133,22 +133,29 @@ export default function AccountPage() {
       // Update localStorage plan
       try { localStorage.setItem("sp_plan", activePlan) } catch {}
 
-      if (!data.active || activePlan === "free") {
-        // Subscription cancelled or expired — clear stored data
+      const periodEnd = data.period_end
+        ? new Date(data.period_end * 1000).toLocaleDateString("es-ES", { day: "numeric", month: "long", year: "numeric" })
+        : null
+
+      if (activePlan === "free" && !data.period_end) {
+        // Truly expired — no paid period remaining
         clearStoredSub()
         setSub(null)
-        setVerifyMsg({ ok: false, text: "Tu suscripción ya no está activa. Plan revertido a Free." })
+        setVerifyMsg({ ok: false, text: "Tu suscripción ha expirado. Plan revertido a Free." })
         setCancelPending(false)
-      } else {
-        const periodEnd = data.period_end
-          ? new Date(data.period_end * 1000).toLocaleDateString("es-ES", { day: "numeric", month: "long", year: "numeric" })
-          : null
-        const cancelNote = data.cancel_at_period_end ? " (cancelación al final del período)" : ""
+      } else if (data.cancel_at_period_end || !data.active) {
+        // Cancelled but still within paid period — keep plan active
         setVerifyMsg({
           ok: true,
-          text: `Plan ${activePlan} activo${cancelNote}${periodEnd ? ` · renueva el ${periodEnd}` : ""}.`,
+          text: `Plan ${activePlan} activo hasta el ${periodEnd ?? "fin del período"}. Después pasará a Free.`,
         })
-        setCancelPending(data.cancel_at_period_end ?? false)
+        setCancelPending(true)
+      } else {
+        setVerifyMsg({
+          ok: true,
+          text: `Plan ${activePlan} activo${periodEnd ? ` · próxima renovación el ${periodEnd}` : ""}.`,
+        })
+        setCancelPending(false)
       }
     } catch (e: any) {
       setVerifyMsg({ ok: false, text: "Error de red al verificar." })
