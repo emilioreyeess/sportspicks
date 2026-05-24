@@ -47,6 +47,6 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ url: session.url })
   } catch (err: any) {
     console.error("[checkout] error:", err)
-    return NextResponse.json({ error: err.message ?? "Error interno" }, { status: 500 })
+    return NextResponse.json({ error: "Error al crear la sesión de pago" }, { status: 500 })
   }
 }

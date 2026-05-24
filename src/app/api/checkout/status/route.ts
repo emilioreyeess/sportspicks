@@ -55,6 +55,6 @@ export async function GET(req: NextRequest) {
     })
   } catch (err: any) {
     console.error("[status] error:", err)
-    return NextResponse.json({ error: err.message ?? "Error interno" }, { status: 500 })
+    return NextResponse.json({ error: "Error al verificar la suscripción" }, { status: 500 })
   }
 }

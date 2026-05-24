@@ -6,13 +6,19 @@
  */
 import { NextRequest, NextResponse } from "next/server"
 import { getStripe } from "@/lib/stripe"
+import { consume, getClientIp, tooManyRequests } from "@/lib/rate-limit"
 
 export const runtime = "nodejs"
 
 export async function GET(req: NextRequest) {
+  // Rate limit: 10 intentos por IP por minuto (evita fuerza bruta de session_ids)
+  const ip = getClientIp(req)
+  if (!consume(`verify:${ip}`, 10, 1)) return tooManyRequests(60)
+
   const sessionId = req.nextUrl.searchParams.get("session_id")
-  if (!sessionId) {
-    return NextResponse.json({ error: "session_id requerido" }, { status: 400 })
+  // session_ids de Stripe siempre empiezan por "cs_"
+  if (!sessionId?.startsWith("cs_")) {
+    return NextResponse.json({ error: "session_id inválido" }, { status: 400 })
   }
 
   try {
@@ -32,6 +38,7 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ plan, email, customer_id, verified: true })
   } catch (err: any) {
     console.error("[checkout/verify] error:", err)
-    return NextResponse.json({ error: err.message ?? "Error interno" }, { status: 500 })
+    // No exponer detalles internos de Stripe al cliente
+    return NextResponse.json({ error: "Error al verificar el pago" }, { status: 500 })
   }
 }
