@@ -15,8 +15,11 @@ import {
   fetchStandings, classifyMotivation, extractOdds, fetchTeamForm, modelMatch, handicapProb,
   type LeagueTable, type Motivation, type RealOdds, type TeamForm, type ModelOut,
 } from "@/lib/engine"
+import { evaluatePick, type EvalCandidate, type EvalMatch, type PickEvaluation } from "@/lib/decision-engine"
+import { recordPublishedPicks, preloadLearningCache, type PickRecord } from "@/lib/learning"
 import {
   getStore, setStatus, addLog, recordError, setDailyResults, setNextRun, isFresh,
+  setYesterdayResults,
 } from "@/lib/store"
 
 const LEAGUE_MAP: Record<string, string> = {
@@ -77,6 +80,10 @@ async function fetchDailyData(): Promise<DailyData> {
       if (!home?.team?.id || !away?.team?.id) continue
       // Validación: fecha de inicio válida
       if (!ev.date || isNaN(new Date(ev.date).getTime())) continue
+      // Descartar partidos cuyo kickoff ya pasó (son de otro día)
+      const kickoffDate = ev.date?.slice(0, 10)
+      const today = new Date().toISOString().split("T")[0]
+      if (kickoffDate && kickoffDate < today) continue
       const odds = extractOdds(comp)
       if (!odds) continue
       raw.push({
@@ -309,52 +316,114 @@ function riskTier(prob: number, odd: number, quality: number): "low" | "mid" | "
   return "high"
 }
 
-export function computeValuePicks(data: DailyData): { picks: any[]; note?: string } {
+/** Construye el candidato de evaluación para el motor de decisión */
+function toEvalCandidate(c: Candidate, m: MatchModel, odd: number): EvalCandidate {
+  const edge = Math.round((c.prob * 100 - impliedPct(odd)) * 10) / 10
+  const reliability = (Math.min(m.home.gamesPlayed, 10) + Math.min(m.away.gamesPlayed, 10)) / 20
+  const edgeScore = 25 + clamp((edge - MIN_EDGE) / (MAX_EDGE - MIN_EDGE), 0, 1) * 75
+  const marketScore = clamp((odd - MIN_ODD) / (4.5 - MIN_ODD), 0, 1) * 100
+  const baseQuality = Math.round(0.38 * edgeScore + 0.30 * c.contextScore + 0.16 * marketScore + 0.16 * reliability * 100)
+  return {
+    market: c.market, selection: c.selection, key: c.key,
+    prob: c.prob, contextScore: c.contextScore,
+    odd, edge, baseQuality,
+  }
+}
+
+function toEvalMatch(m: MatchModel): EvalMatch {
+  return {
+    id: m.id, homeName: m.homeName, awayName: m.awayName,
+    slug: m.slug, kickoff: m.kickoff, odds: m.odds,
+    home: m.home, away: m.away,
+    homeMotiv: m.homeMotiv, awayMotiv: m.awayMotiv,
+    mdl: m.mdl,
+  }
+}
+
+export function computeValuePicks(data: DailyData): { picks: any[]; note?: string; auditTrail: any[] } {
   const picks: any[] = []
+  const auditTrail: any[] = []   // motivos de rechazo de cada candidato (admin only)
 
   for (const m of data.matches) {
-    const reliability = (Math.min(m.home.gamesPlayed, 10) + Math.min(m.away.gamesPlayed, 10)) / 20
-    let best: { c: Candidate; odd: number; edge: number; quality: number } | null = null
+    const evalMatch = toEvalMatch(m)
+    interface BestEntry {
+      c: Candidate; odd: number; edge: number; quality: number
+      evaluation: PickEvaluation
+    }
+    let best: BestEntry | null = null
 
     for (const c of buildCandidates(m)) {
       if (c.suppressed) continue
       const odd = m.odds[c.key]
-      if (!odd || !isFinite(odd) || odd < MIN_ODD) continue // validación de cuota
-      const edge = Math.round((c.prob * 100 - impliedPct(odd)) * 10) / 10
-      if (edge < MIN_EDGE || edge > MAX_EDGE) continue
+      if (!odd || !isFinite(odd) || odd < MIN_ODD) continue
 
-      const edgeScore = 25 + clamp((edge - MIN_EDGE) / (MAX_EDGE - MIN_EDGE), 0, 1) * 75
-      const marketScore = clamp((odd - MIN_ODD) / (4.5 - MIN_ODD), 0, 1) * 100
-      const quality = Math.round(0.38 * edgeScore + 0.30 * c.contextScore + 0.16 * marketScore + 0.16 * reliability * 100)
+      const evalCand = toEvalCandidate(c, m, odd)
+      if (evalCand.edge < MIN_EDGE || evalCand.edge > MAX_EDGE) continue
+      if (!commonSensePass(c, m)) continue
 
-      if (!commonSensePass(c, m)) continue           // ¿lo aprobaría un analista pro?
-      if (quality < QUALITY_GATE) continue
-      if (!best || quality > best.quality) best = { c, odd, edge, quality }
+      // ────────── MOTOR DE DECISIÓN ──────────
+      const evaluation = evaluatePick(evalCand, evalMatch)
+
+      if (!evaluation.pass || !evaluation.professionallyDefendable) {
+        auditTrail.push({
+          match: `${m.homeName} vs ${m.awayName}`,
+          league: LEAGUE_NAMES[m.slug] ?? m.slug,
+          selection: c.selection,
+          rejected: evaluation.rejectReasons,
+          scores: evaluation.gate.scores,
+          uncertainty: evaluation.uncertainty.reasons,
+          contradictions: evaluation.contradiction.conflicts,
+        })
+        continue
+      }
+
+      if (!best || evalCand.baseQuality > best.quality) {
+        best = { c, odd, edge: evalCand.edge, quality: evalCand.baseQuality, evaluation }
+      }
     }
     if (!best) continue
 
-    const conf = Math.round(best.c.prob * 100)
+    // Usamos la PROB DE CONSENSO (mejor estimación que c.prob solo)
+    const consensusProb = best.evaluation.consensus.prob
+    const conf = Math.round(consensusProb * 100)
     const imp = impliedPct(best.odd)
+    const recomputedEdge = Math.round((consensusProb * 100 - imp) * 10) / 10
     const valueReason = best.c.story ||
-      `El mercado valora esta selección en ${imp}%; el modelo la sitúa en ${(best.c.prob * 100).toFixed(1)}%.`
+      `El mercado valora esta selección en ${imp}%; el consenso de modelos la sitúa en ${(consensusProb * 100).toFixed(1)}%.`
 
-    const risk = riskTier(best.c.prob, best.odd, best.quality)
+    const risk = riskTier(consensusProb, best.odd, best.quality)
+    const ev = best.evaluation
+
     picks.push({
       id: m.id,
       home_team: m.homeName, away_team: m.awayName,
       league_name: LEAGUE_NAMES[m.slug] ?? m.slug, kickoff_utc: m.kickoff,
       market: best.c.market, selection: best.c.selection,
       confidence_pct: conf, confidence_tier: valueTier(best.quality),
-      model_prob: Math.round(best.c.prob * 1000) / 10,
-      best_odd: best.odd, value_edge: best.edge, bookmaker: m.odds.provider,
+      model_prob: Math.round(consensusProb * 1000) / 10,
+      best_odd: best.odd, value_edge: recomputedEdge, bookmaker: m.odds.provider,
       quality_score: best.quality, value_reason: valueReason,
       risk_tier: risk,
       result: "PENDING", plan_required: best.quality >= 72 ? "premium" : "basic",
+      // ─── Trazabilidad del motor de decisión (visible en PickDetail) ───
+      engine: {
+        consensus_prob: Math.round(consensusProb * 1000) / 10,
+        consensus_agreement: Math.round(ev.consensus.agreement * 100),
+        uncertainty: ev.uncertainty.score,
+        contradiction: ev.contradiction.score,
+        models: ev.consensus.models.map((x) => ({
+          name: x.name, prob: Math.round(x.prob * 1000) / 10,
+          confidence: Math.round(x.confidence * 100), rationale: x.rationale,
+        })),
+        uncertainty_reasons: ev.uncertainty.reasons,
+        contradictions: ev.contradiction.conflicts,
+      },
       reasons: [
         `💡 ${valueReason}`,
         ...best.c.extra,
         `Cuota real (${m.odds.provider}): ${best.odd.toFixed(2)} → prob. implícita ${imp}%`,
-        `Probabilidad del modelo: ${(best.c.prob * 100).toFixed(1)}% → edge real +${best.edge.toFixed(1)}%`,
+        `Consenso 5 modelos: ${conf}% · Acuerdo entre modelos: ${Math.round(ev.consensus.agreement * 100)}%`,
+        `Incertidumbre: ${ev.uncertainty.score}/100 · Contradicciones: ${ev.contradiction.score}/100`,
         `Score de calidad: ${best.quality}/100 · Riesgo ${risk === "low" ? "🟢 conservador" : risk === "mid" ? "🟡 medio" : "🔴 alto"}`,
       ],
     })
@@ -364,9 +433,138 @@ export function computeValuePicks(data: DailyData): { picks: any[]; note?: strin
   const capped = picks.slice(0, MAX_PICKS)
   return {
     picks: capped,
+    auditTrail: auditTrail.slice(0, 40),  // top 40 para no llenar logs
     note: capped.length === 0
-      ? "Hoy el modelo no detecta valor real con respaldo de contexto. No publicamos picks por publicar."
+      ? "Hoy ningún partido supera el motor de validación (consenso, incertidumbre, contradicciones). No publicamos picks por publicar."
       : undefined,
+  }
+}
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// SECOND OPINION — busca un pick alternativo en el MISMO partido
+// ═══════════════════════════════════════════════════════════════════════════════
+
+export interface SecondOpinionResult {
+  found: boolean
+  pick?: any
+  /** Qué cambió respecto al pick original */
+  changes?: {
+    market_from: string;       market_to: string
+    selection_from: string;    selection_to: string
+    odd_from: number;          odd_to: number
+    edge_from: number;         edge_to: number
+    quality_from: number;      quality_to: number
+    why_changed: string
+  }
+  reason?: string             // si found=false
+}
+
+/**
+ * Encuentra un pick alternativo para un partido dado, excluyendo selecciones
+ * ya mostradas. Aplica el motor de decisión completo — solo devuelve algo si
+ * iguala o mejora el quality del original.
+ */
+export function findAlternativePick(
+  data: DailyData,
+  matchId: string,
+  originalSelection: string,
+  originalMarket: string,
+  originalQuality: number,
+  excludeSelections: string[] = [],
+): SecondOpinionResult {
+  const m = data.matches.find((x) => x.id === matchId)
+  if (!m) return { found: false, reason: "Partido no encontrado o ya jugado" }
+
+  const evalMatch = toEvalMatch(m)
+  const excluded = new Set([originalSelection, ...excludeSelections])
+
+  let best: { c: Candidate; odd: number; quality: number; evaluation: PickEvaluation } | null = null
+
+  for (const c of buildCandidates(m)) {
+    if (c.suppressed) continue
+    if (excluded.has(c.selection)) continue        // no repetir
+    if (c.market === originalMarket && c.selection === originalSelection) continue
+    const odd = m.odds[c.key]
+    if (!odd || !isFinite(odd) || odd < MIN_ODD) continue
+
+    const evalCand = toEvalCandidate(c, m, odd)
+    if (evalCand.edge < MIN_EDGE || evalCand.edge > MAX_EDGE) continue
+    if (!commonSensePass(c, m)) continue
+
+    const evaluation = evaluatePick(evalCand, evalMatch)
+    if (!evaluation.pass || !evaluation.professionallyDefendable) continue
+    if (evalCand.baseQuality < originalQuality) continue   // no degradar
+
+    if (!best || evalCand.baseQuality > best.quality) {
+      best = { c, odd, quality: evalCand.baseQuality, evaluation }
+    }
+  }
+
+  if (!best) {
+    return {
+      found: false,
+      reason: "No se encontró una alternativa que iguale o mejore la calidad del pick actual.",
+    }
+  }
+
+  const ev = best.evaluation
+  const consensusProb = ev.consensus.prob
+  const imp = impliedPct(best.odd)
+  const recomputedEdge = Math.round((consensusProb * 100 - imp) * 10) / 10
+  const risk = riskTier(consensusProb, best.odd, best.quality)
+  const valueReason = best.c.story ||
+    `Tras reanalizar, el consenso sitúa esta selección en ${(consensusProb * 100).toFixed(1)}% vs el ${imp}% del mercado.`
+
+  // ── Explicación de qué cambió ────────────────────────────────────────────
+  const marketChanged = best.c.market !== originalMarket
+  let whyChanged: string
+  if (marketChanged) {
+    whyChanged = `Se cambió el mercado de "${originalMarket}" a "${best.c.market}" porque tras revisar contexto, forma y modelo, esta selección tiene mejor respaldo: consenso ${Math.round(consensusProb * 100)}%, incertidumbre solo ${ev.uncertainty.score}/100 y sin contradicciones relevantes.`
+  } else {
+    whyChanged = `Se mantiene el mercado "${best.c.market}" pero con selección distinta. La revisión del consenso (${Math.round(consensusProb * 100)}%) y el contexto justifican esta alternativa.`
+  }
+
+  return {
+    found: true,
+    pick: {
+      id: `${m.id}-alt`,
+      home_team: m.homeName, away_team: m.awayName,
+      league_name: LEAGUE_NAMES[m.slug] ?? m.slug, kickoff_utc: m.kickoff,
+      market: best.c.market, selection: best.c.selection,
+      confidence_pct: Math.round(consensusProb * 100),
+      confidence_tier: valueTier(best.quality),
+      model_prob: Math.round(consensusProb * 1000) / 10,
+      best_odd: best.odd, value_edge: recomputedEdge, bookmaker: m.odds.provider,
+      quality_score: best.quality, value_reason: valueReason,
+      risk_tier: risk,
+      result: "PENDING", plan_required: best.quality >= 72 ? "premium" : "basic",
+      is_second_opinion: true,
+      engine: {
+        consensus_prob: Math.round(consensusProb * 1000) / 10,
+        consensus_agreement: Math.round(ev.consensus.agreement * 100),
+        uncertainty: ev.uncertainty.score,
+        contradiction: ev.contradiction.score,
+        models: ev.consensus.models.map((x) => ({
+          name: x.name, prob: Math.round(x.prob * 1000) / 10,
+          confidence: Math.round(x.confidence * 100), rationale: x.rationale,
+        })),
+      },
+      reasons: [
+        `🔄 Segunda opinión: ${whyChanged}`,
+        ...best.c.extra,
+        `Consenso 5 modelos: ${Math.round(consensusProb * 100)}% · Acuerdo ${Math.round(ev.consensus.agreement * 100)}%`,
+        `Cuota real (${m.odds.provider}): ${best.odd.toFixed(2)} → edge ${recomputedEdge >= 0 ? "+" : ""}${recomputedEdge}%`,
+        `Score de calidad: ${best.quality}/100 · Riesgo ${risk === "low" ? "🟢" : risk === "mid" ? "🟡" : "🔴"}`,
+      ],
+    },
+    changes: {
+      market_from:    originalMarket,    market_to:    best.c.market,
+      selection_from: originalSelection, selection_to: best.c.selection,
+      odd_from:       0,                 odd_to:       best.odd,
+      edge_from:      0,                 edge_to:      recomputedEdge,
+      quality_from:   originalQuality,   quality_to:   best.quality,
+      why_changed:    whyChanged,
+    },
   }
 }
 
@@ -470,6 +668,8 @@ export function pickCombinadaFromPool(pool: PoolEntry[], mode: string, leagueId:
 interface RetoSpec {
   id: string; emoji: string; title: string
   days: number; targetOdd: number; nLegs: number
+  /** Rango de cuota válido para CADA pata individual — evita combos absurdos */
+  minLegOdd: number; maxLegOdd: number
   difficulty: string; description: string
   stake: number; simulResult: number; color: string
 }
@@ -484,30 +684,34 @@ const RETO_SPECS_V2: RetoSpec[] = [
   {
     id: "conservador", emoji: "🟢", title: "Conservador",
     days: 15, targetOdd: 1.25, nLegs: 1,
+    minLegOdd: 1.15, maxLegOdd: 1.42,
     difficulty: "Baja",
-    description: "15 días · 1 pick diario a cuota ~1.25. Alta probabilidad, riesgo mínimo. El reto para construir racha.",
+    description: "15 días · 1 pick diario a cuota entre 1.15 y 1.40. Alta probabilidad, riesgo mínimo. El reto para construir racha.",
     stake: 10, simulResult: 284, color: "emerald",
   },
   {
     id: "balanceado", emoji: "⭐", title: "Balanceado",
-    days: 10, targetOdd: 1.40, nLegs: 2,
+    days: 10, targetOdd: 1.45, nLegs: 1,      // 1 sola pata — no combo absurdo de 1.18×1.18
+    minLegOdd: 1.28, maxLegOdd: 1.72,
     difficulty: "Media",
-    description: "10 días · Mini-combinada de 2 picks a cuota ~1.18 cada uno. Más variedad, mismo objetivo.",
-    stake: 10, simulResult: 289, color: "amber",
+    description: "10 días · 1 pick diario a cuota entre 1.30 y 1.70. Equilibrio entre seguridad y valor.",
+    stake: 10, simulResult: 310, color: "amber", // 10×1.45^10 ≈ 310
   },
   {
     id: "agresivo", emoji: "🔥", title: "Agresivo",
-    days: 5, targetOdd: 2.00, nLegs: 2,
+    days: 5, targetOdd: 2.25, nLegs: 2,
+    minLegOdd: 1.35, maxLegOdd: 1.90,          // cada pata 1.35–1.90, producto ~2.25
     difficulty: "Alta",
-    description: "5 días · Mini-combinada de 2 picks a cuota ~1.41 cada uno. Mercados variados, cuota objetivo 2.0.",
-    stake: 10, simulResult: 320, color: "rose",
+    description: "5 días · Combinada de 2 picks a cuota entre 1.35 y 1.90 cada uno (combinada objetivo ~2.25).",
+    stake: 10, simulResult: 570, color: "rose", // 10×2.25^5 ≈ 570
   },
   {
     id: "elite", emoji: "👑", title: "Élite",
-    days: 4, targetOdd: 3.00, nLegs: 2,
+    days: 4, targetOdd: 3.20, nLegs: 2,
+    minLegOdd: 1.55, maxLegOdd: 2.30,          // cada pata 1.55–2.30, producto ~3.20
     difficulty: "Muy alta",
-    description: "4 días · Mini-combinada de 2 picks a cuota ~1.73 cada uno. Value real, sin buscar picks imposibles.",
-    stake: 10, simulResult: 810, color: "violet",
+    description: "4 días · Combinada de 2 picks a cuota entre 1.55 y 2.30 cada uno (combinada objetivo ~3.20).",
+    stake: 10, simulResult: 1050, color: "violet", // 10×3.20^4 ≈ 1050
   },
 ]
 
@@ -568,38 +772,45 @@ function computeRetoCombi(
   usedMatches: Set<string>,
 ): RetoCombo | null {
 
-  // Construir pool de candidatos calificados (sin restricción de cuota aquí)
+  // Pool amplio de candidatos con edge positivo (sin filtro de cuota todavía)
   const cands: RawCand[] = []
-
   for (const m of data.matches) {
     const reliability = (Math.min(m.home.gamesPlayed, 10) + Math.min(m.away.gamesPlayed, 10)) / 20
-
     for (const c of buildCandidates(m)) {
       if (c.suppressed) continue
       const odd = m.odds[c.key]
-      if (!odd || !isFinite(odd) || odd < 1.06 || odd > 7.0) continue
+      if (!odd || !isFinite(odd) || odd < 1.10 || odd > 7.0) continue
       if (c.prob < 0.42) continue
       if (!commonSensePass(c, m)) continue
       const edge = Math.round((c.prob * 100 - impliedPct(odd)) * 10) / 10
       if (edge < 0.8) continue
-
       const edgeScore = 25 + clamp((edge - 0.8) / 12, 0, 1) * 75
       const quality = Math.round(0.45 * edgeScore + 0.40 * c.contextScore + 0.15 * reliability * 100)
       cands.push({ match: m, c, odd, edge, quality })
     }
   }
-
-  // Ordenar por calidad descendente y tomar top-30
   cands.sort((a, b) => b.quality - a.quality)
-  const pool = cands.slice(0, 30)
+
+  // Pool filtrado por rango de cuota POR PATA (garantiza cuotas con sentido)
+  const legPool = cands
+    .filter((rc) => rc.odd >= spec.minLegOdd && rc.odd <= spec.maxLegOdd)
+    .slice(0, 40)
+
+  // Pool amplio (fallback de último recurso solo para 1 pata)
+  const broadPool = cands.slice(0, 30)
 
   // ── 1 pata ────────────────────────────────────────────────────────────────
   if (spec.nLegs === 1) {
-    // Buscar pick cuya cuota esté dentro del 25% del objetivo
-    for (const rc of pool) {
-      if (usedMatches.has(rc.match.id)) continue
-      const dev = Math.abs(rc.odd - spec.targetOdd) / spec.targetOdd
-      if (dev > 0.25) continue
+    // 1º: legPool ordenado por cercanía al targetOdd y calidad
+    const legSorted = [...legPool]
+      .filter((rc) => !usedMatches.has(rc.match.id))
+      .sort((a, b) => {
+        const da = Math.abs(a.odd - spec.targetOdd) / spec.targetOdd
+        const db = Math.abs(b.odd - spec.targetOdd) / spec.targetOdd
+        return (da - db) * 0.6 + (b.quality - a.quality) * 0.4 / 100
+      })
+    if (legSorted.length > 0) {
+      const rc = legSorted[0]
       usedMatches.add(rc.match.id)
       return {
         picks: [buildRetoPick(rc)],
@@ -607,31 +818,35 @@ function computeRetoCombi(
         combined_prob: Math.round(rc.c.prob * 100),
       }
     }
-    // fallback: mejor disponible sin restricción de cuota
-    const best = pool.find((rc) => !usedMatches.has(rc.match.id))
-    if (!best) return null
-    usedMatches.add(best.match.id)
+    // Fallback: mejor del pool amplio dentro del rango ±35% del target
+    const fallback = broadPool.find((rc) => {
+      if (usedMatches.has(rc.match.id)) return false
+      return Math.abs(rc.odd - spec.targetOdd) / spec.targetOdd <= 0.35
+    })
+    if (!fallback) return null
+    usedMatches.add(fallback.match.id)
     return {
-      picks: [buildRetoPick(best)],
-      combined_odd: Math.round(best.odd * 100) / 100,
-      combined_prob: Math.round(best.c.prob * 100),
+      picks: [buildRetoPick(fallback)],
+      combined_odd: Math.round(fallback.odd * 100) / 100,
+      combined_prob: Math.round(fallback.c.prob * 100),
     }
   }
 
-  // ── 2 patas: buscar pareja con producto ≈ targetOdd ───────────────────────
+  // ── 2 patas: buscar pareja dentro del rango de pata individual ─────────────
+  // Ambas patas deben estar en [minLegOdd, maxLegOdd] Y su producto ≈ targetOdd
   let bestPair: [RawCand, RawCand] | null = null
   let bestScore = -Infinity
 
-  for (let i = 0; i < pool.length; i++) {
-    if (usedMatches.has(pool[i].match.id)) continue
-    for (let j = i + 1; j < pool.length; j++) {
-      if (usedMatches.has(pool[j].match.id)) continue
-      if (pool[i].match.id === pool[j].match.id) continue
-      const combined = pool[i].odd * pool[j].odd
+  const eligible = legPool.filter((rc) => !usedMatches.has(rc.match.id))
+
+  for (let i = 0; i < eligible.length; i++) {
+    for (let j = i + 1; j < eligible.length; j++) {
+      if (eligible[i].match.id === eligible[j].match.id) continue
+      const combined = eligible[i].odd * eligible[j].odd
       const deviation = Math.abs(combined - spec.targetOdd) / spec.targetOdd
-      if (deviation > 0.28) continue   // ±28% del objetivo
-      const score = (pool[i].quality + pool[j].quality) / 2 - deviation * 70
-      if (score > bestScore) { bestScore = score; bestPair = [pool[i], pool[j]] }
+      if (deviation > 0.30) continue   // ±30% del objetivo combinado
+      const score = (eligible[i].quality + eligible[j].quality) / 2 - deviation * 60
+      if (score > bestScore) { bestScore = score; bestPair = [eligible[i], eligible[j]] }
     }
   }
 
@@ -643,16 +858,16 @@ function computeRetoCombi(
     return { picks: bestPair.map(buildRetoPick), combined_odd, combined_prob }
   }
 
-  // Fallback: los 2 mejores disponibles sin restricción de cuota objetivo
+  // Fallback: los 2 mejores dentro del rango de pata, sin restricción de producto
   const avail: RawCand[] = []
-  const seenMatches = new Set<string>()
-  for (const rc of pool) {
-    if (usedMatches.has(rc.match.id) || seenMatches.has(rc.match.id)) continue
-    seenMatches.add(rc.match.id)
+  const seen = new Set<string>()
+  for (const rc of legPool) {
+    if (usedMatches.has(rc.match.id) || seen.has(rc.match.id)) continue
+    seen.add(rc.match.id)
     avail.push(rc)
     if (avail.length === 2) break
   }
-  if (avail.length === 0) return null
+  if (avail.length < 2) return null   // sin cuotas coherentes → no publicamos nada
   for (const rc of avail) usedMatches.add(rc.match.id)
   const combined_odd = Math.round(avail.reduce((a, rc) => a * rc.odd, 1) * 100) / 100
   const combined_prob = Math.round(avail.reduce((a, rc) => a * rc.c.prob, 1) * 10000) / 100
@@ -696,6 +911,87 @@ export function computeRetos(data: DailyData): { challenges: any[]; note?: strin
   }
 }
 
+// ─── Verificación de resultados ──────────────────────────────────────────────
+
+function normTeam(s: string): string {
+  return (s || "").toLowerCase()
+    .normalize("NFD").replace(/[̀-ͯ]/g, "")
+    .replace(/[^a-z0-9 ]/g, "").trim()
+}
+
+function evaluateResult(
+  pick: any,
+  homeScore: number,
+  awayScore: number,
+): "WIN" | "LOSS" | "VOID" {
+  const { market, selection, home_team, away_team } = pick
+  const total = homeScore + awayScore
+
+  if (market === "1X2") {
+    if (selection === `Gana ${home_team}`) return homeScore > awayScore ? "WIN" : "LOSS"
+    if (selection === `Gana ${away_team}`) return awayScore > homeScore ? "WIN" : "LOSS"
+    if (selection === "Empate")            return homeScore === awayScore ? "WIN" : "LOSS"
+    return "VOID"
+  }
+
+  if (market === "Over/Under 2.5") {
+    if (selection === "Over 2.5 Goles")  return total > 2 ? "WIN" : "LOSS"
+    if (selection === "Under 2.5 Goles") return total < 3 ? "WIN" : "LOSS"
+    return "VOID"
+  }
+
+  if (market === "Hándicap") {
+    const m = selection.match(/hándicap ([+-]?\d+\.?\d*)$/)
+    if (!m) return "VOID"
+    const line = parseFloat(m[1])
+    const isHome = selection.startsWith(home_team)
+    const adj = isHome ? homeScore + line : awayScore + line
+    const opp = isHome ? awayScore : homeScore
+    if (adj > opp) return "WIN"
+    if (adj < opp) return "LOSS"
+    return "VOID" // push
+  }
+
+  return "VOID"
+}
+
+async function checkPickResults(picks: any[], date: string): Promise<any[]> {
+  if (!picks.length) return picks
+  const yyyymmdd = date.replace(/-/g, "")
+
+  // Recoger todos los resultados finales del día en todas las ligas
+  const resultMap = new Map<string, { homeScore: number; awayScore: number }>()
+
+  await Promise.all(ALL_SLUGS.map(async (slug) => {
+    try {
+      const data = await fetchJSON(
+        `https://site.api.espn.com/apis/site/v2/sports/soccer/${slug}/scoreboard?dates=${yyyymmdd}`,
+      )
+      for (const ev of data?.events ?? []) {
+        const comp = ev.competitions?.[0]
+        if (!comp?.status?.type?.completed) continue
+        const home = comp.competitors?.find((c: any) => c.homeAway === "home")
+        const away = comp.competitors?.find((c: any) => c.homeAway === "away")
+        if (!home || !away) continue
+        const key = `${normTeam(home.team.displayName)}|${normTeam(away.team.displayName)}`
+        resultMap.set(key, {
+          homeScore: parseInt(home.score ?? "0", 10),
+          awayScore: parseInt(away.score ?? "0", 10),
+        })
+      }
+    } catch { /* ignore */ }
+  }))
+
+  return picks.map((pick) => {
+    if (pick.result !== "PENDING") return pick
+    const key = `${normTeam(pick.home_team)}|${normTeam(pick.away_team)}`
+    const match = resultMap.get(key)
+    if (!match) return pick // not completed or not found
+    const result = evaluateResult(pick, match.homeScore, match.awayScore)
+    return { ...pick, result, home_score: match.homeScore, away_score: match.awayScore }
+  })
+}
+
 // ─── Orquestación ────────────────────────────────────────────────────────────
 
 // Promesa de la ejecución en curso — las llamadas concurrentes se enganchan a ella
@@ -708,6 +1004,26 @@ export function runPipeline(reason = "scheduled"): Promise<void> {
     addLog(`▶️  Pipeline iniciado (${reason})`)
     const t0 = Date.now()
     try {
+      // ── Verificar resultados del día anterior (solo si el store estaba caliente) ──
+      // En cold start el store está vacío y los picks de ayer se recuperan desde
+      // localStorage en el cliente → /api/picks/yesterday los resuelve vía ESPN.
+      const prevStore = getStore()
+      const today = new Date().toISOString().split("T")[0]
+
+      if (prevStore.date && prevStore.date !== today && prevStore.valuePicks.length > 0) {
+        addLog(`📋 Verificando resultados del ${prevStore.date}…`)
+        try {
+          const verified = await checkPickResults(prevStore.valuePicks, prevStore.date)
+          const wins    = verified.filter((p: any) => p.result === "WIN").length
+          const losses  = verified.filter((p: any) => p.result === "LOSS").length
+          const pending = verified.filter((p: any) => p.result === "PENDING").length
+          setYesterdayResults(prevStore.date, verified)
+          addLog(`✅ Resultados verificados: ${wins}W ${losses}L ${pending} pendientes`)
+        } catch (e: any) {
+          addLog(`⚠️  Error verificando resultados: ${e?.message ?? e}`)
+        }
+      }
+
       let data: DailyData | null = null
       for (let attempt = 1; attempt <= 3; attempt++) {
         try {
@@ -724,8 +1040,57 @@ export function runPipeline(reason = "scheduled"): Promise<void> {
       if (!data) throw new Error("No se pudieron descargar los datos tras 3 intentos")
       addLog(`✅ ${data.matches.length} partidos con datos reales completos`)
 
-      const { picks, note: picksNote } = computeValuePicks(data)
-      addLog(`🎯 ${picks.length} value picks generados`)
+      // Precargar pesos y patterns del Learning Engine antes de evaluar
+      await preloadLearningCache()
+
+      const { picks, note: picksNote, auditTrail } = computeValuePicks(data)
+      addLog(`🎯 ${picks.length} value picks generados (motor de decisión + learning activo)`)
+      if (auditTrail.length > 0) {
+        addLog(`🔍 ${auditTrail.length} candidatos rechazados — ver /admin para auditoría`)
+      }
+      // Snapshot del DailyData + audit para Second Opinion y /admin
+      const s = getStore()
+      s.dailyData = data
+      s.lastAuditTrail = auditTrail
+
+      // Registrar los picks publicados en el Learning Storage (para verificación mañana)
+      if (picks.length > 0) {
+        const today = new Date().toISOString().slice(0, 10)
+        const records: PickRecord[] = picks.map((p: any) => ({
+          pickId: `vp-${today}-${p.id}-${p.market}-${p.selection}`.replace(/\s+/g, "_").slice(0, 200),
+          date: today,
+          matchId: p.id,
+          league: data.matches.find((mm) => mm.id === p.id)?.slug ?? "",
+          leagueName: p.league_name,
+          homeTeam: p.home_team, awayTeam: p.away_team,
+          market: p.market, selection: p.selection,
+          selectionType:
+            p.selection.startsWith("Gana ") ? `1X2-${p.selection === `Gana ${p.home_team}` ? "home" : "away"}` :
+            p.selection === "Empate" ? "1X2-draw" :
+            p.selection === "Over 2.5 Goles" ? "Over25" :
+            p.selection === "Under 2.5 Goles" ? "Under25" :
+            p.market === "Hándicap" ? "Handicap" : p.market,
+          odd: p.best_odd, impliedProb: impliedPct(p.best_odd),
+          modelProb: p.model_prob,
+          consensusProb: p.engine?.consensus_prob ?? p.model_prob,
+          edge: p.value_edge, qualityScore: p.quality_score,
+          riskTier: p.risk_tier,
+          uncertaintyScore: p.engine?.uncertainty ?? 0,
+          contradictionScore: p.engine?.contradiction ?? 0,
+          consensusAgreement: p.engine?.consensus_agreement ?? 0,
+          contextSnapshot: {
+            homeForm: data.matches.find((mm) => mm.id === p.id)?.home.form ?? "",
+            awayForm: data.matches.find((mm) => mm.id === p.id)?.away.form ?? "",
+            homeMotivStatus: data.matches.find((mm) => mm.id === p.id)?.homeMotiv.status ?? "",
+            awayMotivStatus: data.matches.find((mm) => mm.id === p.id)?.awayMotiv.status ?? "",
+            expGoals: ((data.matches.find((mm) => mm.id === p.id)?.mdl.lambdaHome ?? 0) +
+                       (data.matches.find((mm) => mm.id === p.id)?.mdl.lambdaAway ?? 0)),
+          },
+          result: "PENDING",
+        }))
+        recordPublishedPicks(records).catch((e) => addLog(`⚠️  Learning storage: ${e?.message ?? e}`))
+        addLog(`📝 ${records.length} picks registrados en Learning Engine`)
+      }
 
       const combinadaPool = buildCombinadaPool(data)
       addLog(`🎲 Pool de combinadas: ${combinadaPool.length} selecciones candidatas`)
@@ -733,13 +1098,15 @@ export function runPipeline(reason = "scheduled"): Promise<void> {
       const { challenges, note: retosNote } = computeRetos(data)
       addLog(`🏆 ${challenges.length} retos con pick diario real`)
 
+      const todayDate = new Date().toISOString().split("T")[0]
       setDailyResults({
-        date: new Date().toISOString().split("T")[0],
+        date: todayDate,
         valuePicks: picks, picksNote,
         combinadaPool, retos: challenges, retosNote,
         matches: data.matches.length,
         durationMs: Date.now() - t0,
       })
+
       addLog(`🟢 Pipeline completado en ${((Date.now() - t0) / 1000).toFixed(1)}s`)
     } catch (e: any) {
       recordError(`Pipeline falló: ${e?.message ?? e}`)

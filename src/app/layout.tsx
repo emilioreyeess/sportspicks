@@ -3,6 +3,7 @@ import { Inter } from "next/font/google"
 import { AppShell } from "@/components/ui/AppShell"
 import { AgeGate } from "@/components/legal/AgeGate"
 import { CookieConsent } from "@/components/legal/CookieConsent"
+import { SafariInstallBanner } from "@/components/ui/SafariInstallBanner"
 import { PlanProvider } from "@/lib/plan"
 import "./globals.css"
 
@@ -66,6 +67,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           <AgeGate>
             <AppShell>{children}</AppShell>
             <CookieConsent />
+            <SafariInstallBanner />
           </AgeGate>
         </PlanProvider>
       </body>

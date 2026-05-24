@@ -50,6 +50,9 @@ export default function PricingPage() {
   const [emailFor, setEmailFor] = useState<PlanId | null>(null)
   const [emailInput, setEmailInput] = useState("")
   const [showTable, setShowTable] = useState(false)
+  // Estado del flujo de checkout DENTRO del modal (móvil-friendly)
+  const [modalSubmitting, setModalSubmitting] = useState(false)
+  const [modalError, setModalError] = useState<string | null>(null)
 
   // Read stored customer_id for portal redirect
   function storedCustomerId(): string | null {
@@ -97,19 +100,37 @@ export default function PricingPage() {
       return
     }
 
-    // Go to Stripe checkout
-    if (!emailInput.trim()) { setEmailFor(id); return }
+    // Sin email todavía → abrir modal
+    if (!emailInput.trim()) {
+      setModalError(null)
+      setEmailFor(id)
+      return
+    }
+
+    // Lanzar checkout — feedback DENTRO del modal (móvil) y en el botón (desktop)
     setCheckoutLoading(id)
+    setModalSubmitting(true)
+    setModalError(null)
     try {
       const res = await fetch("/api/checkout", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ plan: id, email: emailInput.trim(), billing }),
       })
-      const data = await res.json()
-      if (data.url) window.location.href = data.url
-      else alert("Error al crear sesión de pago: " + (data.error ?? "Error"))
-    } catch (e: any) { alert("Error de red: " + e.message) }
-    finally { setCheckoutLoading(null) }
+      const data = await res.json().catch(() => ({}))
+      if (data?.url) {
+        // Cerramos modal antes de navegar para que el back funcione bien
+        setEmailFor(null)
+        window.location.href = data.url
+        return
+      }
+      // Mensaje legible incluso en móvil sin alert()
+      setModalError(data?.error ?? `Error ${res.status}: no se pudo crear la sesión de pago`)
+    } catch (e: any) {
+      setModalError(`Error de red: ${e?.message ?? "comprueba la conexión y vuelve a intentarlo"}`)
+    } finally {
+      setCheckoutLoading(null)
+      setModalSubmitting(false)
+    }
   }
 
   return (
@@ -162,23 +183,48 @@ export default function PricingPage() {
       {/* Email modal */}
       {emailFor && STRIPE_ENABLED && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm"
-          onClick={() => setEmailFor(null)}>
+          onClick={() => { if (!modalSubmitting) setEmailFor(null) }}>
           <div onClick={e => e.stopPropagation()}
             className="w-full sm:w-[400px] bg-zinc-900 border border-zinc-700 rounded-t-3xl sm:rounded-2xl p-6 animate-slide-up sm:animate-scale-in safe-bottom">
             <h3 className="text-lg font-black text-white mb-1">¿A qué email enviamos el recibo?</h3>
             <p className="text-xs text-zinc-400 mb-4 leading-snug">Stripe lo usará para confirmar tu suscripción.</p>
-            <input type="email" autoFocus value={emailInput}
-              onChange={e => setEmailInput(e.target.value)}
-              onKeyDown={e => { if (e.key === "Enter" && emailFor) { const id = emailFor; setEmailFor(null); choose(id) } }}
+
+            <input type="email" autoFocus inputMode="email" autoComplete="email" value={emailInput}
+              onChange={e => { setEmailInput(e.target.value); setModalError(null) }}
+              onKeyDown={e => {
+                if (e.key === "Enter" && emailFor && !modalSubmitting && emailInput.includes("@")) {
+                  e.preventDefault(); choose(emailFor)
+                }
+              }}
+              disabled={modalSubmitting}
               placeholder="tu@email.com"
-              className="w-full bg-zinc-800 border border-zinc-700 focus:border-emerald-600 rounded-xl px-4 py-3 text-sm text-white outline-none transition-colors mb-4" />
+              className="w-full bg-zinc-800 border border-zinc-700 focus:border-emerald-600 rounded-xl px-4 py-3 text-sm text-white outline-none transition-colors mb-3 disabled:opacity-60" />
+
+            {/* Error / loading visible DENTRO del modal */}
+            {modalError && (
+              <div className="mb-3 rounded-lg border border-rose-700/60 bg-rose-500/10 px-3 py-2.5 text-xs text-rose-200 leading-snug">
+                {modalError}
+              </div>
+            )}
+            {modalSubmitting && !modalError && (
+              <div className="mb-3 flex items-center justify-center gap-2 rounded-lg border border-emerald-700/60 bg-emerald-500/10 px-3 py-2.5 text-xs text-emerald-200">
+                <span className="inline-block w-3 h-3 rounded-full border-2 border-emerald-300 border-t-transparent animate-spin" />
+                Conectando con Stripe…
+              </div>
+            )}
+
             <div className="flex gap-2">
               <button onClick={() => setEmailFor(null)}
-                className="flex-1 py-3 rounded-xl bg-zinc-800 text-sm text-zinc-300 font-medium tap">Cancelar</button>
-              <button onClick={() => { const id = emailFor; setEmailFor(null); choose(id!) }}
-                disabled={!emailInput.includes("@")}
-                className="flex-1 py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-cyan-500 text-zinc-950 font-bold text-sm tap disabled:opacity-40">
-                Continuar al pago
+                disabled={modalSubmitting}
+                className="flex-1 py-3 rounded-xl bg-zinc-800 text-sm text-zinc-300 font-medium tap disabled:opacity-50">
+                Cancelar
+              </button>
+              <button onClick={() => emailFor && choose(emailFor)}
+                disabled={!emailInput.includes("@") || modalSubmitting}
+                className="flex-1 py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-cyan-500 text-zinc-950 font-bold text-sm tap disabled:opacity-40 flex items-center justify-center gap-2">
+                {modalSubmitting ? (
+                  <><span className="inline-block w-3.5 h-3.5 rounded-full border-2 border-zinc-900 border-t-transparent animate-spin" /> Redirigiendo…</>
+                ) : "Continuar al pago"}
               </button>
             </div>
           </div>
@@ -351,7 +397,7 @@ function PlanCard({ planId, billing, currentPlan, justSet, checkoutLoading, onCh
         </div>
         {p.priceMonthly > 0 && billing === "annual" && (
           <p className="text-[11px] text-emerald-400 font-bold mt-1">
-            {p.priceAnnual}€/año · ahorras {saving}€
+            Se cobra {p.priceAnnual}€ ahora · ahorras {saving}€
           </p>
         )}
         {(p.priceMonthly === 0 || billing === "monthly") && <div className="h-4" />}
@@ -367,7 +413,10 @@ function PlanCard({ planId, billing, currentPlan, justSet, checkoutLoading, onCh
         ) : isCurrent ? "✓ Plan actual"
           : done ? "✓ Activado"
           : planId === "free" ? "Empezar gratis"
-          : STRIPE_ENABLED ? `Suscribirse — ${monthly}/mes`
+          : STRIPE_ENABLED
+            ? billing === "annual"
+              ? `Suscribirse — ${p.priceAnnual}€/año`
+              : `Suscribirse — ${p.priceMonthly}€/mes`
           : `Activar ${p.name}`}
       </button>
 

@@ -5,6 +5,10 @@
  * Las rutas /api/* leen de aquí → respuesta instantánea, sin recalcular nada.
  * Si el store está frío, la ruta dispara el pipeline una vez (cold start).
  *
+ * Persistencia de "ayer": se escribe en /tmp/sp-yesterday.json para sobrevivir
+ * cold starts de Vercel. El campo en memoria se hidrata desde el fichero en el
+ * primer getYesterday() si el store arrancó frío.
+ *
  * Nota de producción: para escalado multi-instancia, este store se sustituiría
  * por Redis (ya disponible en docker-compose). El contrato (getStore/setDailyResults)
  * no cambiaría — solo la implementación de persistencia.
@@ -43,6 +47,16 @@ interface DailyStore {
   combinadaPool: any[]
   retos: any[]
   retosNote?: string
+  // Snapshot completo del DailyData usado para generar los picks de hoy
+  // (necesario para Second Opinion — reanalizar sin volver a hacer fetch)
+  dailyData: any | null
+  // Auditoría: candidatos rechazados por el motor de decisión
+  lastAuditTrail: any[]
+  // Picks del día anterior con resultados verificados
+  yesterday: {
+    date: string | null
+    picks: any[]   // misma estructura que valuePicks + result: WIN|LOSS|VOID|PENDING
+  }
   meta: PipelineMeta
 }
 
@@ -53,6 +67,9 @@ const store: DailyStore = {
   valuePicks: [],
   combinadaPool: [],
   retos: [],
+  dailyData: null,
+  lastAuditTrail: [],
+  yesterday: { date: null, picks: [] },
   meta: {
     status: "cold",
     lastRunAt: null,
@@ -102,6 +119,15 @@ export function recordError(msg: string): void {
 
 export function setNextRun(iso: string): void {
   store.meta.nextRunAt = iso
+}
+
+export function getYesterday() {
+  return store.yesterday
+}
+
+export function setYesterdayResults(date: string, picks: any[]): void {
+  store.yesterday = { date, picks }
+  addLog(`📋 Ayer guardado: ${picks.length} picks · ${date} · ${picks.filter(p => p.result === "WIN").length}W ${picks.filter(p => p.result === "LOSS").length}L`)
 }
 
 export function setDailyResults(r: DailyResults): void {

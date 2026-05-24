@@ -19,23 +19,198 @@ const TIERS = [
   { value: "MEDIUM", label: "Valor",   color: "bg-blue-500/15 text-blue-400 border-blue-700" },
 ]
 
+type ResultType = "WIN" | "LOSS" | "VOID" | "PENDING"
+
+interface YesterdayPick extends Pick {
+  result: ResultType
+  home_score?: number
+  away_score?: number
+}
+
+function ResultBadge({ result }: { result: ResultType }) {
+  if (result === "WIN")
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-700/60">
+        ✓ WIN
+      </span>
+    )
+  if (result === "LOSS")
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-red-500/20 text-red-400 border border-red-700/60">
+        ✗ LOSS
+      </span>
+    )
+  if (result === "VOID")
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-zinc-500/20 text-zinc-400 border border-zinc-700/60">
+        — VOID
+      </span>
+    )
+  return (
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-500/10 text-amber-500 border border-amber-800/40">
+      ⏳ Pendiente
+    </span>
+  )
+}
+
+function YesterdayPickCard({ pick, onClick }: { pick: YesterdayPick; onClick?: () => void }) {
+  const resultBorder =
+    pick.result === "WIN"  ? "border-emerald-700/40 bg-emerald-900/10" :
+    pick.result === "LOSS" ? "border-red-700/40 bg-red-900/10" :
+    pick.result === "VOID" ? "border-zinc-700/40" :
+    "border-zinc-800"
+
+  return (
+    <div
+      className={`rounded-2xl border p-4 space-y-2.5 cursor-pointer transition-all active:scale-[0.98] ${resultBorder}`}
+      onClick={onClick}
+    >
+      {/* Header */}
+      <div className="flex items-start justify-between gap-2">
+        <div className="min-w-0">
+          <p className="text-xs text-zinc-500 font-medium truncate">{pick.league_name}</p>
+          <p className="text-sm font-bold text-white truncate mt-0.5">
+            {pick.home_team} <span className="text-zinc-500 font-normal">vs</span> {pick.away_team}
+          </p>
+        </div>
+        <ResultBadge result={pick.result} />
+      </div>
+
+      {/* Score (if available) */}
+      {pick.home_score != null && pick.away_score != null && (
+        <div className="flex items-center gap-1.5">
+          <span className="text-xs text-zinc-500">Resultado:</span>
+          <span className="text-sm font-black text-white">
+            {pick.home_score} – {pick.away_score}
+          </span>
+        </div>
+      )}
+
+      {/* Selection */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-xs text-zinc-500">{pick.market}</span>
+        <span className="px-2 py-0.5 rounded-md bg-zinc-800 text-xs font-semibold text-zinc-200">
+          {pick.selection}
+        </span>
+        {pick.best_odd && (
+          <span className="text-xs text-amber-400 font-bold">@ {pick.best_odd.toFixed(2)}</span>
+        )}
+      </div>
+
+      {/* Edge */}
+      {pick.value_edge != null && (
+        <p className="text-xs text-zinc-500">
+          Edge <span className="text-blue-400 font-semibold">+{pick.value_edge.toFixed(1)}%</span>
+          {" · "}Score{" "}
+          <span className="text-zinc-300 font-semibold">{pick.quality_score}/100</span>
+        </p>
+      )}
+    </div>
+  )
+}
+
+function YesterdayStats({ picks }: { picks: YesterdayPick[] }) {
+  const wins    = picks.filter((p) => p.result === "WIN").length
+  const losses  = picks.filter((p) => p.result === "LOSS").length
+  const voids   = picks.filter((p) => p.result === "VOID").length
+  const pending = picks.filter((p) => p.result === "PENDING").length
+  const settled = wins + losses
+  const rate    = settled > 0 ? Math.round((wins / settled) * 100) : null
+
+  return (
+    <div className="grid grid-cols-4 gap-2 mb-4">
+      <Card className="p-3 text-center">
+        <p className="text-xl font-black text-emerald-400">{wins}</p>
+        <p className="text-[10px] text-zinc-600 mt-0.5">WIN</p>
+      </Card>
+      <Card className="p-3 text-center">
+        <p className="text-xl font-black text-red-400">{losses}</p>
+        <p className="text-[10px] text-zinc-600 mt-0.5">LOSS</p>
+      </Card>
+      <Card className="p-3 text-center">
+        <p className="text-xl font-black text-zinc-400">{voids + pending}</p>
+        <p className="text-[10px] text-zinc-600 mt-0.5">{pending > 0 ? "Pendiente" : "VOID"}</p>
+      </Card>
+      <Card className="p-3 text-center">
+        <p className="text-xl font-black text-amber-400">{rate != null ? `${rate}%` : "—"}</p>
+        <p className="text-[10px] text-zinc-600 mt-0.5">Aciertos</p>
+      </Card>
+    </div>
+  )
+}
+
 export default function ValuePage() {
   const { isPremium } = usePlan()
-  const [picks, setPicks] = useState<Pick[]>([])
+
+  // ── Hoy ─────────────────────────────────────────────────────────────────────
+  const [picks, setPicks]       = useState<Pick[]>([])
   const [filtered, setFiltered] = useState<Pick[]>([])
   const [selected, setSelected] = useState<Pick | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [tier, setTier] = useState("")
-  const [market, setMarket] = useState("Todos")
-  const [sortBy, setSortBy] = useState<"quality" | "edge" | "odd">("quality")
-  const [note, setNote] = useState<string | undefined>(undefined)
+  const [loading, setLoading]   = useState(true)
+  const [tier, setTier]         = useState("")
+  const [market, setMarket]     = useState("Todos")
+  const [sortBy, setSortBy]     = useState<"quality" | "edge" | "odd">("quality")
+  const [note, setNote]         = useState<string | undefined>(undefined)
 
+  // ── Ayer ─────────────────────────────────────────────────────────────────────
+  const [tab, setTab]                         = useState<"hoy" | "ayer">("hoy")
+  const [yesterdayPicks, setYesterdayPicks]   = useState<YesterdayPick[]>([])
+  const [yesterdayDate, setYesterdayDate]     = useState<string | null>(null)
+  const [loadingYesterday, setLoadingYesterday] = useState(false)
+  const [selectedYesterday, setSelectedYesterday] = useState<YesterdayPick | null>(null)
+
+  // Guarda los picks de hoy en localStorage al cargarlos
   useEffect(() => {
     getPicks(undefined, { confidence_min: 0, confidence_max: 100 })
-      .then((r) => { setPicks(r.picks ?? []); setNote(r.note) })
+      .then((r) => {
+        const loadedPicks = r.picks ?? []
+        setPicks(loadedPicks)
+        setNote(r.note)
+        // Persistir en localStorage para poder mostrarlos mañana como "ayer"
+        if (loadedPicks.length > 0 && r.date) {
+          try {
+            localStorage.setItem("sp_picks_today", JSON.stringify({ date: r.date, picks: loadedPicks }))
+          } catch { /* quota exceeded — ignorar */ }
+        }
+      })
       .catch(() => setNote("No se pudieron cargar los picks en este momento."))
       .finally(() => setLoading(false))
   }, [])
+
+  // Carga los picks de ayer desde localStorage y resuelve resultados vía ESPN
+  useEffect(() => {
+    if (tab !== "ayer" || yesterdayPicks.length > 0 || loadingYesterday) return
+    setLoadingYesterday(true)
+
+    const yesterday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10)
+
+    try {
+      const raw = localStorage.getItem("sp_picks_today")
+      if (!raw) { setLoadingYesterday(false); return }
+      const saved: { date: string; picks: any[] } = JSON.parse(raw)
+      if (saved.date !== yesterday || !saved.picks?.length) { setLoadingYesterday(false); return }
+
+      setYesterdayDate(saved.date)
+      // Pedir al servidor que resuelva WIN/LOSS consultando ESPN
+      fetch("/api/picks/yesterday", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ date: saved.date, picks: saved.picks }),
+      })
+        .then((r) => r.json())
+        .then((data) => {
+          setYesterdayPicks(data.picks ?? [])
+          setYesterdayDate(data.date ?? saved.date)
+        })
+        .catch(() => {
+          // Si falla el servidor, mostrar los picks sin resultado
+          setYesterdayPicks(saved.picks.map((p: any) => ({ ...p, result: "PENDING" })))
+        })
+        .finally(() => setLoadingYesterday(false))
+    } catch {
+      setLoadingYesterday(false)
+    }
+  }, [tab])
 
   useEffect(() => {
     let result = [...picks]
@@ -87,81 +262,139 @@ export default function ValuePage() {
         </div>
       </div>
 
-
-      {note && (
-        <div className="my-4 flex items-start gap-2 rounded-xl border border-amber-800/50 bg-amber-500/8 px-4 py-3">
-          <Icon name="shield" className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-          <p className="text-sm text-amber-200/90 leading-snug">{note}</p>
-        </div>
-      )}
-
-      {/* Summary */}
-      <div className="grid grid-cols-3 gap-2.5 my-4">
-        <SummaryCard v={String(total)}   l="Picks hoy"   c="text-emerald-400" />
-        <SummaryCard v={`+${bestEdge}%`} l="Mejor edge"  c="text-blue-400" />
-        <SummaryCard v={String(avgOdd)}  l="Cuota media" c="text-amber-400" />
+      {/* Tabs Hoy / Ayer */}
+      <div className="flex gap-1 p-1 rounded-xl bg-zinc-900 border border-zinc-800 mb-5">
+        {(["hoy", "ayer"] as const).map((t) => (
+          <button
+            key={t}
+            onClick={() => setTab(t)}
+            className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all capitalize tap ${
+              tab === t
+                ? "bg-zinc-800 text-white shadow"
+                : "text-zinc-500 hover:text-zinc-300"
+            }`}
+          >
+            {t === "hoy" ? "🎯 Hoy" : "📋 Ayer"}
+          </button>
+        ))}
       </div>
 
-      {/* Filters */}
-      <div className="space-y-2.5 mb-5">
-        <div className="flex gap-2 overflow-x-auto no-scrollbar -mx-1 px-1">
-          {TIERS.map((t) => (
-            <button key={t.value} onClick={() => setTier(t.value)}
-              className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold border tracking-wide transition-all tap ${
-                tier === t.value ? t.color : "bg-zinc-900 text-zinc-500 border-zinc-800 hover:text-zinc-300"
-              }`}>
-              {t.label}
-            </button>
-          ))}
-        </div>
-        <div className="flex gap-2">
-          <select value={market} onChange={(e) => setMarket(e.target.value)}
-            className="flex-1 bg-zinc-900 border border-zinc-800 text-sm text-zinc-300 rounded-xl px-3 py-2.5 outline-none">
-            {MARKETS.map((m) => <option key={m}>{m}</option>)}
-          </select>
-          <select value={sortBy} onChange={(e) => setSortBy(e.target.value as any)}
-            className="flex-1 bg-zinc-900 border border-zinc-800 text-sm text-zinc-300 rounded-xl px-3 py-2.5 outline-none">
-            <option value="quality">Calidad</option>
-            <option value="edge">Edge</option>
-            <option value="odd">Cuota</option>
-          </select>
-        </div>
-      </div>
-
-      {/* Free plan banner — solo si hay picks bloqueados */}
-      {!isPremium && !loading && locked.length > 0 && (
-        <div className="mb-4">
-          <UpgradeBanner text={`Ves ${visible.length} de ${filtered.length} value picks. Desbloquea el análisis completo con Premium ⭐`} />
-        </div>
-      )}
-
-      {/* Grid */}
-      {loading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-44" />)}
-        </div>
-      ) : filtered.length === 0 ? (
-        <EmptyState emoji="🎯"
-          title={note ? "Sin value picks ahora mismo" : "No hay picks con estos filtros"}
-          hint="Preferimos no dar ningún pick antes que dar uno mediocre. Cuando el modelo detecte valor real, aparecerá aquí." />
-      ) : (
-        <div className="space-y-3">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 stagger">
-            {visible.map((p) => <PickCard key={p.id} pick={p} onClick={setSelected} />)}
-          </div>
-          {locked.length > 0 && (
-            <LockedSection feature="value_picks_all"
-              title={`+${locked.length} value pick${locked.length === 1 ? "" : "s"} Premium`}
-              hint="Desbloquea todos los picks del día con edge real y análisis completo.">
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {locked.slice(0, 4).map((p) => <PickCard key={p.id} pick={p} />)}
-              </div>
-            </LockedSection>
+      {/* ══════════════════════ TAB HOY ══════════════════════ */}
+      {tab === "hoy" && (
+        <>
+          {note && (
+            <div className="my-4 flex items-start gap-2 rounded-xl border border-amber-800/50 bg-amber-500/8 px-4 py-3">
+              <Icon name="shield" className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+              <p className="text-sm text-amber-200/90 leading-snug">{note}</p>
+            </div>
           )}
-        </div>
+
+          {/* Summary */}
+          <div className="grid grid-cols-3 gap-2.5 my-4">
+            <SummaryCard v={String(total)}   l="Picks hoy"   c="text-emerald-400" />
+            <SummaryCard v={`+${bestEdge}%`} l="Mejor edge"  c="text-blue-400" />
+            <SummaryCard v={String(avgOdd)}  l="Cuota media" c="text-amber-400" />
+          </div>
+
+          {/* Filters */}
+          <div className="space-y-2.5 mb-5">
+            <div className="flex gap-2 overflow-x-auto no-scrollbar -mx-1 px-1">
+              {TIERS.map((t) => (
+                <button key={t.value} onClick={() => setTier(t.value)}
+                  className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold border tracking-wide transition-all tap ${
+                    tier === t.value ? t.color : "bg-zinc-900 text-zinc-500 border-zinc-800 hover:text-zinc-300"
+                  }`}>
+                  {t.label}
+                </button>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <select value={market} onChange={(e) => setMarket(e.target.value)}
+                className="flex-1 bg-zinc-900 border border-zinc-800 text-sm text-zinc-300 rounded-xl px-3 py-2.5 outline-none">
+                {MARKETS.map((m) => <option key={m}>{m}</option>)}
+              </select>
+              <select value={sortBy} onChange={(e) => setSortBy(e.target.value as any)}
+                className="flex-1 bg-zinc-900 border border-zinc-800 text-sm text-zinc-300 rounded-xl px-3 py-2.5 outline-none">
+                <option value="quality">Calidad</option>
+                <option value="edge">Edge</option>
+                <option value="odd">Cuota</option>
+              </select>
+            </div>
+          </div>
+
+          {/* Free plan banner */}
+          {!isPremium && !loading && locked.length > 0 && (
+            <div className="mb-4">
+              <UpgradeBanner text={`Ves ${visible.length} de ${filtered.length} value picks. Desbloquea el análisis completo con Premium ⭐`} />
+            </div>
+          )}
+
+          {/* Grid */}
+          {loading ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-44" />)}
+            </div>
+          ) : filtered.length === 0 ? (
+            <EmptyState emoji="🎯"
+              title={note ? "Sin value picks ahora mismo" : "No hay picks con estos filtros"}
+              hint="Preferimos no dar ningún pick antes que dar uno mediocre. Cuando el modelo detecte valor real, aparecerá aquí." />
+          ) : (
+            <div className="space-y-3">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 stagger">
+                {visible.map((p) => <PickCard key={p.id} pick={p} onClick={setSelected} />)}
+              </div>
+              {locked.length > 0 && (
+                <LockedSection feature="value_picks_all"
+                  title={`+${locked.length} value pick${locked.length === 1 ? "" : "s"} Premium`}
+                  hint="Desbloquea todos los picks del día con edge real y análisis completo.">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {locked.slice(0, 4).map((p) => <PickCard key={p.id} pick={p} />)}
+                  </div>
+                </LockedSection>
+              )}
+            </div>
+          )}
+        </>
+      )}
+
+      {/* ══════════════════════ TAB AYER ══════════════════════ */}
+      {tab === "ayer" && (
+        <>
+          {yesterdayDate && (
+            <p className="text-xs text-zinc-500 mb-3">
+              Picks del <span className="text-zinc-300 font-semibold">{yesterdayDate}</span> — resultados verificados a medianoche
+            </p>
+          )}
+
+          {loadingYesterday ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {[...Array(4)].map((_, i) => <Skeleton key={i} className="h-36" />)}
+            </div>
+          ) : yesterdayPicks.length === 0 ? (
+            <EmptyState emoji="📋"
+              title="Sin picks de ayer"
+              hint="Los picks del día anterior con sus resultados aparecerán aquí a partir de medianoche." />
+          ) : (
+            <>
+              <YesterdayStats picks={yesterdayPicks} />
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {yesterdayPicks.map((p, i) => (
+                  <YesterdayPickCard
+                    key={p.id ?? i}
+                    pick={p}
+                    onClick={() => setSelectedYesterday(p)}
+                  />
+                ))}
+              </div>
+            </>
+          )}
+        </>
       )}
 
       {selected && <PickDetail pick={selected} onClose={() => setSelected(null)} />}
+      {selectedYesterday && (
+        <PickDetail pick={selectedYesterday as any} onClose={() => setSelectedYesterday(null)} />
+      )}
     </div>
   )
 }
