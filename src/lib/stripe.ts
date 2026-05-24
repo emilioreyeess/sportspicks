@@ -22,6 +22,10 @@ export function getStripe(): Stripe {
 
 /** Plan id → Stripe Price id (set in .env.local) */
 export const PRICE_IDS: Record<string, string | undefined> = {
-  premium: process.env.STRIPE_PRICE_PREMIUM,
-  pro:     process.env.STRIPE_PRICE_PRO,
+  premium:         process.env.STRIPE_PRICE_PREMIUM,          // fallback (monthly)
+  pro:             process.env.STRIPE_PRICE_PRO,              // fallback (monthly)
+  premium_monthly: process.env.STRIPE_PRICE_PREMIUM_MONTHLY ?? process.env.STRIPE_PRICE_PREMIUM,
+  premium_annual:  process.env.STRIPE_PRICE_PREMIUM_ANNUAL  ?? process.env.STRIPE_PRICE_PREMIUM,
+  pro_monthly:     process.env.STRIPE_PRICE_PRO_MONTHLY     ?? process.env.STRIPE_PRICE_PRO,
+  pro_annual:      process.env.STRIPE_PRICE_PRO_ANNUAL      ?? process.env.STRIPE_PRICE_PRO,
 }

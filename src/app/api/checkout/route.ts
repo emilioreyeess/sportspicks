@@ -12,9 +12,11 @@ export const runtime = "nodejs"
 
 export async function POST(req: NextRequest) {
   try {
-    const { plan, email } = (await req.json()) as { plan: string; email?: string }
+    const { plan, email, billing } = (await req.json()) as { plan: string; email?: string; billing?: string }
 
-    const priceId = PRICE_IDS[plan]
+    // Prefer billing-specific price ID (e.g. premium_annual), fallback to base plan price
+    const billingKey = billing === "annual" || billing === "monthly" ? `${plan}_${billing}` : plan
+    const priceId = PRICE_IDS[billingKey] ?? PRICE_IDS[plan]
     if (!priceId) {
       return NextResponse.json(
         { error: `Plan desconocido o sin precio configurado: ${plan}` },
