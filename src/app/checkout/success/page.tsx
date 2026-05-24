@@ -24,6 +24,15 @@ export default function CheckoutSuccessPage() {
         if (data.verified && data.plan) {
           setPlan(data.plan)
           setPlanActivated(data.plan)
+          // Persist subscription details for portal access and re-verification
+          try {
+            localStorage.setItem("sp_subscription", JSON.stringify({
+              plan: data.plan,
+              customerId: data.customer_id ?? null,
+              email: data.email ?? null,
+              activatedAt: new Date().toISOString(),
+            }))
+          } catch {}
           setStatus("ok")
         } else {
           setStatus("error")

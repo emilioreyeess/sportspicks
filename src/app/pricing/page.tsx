@@ -51,18 +51,53 @@ export default function PricingPage() {
   const [emailInput, setEmailInput] = useState("")
   const [showTable, setShowTable] = useState(false)
 
+  // Read stored customer_id for portal redirect
+  function storedCustomerId(): string | null {
+    try {
+      const raw = localStorage.getItem("sp_subscription")
+      if (raw) return JSON.parse(raw)?.customerId ?? null
+    } catch {}
+    return null
+  }
+
+  async function openPortalForManage() {
+    const cid = storedCustomerId()
+    if (!cid) { window.location.href = "/account"; return }
+    try {
+      const res = await fetch("/api/checkout/portal", {
+        method: "POST", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ customer_id: cid }),
+      })
+      const data = await res.json()
+      if (data.url) window.location.href = data.url
+      else window.location.href = "/account"
+    } catch { window.location.href = "/account" }
+  }
+
   async function choose(id: PlanId) {
+    // Free plan: if paid, redirect to portal to cancel. If already free, nothing to do.
     if (id === "free") {
-      setPlan("free"); setJustSet("free")
-      setTimeout(() => setJustSet(null), 2400)
+      if (plan !== "free") {
+        await openPortalForManage()
+      }
       return
     }
+
+    // Same plan: redirect to portal to manage
+    if (id === plan) {
+      await openPortalForManage()
+      return
+    }
+
+    // No Stripe configured (dev/local without keys): demo mode
     if (!STRIPE_ENABLED) {
       setPlan(id); setJustSet(id)
       setTimeout(() => setJustSet(null), 2400)
       window.scrollTo({ top: 0, behavior: "smooth" })
       return
     }
+
+    // Go to Stripe checkout
     if (!emailInput.trim()) { setEmailFor(id); return }
     setCheckoutLoading(id)
     try {
@@ -257,6 +292,9 @@ function PlanCard({ planId, billing, currentPlan, justSet, checkoutLoading, onCh
   const loading = checkoutLoading === planId
   const done = justSet === planId
 
+  // For paid plans that are active, keep button enabled so user can open portal
+  const isPaidCurrent = isCurrent && planId !== "free"
+
   const styles = {
     free: {
       wrapper: "border-zinc-800 bg-zinc-900",
@@ -271,7 +309,7 @@ function PlanCard({ planId, billing, currentPlan, justSet, checkoutLoading, onCh
       name: "text-emerald-400",
       price: "gradient-text",
       badge: "bg-gradient-to-r from-emerald-500 to-cyan-500 text-zinc-950",
-      btn: isCurrent ? "bg-zinc-800 text-zinc-500 cursor-default" : "bg-gradient-to-r from-emerald-500 to-cyan-500 hover:opacity-90 text-zinc-950",
+      btn: isPaidCurrent ? "bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700" : isCurrent ? "bg-zinc-800 text-zinc-500 cursor-default" : "bg-gradient-to-r from-emerald-500 to-cyan-500 hover:opacity-90 text-zinc-950",
       check: "text-emerald-400",
     },
     pro: {
@@ -279,7 +317,7 @@ function PlanCard({ planId, billing, currentPlan, justSet, checkoutLoading, onCh
       name: "text-violet-400",
       price: "text-white",
       badge: "bg-violet-500 text-white",
-      btn: isCurrent ? "bg-zinc-800 text-zinc-500 cursor-default" : "bg-violet-500 hover:bg-violet-400 text-white",
+      btn: isPaidCurrent ? "bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700" : isCurrent ? "bg-zinc-800 text-zinc-500 cursor-default" : "bg-violet-500 hover:bg-violet-400 text-white",
       check: "text-violet-400",
     },
   }[planId]
@@ -322,10 +360,12 @@ function PlanCard({ planId, billing, currentPlan, justSet, checkoutLoading, onCh
       </div>
 
       {/* CTA */}
-      <button onClick={() => onChoose(planId)} disabled={isCurrent || loading}
+      <button onClick={() => onChoose(planId)} disabled={(isCurrent && planId === "free") || loading}
         className={`w-full py-3 rounded-xl text-sm font-bold tap transition-all inline-flex items-center justify-center gap-2 mb-5 ${styles.btn}`}>
         {loading ? (
           <><Icon name="settings" className="w-4 h-4 animate-spin" /> Redirigiendo…</>
+        ) : isPaidCurrent ? (
+          <><Icon name="settings" className="w-4 h-4" /> Gestionar suscripción</>
         ) : isCurrent ? "✓ Plan actual"
           : done ? "✓ Activado"
           : planId === "free" ? "Empezar gratis"

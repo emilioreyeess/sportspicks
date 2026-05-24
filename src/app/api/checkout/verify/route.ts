@@ -27,8 +27,9 @@ export async function GET(req: NextRequest) {
 
     const plan = (session.metadata?.plan ?? "premium") as "premium" | "pro"
     const email = session.customer_email ?? session.customer_details?.email ?? null
+    const customer_id = typeof session.customer === "string" ? session.customer : null
 
-    return NextResponse.json({ plan, email, verified: true })
+    return NextResponse.json({ plan, email, customer_id, verified: true })
   } catch (err: any) {
     console.error("[checkout/verify] error:", err)
     return NextResponse.json({ error: err.message ?? "Error interno" }, { status: 500 })
