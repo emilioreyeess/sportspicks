@@ -9,6 +9,13 @@ import { useUpgradeModal } from "@/components/premium"
 import Link from "next/link"
 
 interface TeamResult { id: string; name: string; slug: string; league: string; country: string; flag: string }
+interface PlayerResult {
+  id: string; name: string; shortName: string
+  position: string; positionAbbr: string
+  age: number | null; jersey: string | null; nationality: string | null
+  teamId: string; teamName: string; league: string; leagueSlug: string; flag: string
+  espnUrl: string | null
+}
 interface TeamStats {
   id: number; name: string; league: string; season: string
   played: number; wins: number; draws: number; losses: number
@@ -42,17 +49,47 @@ async function searchTeams(q: string) {
   return res.json()
 }
 
+async function searchPlayers(q: string) {
+  const res = await fetch(`/api/stats/player-search?q=${encodeURIComponent(q)}`)
+  return res.json()
+}
+
+// ── Rate limit para análisis IA (localStorage) ─────────────────────────────
+function getAnalysisUsage(): { count: number; date: string } {
+  try {
+    const raw = localStorage.getItem("sp_analyze_usage")
+    if (raw) return JSON.parse(raw)
+  } catch {}
+  return { count: 0, date: "" }
+}
+function incrementAnalysisUsage() {
+  const today = new Date().toISOString().slice(0, 10)
+  const prev = getAnalysisUsage()
+  const count = prev.date === today ? prev.count + 1 : 1
+  try { localStorage.setItem("sp_analyze_usage", JSON.stringify({ count, date: today })) } catch {}
+  return count
+}
+function canRunAnalysis(isPro: boolean): { ok: boolean; remaining: number } {
+  if (isPro) return { ok: true, remaining: Infinity }
+  const today = new Date().toISOString().slice(0, 10)
+  const { count, date } = getAnalysisUsage()
+  const used = date === today ? count : 0
+  return { ok: used < 1, remaining: Math.max(0, 1 - used) }
+}
+
 async function getTeamStats(id: string, slug: string) {
   const res = await fetch(`/api/stats/team?id=${id}&slug=${encodeURIComponent(slug)}`)
   return res.json()
 }
 
 export default function StatsPage() {
-  const { isPremium } = usePlan()
+  const { isPremium, isPro } = usePlan()
   const upgrade = useUpgradeModal()
 
   const [query, setQuery] = useState("")
-  const [results, setResults] = useState<TeamResult[]>([])
+  const [teamResults, setTeamResults] = useState<TeamResult[]>([])
+  const [playerResults, setPlayerResults] = useState<PlayerResult[]>([])
+  const [selectedPlayer, setSelectedPlayer] = useState<PlayerResult | null>(null)
   const [stats, setStats] = useState<TeamStats | null>(null)
   const [loadingSearch, setLoadingSearch] = useState(false)
   const [loadingTeam, setLoadingTeam] = useState(false)
@@ -61,21 +98,31 @@ export default function StatsPage() {
   const [analysis, setAnalysis] = useState("")
   const [analysisLoading, setAnalysisLoading] = useState(false)
   const [analysisError, setAnalysisError] = useState("")
+  const [analyzeUsed, setAnalyzeUsed] = useState(false)
   const analysisRef = useRef<HTMLDivElement>(null)
 
-  const debouncedQuery = useDebounce(query, 300)
+  const debouncedQuery = useDebounce(query, 350)
+
+  // Check analysis usage on mount
+  useEffect(() => {
+    if (isPremium && !isPro) {
+      const { ok } = canRunAnalysis(false)
+      setAnalyzeUsed(!ok)
+    }
+  }, [isPremium, isPro])
 
   useEffect(() => {
-    if (debouncedQuery.length < 2) { setResults([]); return }
+    if (debouncedQuery.length < 2) { setTeamResults([]); setPlayerResults([]); return }
     setLoadingSearch(true)
-    searchTeams(debouncedQuery)
-      .then((d) => setResults(d.teams ?? []))
-      .catch(() => null)
-      .finally(() => setLoadingSearch(false))
+    Promise.all([
+      searchTeams(debouncedQuery).then((d) => setTeamResults(d.teams ?? [])).catch(() => null),
+      searchPlayers(debouncedQuery).then((d) => setPlayerResults(d.players ?? [])).catch(() => null),
+    ]).finally(() => setLoadingSearch(false))
   }, [debouncedQuery])
 
   async function loadTeam(t: TeamResult) {
-    setResults([])
+    setTeamResults([]); setPlayerResults([])
+    setSelectedPlayer(null)
     setQuery(t.name)
     setStats(null)
     setAnalysis("")
@@ -89,9 +136,25 @@ export default function StatsPage() {
     }
   }
 
+  function selectPlayer(p: PlayerResult) {
+    setTeamResults([]); setPlayerResults([])
+    setQuery(p.name)
+    setSelectedPlayer(p)
+    setStats(null)
+    setAnalysis("")
+    setAnalysisError("")
+  }
+
   async function runAnalysis() {
     if (!stats) return
     if (!isPremium) { upgrade.show("stats_advanced"); return }
+
+    // Rate limit: Premium = 1/día, Pro = ilimitado
+    const { ok } = canRunAnalysis(isPro)
+    if (!ok) {
+      setAnalysisError("Has usado tu análisis diario. Vuelve mañana o mejora a Pro para análisis ilimitados.")
+      return
+    }
 
     setAnalysisLoading(true)
     setAnalysis("")
@@ -133,7 +196,10 @@ export default function StatsPage() {
         }
       }
 
-      // Scroll al análisis cuando termine
+      // Registrar uso y actualizar estado
+      incrementAnalysisUsage()
+      if (!isPro) setAnalyzeUsed(true)
+
       setTimeout(() => analysisRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 100)
 
     } catch (e: any) {
@@ -164,20 +230,49 @@ export default function StatsPage() {
         {loadingSearch && (
           <span className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-500 text-xs">Buscando…</span>
         )}
-        {results.length > 0 && (
+        {(teamResults.length > 0 || playerResults.length > 0) && (
           <div className="absolute top-full mt-2 w-full bg-zinc-900 border border-zinc-700
-            rounded-2xl overflow-hidden z-20 shadow-2xl">
-            {results.map((t) => (
-              <button key={`${t.slug}-${t.id}`} onClick={() => loadTeam(t)}
-                className="w-full flex items-center gap-3 px-4 py-3 hover:bg-zinc-800
-                  transition-colors text-left border-b border-zinc-800 last:border-0">
-                <span className="text-xl">{t.flag}</span>
-                <div>
-                  <p className="text-sm font-medium text-white">{t.name}</p>
-                  <p className="text-xs text-zinc-500">{t.league} · {t.country}</p>
-                </div>
-              </button>
-            ))}
+            rounded-2xl overflow-hidden z-20 shadow-2xl max-h-80 overflow-y-auto">
+            {/* Equipos */}
+            {teamResults.length > 0 && (
+              <>
+                <p className="px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-zinc-600 border-b border-zinc-800">
+                  Equipos
+                </p>
+                {teamResults.slice(0, 5).map((t) => (
+                  <button key={`team-${t.slug}-${t.id}`} onClick={() => loadTeam(t)}
+                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-zinc-800
+                      transition-colors text-left border-b border-zinc-800 last:border-0">
+                    <span className="text-xl">{t.flag}</span>
+                    <div>
+                      <p className="text-sm font-medium text-white">{t.name}</p>
+                      <p className="text-xs text-zinc-500">{t.league} · {t.country}</p>
+                    </div>
+                  </button>
+                ))}
+              </>
+            )}
+            {/* Jugadores */}
+            {playerResults.length > 0 && (
+              <>
+                <p className="px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-zinc-600 border-b border-zinc-800">
+                  Jugadores
+                </p>
+                {playerResults.slice(0, 5).map((p) => (
+                  <button key={`player-${p.id}`} onClick={() => selectPlayer(p)}
+                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-zinc-800
+                      transition-colors text-left border-b border-zinc-800 last:border-0">
+                    <div className="grid place-items-center w-9 h-9 rounded-xl bg-zinc-800 border border-zinc-700 shrink-0">
+                      <span className="text-xs font-black text-zinc-400">{p.jersey ?? p.positionAbbr}</span>
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium text-white truncate">{p.name}</p>
+                      <p className="text-xs text-zinc-500">{p.position} · {p.teamName} · {p.flag} {p.league}</p>
+                    </div>
+                  </button>
+                ))}
+              </>
+            )}
           </div>
         )}
       </div>
@@ -191,11 +286,18 @@ export default function StatsPage() {
         </div>
       )}
 
+      {/* Player card */}
+      {selectedPlayer && !loadingTeam && (
+        <PlayerCard player={selectedPlayer} />
+      )}
+
       {/* Stats + AI button */}
       {stats && !loadingTeam && (
         <TeamStatsView
           stats={stats}
           isPremium={isPremium}
+          isPro={isPro}
+          analyzeUsed={analyzeUsed}
           onAnalyze={runAnalysis}
           analysisLoading={analysisLoading}
           analysis={analysis}
@@ -205,7 +307,7 @@ export default function StatsPage() {
       )}
 
       {/* Empty state */}
-      {!stats && !loadingTeam && (
+      {!stats && !selectedPlayer && !loadingTeam && (
         <div className="text-center py-16 space-y-3">
           <p className="text-5xl">📊</p>
           <p className="text-zinc-400 font-medium">Busca un equipo para ver sus estadísticas</p>
@@ -223,6 +325,55 @@ export default function StatsPage() {
       )}
 
       <upgrade.Modal />
+    </div>
+  )
+}
+
+// ─── Player card ─────────────────────────────────────────────────────────────
+
+function PlayerCard({ player }: { player: PlayerResult }) {
+  return (
+    <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 animate-fade-in">
+      <div className="flex items-start gap-4">
+        <div className="grid place-items-center w-14 h-14 rounded-2xl bg-zinc-800 border border-zinc-700 shrink-0">
+          <span className="text-xl font-black text-zinc-300">
+            {player.jersey ? `#${player.jersey}` : player.positionAbbr}
+          </span>
+        </div>
+        <div className="flex-1 min-w-0">
+          <h2 className="text-xl font-black text-white leading-tight">{player.name}</h2>
+          <p className="text-sm text-zinc-400 mt-0.5">{player.position}</p>
+          <div className="flex flex-wrap gap-2 mt-3">
+            <span className="text-xs bg-zinc-800 border border-zinc-700 text-zinc-300 px-2.5 py-1 rounded-full">
+              {player.flag} {player.teamName}
+            </span>
+            <span className="text-xs bg-zinc-800 border border-zinc-700 text-zinc-500 px-2.5 py-1 rounded-full">
+              {player.league}
+            </span>
+            {player.age && (
+              <span className="text-xs bg-zinc-800 border border-zinc-700 text-zinc-500 px-2.5 py-1 rounded-full">
+                {player.age} años
+              </span>
+            )}
+            {player.nationality && (
+              <span className="text-xs bg-zinc-800 border border-zinc-700 text-zinc-500 px-2.5 py-1 rounded-full">
+                {player.nationality}
+              </span>
+            )}
+          </div>
+        </div>
+      </div>
+      {player.espnUrl && (
+        <a href={player.espnUrl} target="_blank" rel="noopener noreferrer"
+          className="mt-4 flex items-center justify-center gap-2 w-full py-2.5 rounded-xl
+            bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-sm font-semibold transition-colors tap">
+          <Icon name="arrowRight" className="w-4 h-4" strokeWidth={2.2} />
+          Ver estadísticas completas en ESPN
+        </a>
+      )}
+      <p className="text-[10px] text-zinc-700 text-center mt-3">
+        Datos biográficos de ESPN · estadísticas de partidos disponibles en ESPN
+      </p>
     </div>
   )
 }
@@ -253,9 +404,11 @@ function AnalysisText({ text }: { text: string }) {
 
 // ─── Vista completa del equipo ────────────────────────────────────────────────
 
-function TeamStatsView({ stats, isPremium, onAnalyze, analysisLoading, analysis, analysisError, analysisRef }: {
+function TeamStatsView({ stats, isPremium, isPro, analyzeUsed, onAnalyze, analysisLoading, analysis, analysisError, analysisRef }: {
   stats: TeamStats
   isPremium: boolean
+  isPro: boolean
+  analyzeUsed: boolean
   onAnalyze: () => void
   analysisLoading: boolean
   analysis: string
@@ -288,30 +441,26 @@ function TeamStatsView({ stats, isPremium, onAnalyze, analysisLoading, analysis,
             {/* ── BOTÓN ANÁLISIS IA ───────────────────────────────── */}
             <button
               onClick={onAnalyze}
-              disabled={analysisLoading}
+              disabled={analysisLoading || (isPremium && !isPro && analyzeUsed)}
               className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold tap transition-all ${
-                isPremium
-                  ? "bg-gradient-to-r from-emerald-500 to-cyan-500 text-zinc-950 hover:opacity-90 disabled:opacity-50"
-                  : "bg-zinc-800 border border-zinc-700 text-zinc-400 hover:border-zinc-600"
+                !isPremium
+                  ? "bg-zinc-800 border border-zinc-700 text-zinc-400 hover:border-zinc-600"
+                  : isPremium && !isPro && analyzeUsed
+                  ? "bg-zinc-800 border border-zinc-700 text-zinc-500 cursor-not-allowed opacity-60"
+                  : "bg-gradient-to-r from-emerald-500 to-cyan-500 text-zinc-950 hover:opacity-90 disabled:opacity-50"
               }`}
             >
               {analysisLoading ? (
-                <>
-                  <Icon name="settings" className="w-3.5 h-3.5 animate-spin" />
-                  Analizando…
+                <><Icon name="settings" className="w-3.5 h-3.5 animate-spin" />Analizando…</>
+              ) : !isPremium ? (
+                <><Icon name="lock" className="w-3.5 h-3.5" strokeWidth={2} />Análisis IA
+                  <span className="text-[9px] font-black bg-emerald-500/20 text-emerald-400 border border-emerald-800/60 px-1 py-0.5 rounded-full leading-none">⭐</span>
                 </>
-              ) : isPremium ? (
-                <>
-                  <Icon name="spark" className="w-3.5 h-3.5" strokeWidth={2.2} />
-                  Análisis IA
-                </>
+              ) : isPremium && !isPro && analyzeUsed ? (
+                <><Icon name="lock" className="w-3.5 h-3.5" strokeWidth={2} />Usado hoy</>
               ) : (
-                <>
-                  <Icon name="lock" className="w-3.5 h-3.5" strokeWidth={2} />
-                  Análisis IA
-                  <span className="text-[9px] font-black bg-emerald-500/20 text-emerald-400 border border-emerald-800/60 px-1 py-0.5 rounded-full leading-none">
-                    ⭐
-                  </span>
+                <><Icon name="spark" className="w-3.5 h-3.5" strokeWidth={2.2} />
+                  Análisis IA{!isPro && <span className="opacity-60">· 1/día</span>}
                 </>
               )}
             </button>
