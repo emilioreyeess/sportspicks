@@ -32,8 +32,9 @@ export async function GET(req: NextRequest) {
         quality: p.quality_score, edge: p.value_edge, odd: p.best_odd, risk: p.risk_tier,
       })),
       retos: s.retos.map((r: any) => ({
-        title: r.title, daily_pick: r.daily_pick?.selection ?? null,
-        odd: r.daily_pick?.odd ?? null,
+        title: r.title,
+        picks: r.daily_combo?.picks?.map((p: any) => p.selection).join(" · ") ?? null,
+        combined_odd: r.daily_combo?.combined_odd ?? null,
       })),
     },
   })
