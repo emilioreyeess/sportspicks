@@ -87,16 +87,6 @@ export default function ValuePage() {
         </div>
       </div>
 
-      {/* How it works */}
-      <Card className="p-3.5 mb-4">
-        <p className="text-[11px] text-zinc-500 leading-relaxed">
-          <span className="text-zinc-300 font-semibold">Motor:</span> cuotas reales DraftKings ·
-          modelo Poisson ajustado por rival · regresión a la media · motor de motivación con
-          clasificación real · score de calidad. Si un día no hay valor, no inventamos picks.
-        </p>
-      </Card>
-
-      <DisclaimerBanner variant="picks" />
 
       {note && (
         <div className="my-4 flex items-start gap-2 rounded-xl border border-amber-800/50 bg-amber-500/8 px-4 py-3">
