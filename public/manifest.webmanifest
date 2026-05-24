@@ -1,0 +1,55 @@
+{
+  "name": "SportsPicks Analytics",
+  "short_name": "SportsPicks",
+  "description": "Análisis deportivo cuantitativo: value picks con cuotas reales, modelo estadístico Poisson y motor de motivación.",
+  "id": "/",
+  "start_url": "/?source=pwa",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["standalone", "minimal-ui"],
+  "orientation": "portrait-primary",
+  "background_color": "#09090b",
+  "theme_color": "#09090b",
+  "categories": ["sports", "finance", "productivity"],
+  "lang": "es",
+  "dir": "ltr",
+  "prefer_related_applications": false,
+  "icons": [
+    { "src": "/icon.svg",          "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/icon-maskable.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    {
+      "name": "Value Picks de hoy",
+      "short_name": "Picks",
+      "url": "/value?source=shortcut",
+      "description": "Ver los value picks del día con edge real",
+      "icons": [{ "src": "/icon.svg", "sizes": "any" }]
+    },
+    {
+      "name": "Combinadas",
+      "short_name": "Combis",
+      "url": "/combinadas?source=shortcut",
+      "description": "Generar combinada con cuotas reales",
+      "icons": [{ "src": "/icon.svg", "sizes": "any" }]
+    },
+    {
+      "name": "Bot IA",
+      "short_name": "Bot",
+      "url": "/bot?source=shortcut",
+      "description": "Analizar boleto con inteligencia artificial",
+      "icons": [{ "src": "/icon.svg", "sizes": "any" }]
+    },
+    {
+      "name": "Estadísticas",
+      "short_name": "Stats",
+      "url": "/stats?source=shortcut",
+      "description": "Estadísticas de equipos con datos reales",
+      "icons": [{ "src": "/icon.svg", "sizes": "any" }]
+    }
+  ],
+  "related_applications": [],
+  "edge_side_panel": {
+    "preferred_width": 480
+  }
+}

@@ -1,0 +1,20 @@
+# Local de Next.js
+node_modules/
+.next/
+out/
+build/
+
+# Env / secrets — NUNCA commitear
+.env
+.env.local
+.env.*.local
+*.pem
+
+# Logs
+*.log
+
+# OS
+.DS_Store
+
+# Cache local de Claude
+.claude/

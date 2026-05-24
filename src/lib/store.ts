@@ -1,0 +1,124 @@
+/**
+ * STORE DIARIO EN MEMORIA — resultados precomputados del pipeline.
+ *
+ * El pipeline (src/lib/pipeline.ts) corre a las 00:00 y al arrancar el servidor.
+ * Las rutas /api/* leen de aquí → respuesta instantánea, sin recalcular nada.
+ * Si el store está frío, la ruta dispara el pipeline una vez (cold start).
+ *
+ * Nota de producción: para escalado multi-instancia, este store se sustituiría
+ * por Redis (ya disponible en docker-compose). El contrato (getStore/setDailyResults)
+ * no cambiaría — solo la implementación de persistencia.
+ */
+
+export type PipelineStatus = "cold" | "running" | "ready" | "error"
+
+export interface PipelineMeta {
+  status: PipelineStatus
+  lastRunAt: string | null
+  lastSuccessAt: string | null
+  nextRunAt: string | null
+  durationMs: number
+  runCount: number
+  errorCount: number
+  counts: { matches: number; valuePicks: number; combinadas: number; retos: number }
+  errors: string[]
+  logs: string[]
+}
+
+export interface DailyResults {
+  date: string
+  valuePicks: any[]
+  picksNote?: string
+  combinadaPool: any[]
+  retos: any[]
+  retosNote?: string
+  matches: number
+  durationMs: number
+}
+
+interface DailyStore {
+  date: string | null
+  valuePicks: any[]
+  picksNote?: string
+  combinadaPool: any[]
+  retos: any[]
+  retosNote?: string
+  meta: PipelineMeta
+}
+
+const MAX_LOGS = 120
+
+const store: DailyStore = {
+  date: null,
+  valuePicks: [],
+  combinadaPool: [],
+  retos: [],
+  meta: {
+    status: "cold",
+    lastRunAt: null,
+    lastSuccessAt: null,
+    nextRunAt: null,
+    durationMs: 0,
+    runCount: 0,
+    errorCount: 0,
+    counts: { matches: 0, valuePicks: 0, combinadas: 0, retos: 0 },
+    errors: [],
+    logs: [],
+  },
+}
+
+export function getStore(): DailyStore {
+  return store
+}
+
+/** El store tiene resultados de hoy */
+export function isWarm(): boolean {
+  return store.meta.status === "ready" && store.valuePicks !== undefined
+}
+
+/** Los resultados son recientes (frescos) */
+export function isFresh(maxAgeMs: number): boolean {
+  if (!store.meta.lastSuccessAt) return false
+  return Date.now() - new Date(store.meta.lastSuccessAt).getTime() < maxAgeMs
+}
+
+export function addLog(line: string): void {
+  const stamp = new Date().toISOString().replace("T", " ").slice(0, 19)
+  store.meta.logs.unshift(`[${stamp}] ${line}`)
+  if (store.meta.logs.length > MAX_LOGS) store.meta.logs.length = MAX_LOGS
+}
+
+export function setStatus(status: PipelineStatus): void {
+  store.meta.status = status
+  if (status === "running") store.meta.lastRunAt = new Date().toISOString()
+}
+
+export function recordError(msg: string): void {
+  store.meta.errorCount++
+  store.meta.errors.unshift(`[${new Date().toISOString().slice(0, 19)}] ${msg}`)
+  if (store.meta.errors.length > 20) store.meta.errors.length = 20
+  addLog(`❌ ${msg}`)
+}
+
+export function setNextRun(iso: string): void {
+  store.meta.nextRunAt = iso
+}
+
+export function setDailyResults(r: DailyResults): void {
+  store.date = r.date
+  store.valuePicks = r.valuePicks
+  store.picksNote = r.picksNote
+  store.combinadaPool = r.combinadaPool
+  store.retos = r.retos
+  store.retosNote = r.retosNote
+  store.meta.status = "ready"
+  store.meta.lastSuccessAt = new Date().toISOString()
+  store.meta.durationMs = r.durationMs
+  store.meta.runCount++
+  store.meta.counts = {
+    matches: r.matches,
+    valuePicks: r.valuePicks.length,
+    combinadas: r.combinadaPool.length,
+    retos: r.retos.length,
+  }
+}
