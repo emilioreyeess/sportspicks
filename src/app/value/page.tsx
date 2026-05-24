@@ -54,8 +54,9 @@ export default function ValuePage() {
   const avgOdd   = total ? (picks.reduce((s, p) => s + (p.best_odd ?? 0), 0) / total).toFixed(2) : "—"
   const bestEdge = total ? Math.max(...picks.map((p) => p.value_edge ?? 0)).toFixed(1) : "—"
 
-  const visible = isPremium ? filtered : filtered.slice(0, 1)
-  const locked  = isPremium ? [] : filtered.slice(1)
+  const FREE_PICKS = 3
+  const visible = isPremium ? filtered : filtered.slice(0, FREE_PICKS)
+  const locked  = isPremium ? [] : filtered.slice(FREE_PICKS)
 
   return (
     <div className="px-4 py-6 max-w-5xl mx-auto safe-x">
@@ -130,7 +131,7 @@ export default function ValuePage() {
       {/* Free plan banner — solo si hay picks bloqueados */}
       {!isPremium && !loading && locked.length > 0 && (
         <div className="mb-4">
-          <UpgradeBanner text={`Ves 1 de ${filtered.length} value picks. Desbloquea todos con Premium.`} />
+          <UpgradeBanner text={`Ves ${visible.length} de ${filtered.length} value picks. Desbloquea el análisis completo con Premium ⭐`} />
         </div>
       )}
 

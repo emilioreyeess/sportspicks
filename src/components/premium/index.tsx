@@ -57,7 +57,7 @@ export function UpgradeModal({ open, onClose, feature }: {
         <div className="mt-5 space-y-2">
           <Link href="/pricing" onClick={onClose}
             className="flex items-center justify-center gap-2 w-full py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-cyan-500 text-zinc-950 font-bold text-sm tap">
-            Ver planes — desde {plan.price}€{plan.period}
+            Ver planes — desde {plan.priceMonthly}€{plan.period}
             <Icon name="arrowRight" className="w-4 h-4" strokeWidth={2.4} />
           </Link>
           <button onClick={onClose}

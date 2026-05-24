@@ -1,130 +1,185 @@
 /**
- * SISTEMA DE PLANES — arquitectura premium lista para producción.
+ * SISTEMA DE PLANES — FREE / PREMIUM / PRO
  *
- * NO conecta Stripe todavía. El control de plan vive en cliente (localStorage)
- * vía src/lib/plan.tsx. Cuando se integre el pago real, basta con:
- *   1. Sustituir la fuente del plan (localStorage → sesión/DB del usuario).
- *   2. Conectar el checkout de Stripe en la página de precios.
- * Toda la lógica de feature-gating (planHas / límites) ya queda centralizada aquí.
+ * Arquitectura SaaS optimizada para conversión:
+ *  FREE    → muestra suficiente valor para enganchar
+ *  PREMIUM → desbloquea la plataforma completa, precio accesible (9.99€)
+ *  PRO     → experiencia definitiva, exclusivo y premium (19.99€)
+ *
+ * Cuando se integre Stripe real:
+ *  1. Sustituye la fuente del plan (localStorage → sesión/DB del usuario)
+ *  2. Conecta el checkout en /pricing
+ * La lógica de feature-gating (planHas / límites) no cambia.
  */
 
 export type PlanId = "free" | "premium" | "pro"
 
 export type Feature =
-  | "value_picks_all"       // ver todos los value picks (free: solo 1)
-  | "value_pick_detail"     // abrir el análisis completo de un pick
-  | "combinadas_all_modes"  // modos balanceada y soñadora (free: solo segura)
-  | "bot_unlimited"         // bot IA sin límite diario
-  | "stats_advanced"        // comparativas y métricas avanzadas
-  | "retos_all"             // todos los retos
-  | "alerts"                // centro de alertas / notificaciones
-  | "api_access"            // acceso API (solo PRO)
-  | "exports"               // exportar datos a CSV (solo PRO)
+  // ── Value Picks ───────────────────────────────────────────────────────────
+  | "value_picks_all"       // todos los picks (free: máx 3)
+  | "value_pick_detail"     // análisis completo del pick (premium+)
+  // ── Combinadas ────────────────────────────────────────────────────────────
+  | "combinadas_dream"      // modo Soñadora (premium+; free tiene segura+balanceada)
+  | "combinadas_ai"         // combinadas IA por prompt libre (premium+)
+  | "combinadas_unlimited"  // sin límite de generaciones al día (premium+)
+  // ── Bot IA ────────────────────────────────────────────────────────────────
+  | "bot_extended"          // hasta 15 mensajes/día (premium)
+  | "bot_unlimited"         // sin límite diario (pro)
+  // ── Estadísticas ──────────────────────────────────────────────────────────
+  | "stats_advanced"        // métricas avanzadas y comparativas (premium+)
+  | "stats_unlimited"       // búsquedas ilimitadas (premium+; free: 2/día)
+  // ── Retos ─────────────────────────────────────────────────────────────────
+  | "retos_monthly"         // 1 reto mensual incluido (premium)
+  | "retos_unlimited"       // todos los retos sin coste extra (pro)
+  | "custom_retos"          // crear retos personalizados (pro)
+  // ── Alertas & notificaciones ──────────────────────────────────────────────
+  | "alerts"                // alertas inteligentes de valor (premium+)
+  // ── Funciones exclusivas PRO ──────────────────────────────────────────────
+  | "watchlist"             // seguir equipos/ligas/mercados (pro)
+  | "trader_mode"           // modo Trader con edge, probabilidades, filtros (pro)
+  | "ai_analyst"            // analista IA personal sin restricciones (pro)
+
+export interface PlanLimits {
+  valuePicks: number          // -1 = ilimitado
+  botMessagesPerDay: number
+  combinadasPerDay: number
+  statsSearchesPerDay: number
+}
 
 export interface PlanDef {
   id: PlanId
   name: string
-  price: number             // €/mes
+  emoji: string
+  priceMonthly: number        // €/mes
+  priceAnnual: number         // €/año (precio total, no mensual)
   period: string
   tagline: string
   badge?: string
   highlighted?: boolean
-  accent: string            // clase tailwind de color
+  accent: string
   features: Feature[]
   perks: string[]
-  notIncluded: string[]
-  limits: {
-    valuePicks: number      // -1 = ilimitado
-    botMessagesPerDay: number
-    combinadasModes: number
-  }
+  proFeatures?: string[]      // para el bloque "funciones exclusivas Pro"
+  limits: PlanLimits
 }
 
 export const PLANS: Record<PlanId, PlanDef> = {
+
   free: {
     id: "free",
     name: "Free",
-    price: 0,
+    emoji: "🔓",
+    priceMonthly: 0,
+    priceAnnual: 0,
     period: "siempre gratis",
-    tagline: "Prueba el motor cuantitativo",
+    tagline: "Empieza a explorar el motor cuantitativo",
     accent: "zinc",
     features: [],
     perks: [
-      "1 value pick destacado al día",
-      "Combinada en modo Segura",
-      "Bot IA — 3 análisis al día",
-      "Estadísticas básicas de equipos",
+      "2–3 value picks diarios",
+      "Combinadas Segura y Balanceada",
+      "Bot IA — 3 mensajes al día",
+      "Estadísticas básicas (2 búsquedas/día)",
       "Acceso a los retos comunitarios",
     ],
-    notIncluded: [
-      "Resto de value picks del día",
-      "Análisis completo de cada pick",
-      "Modos Balanceada y Soñadora",
-      "Estadísticas avanzadas y alertas",
-    ],
-    limits: { valuePicks: 1, botMessagesPerDay: 3, combinadasModes: 1 },
+    limits: {
+      valuePicks: 3,
+      botMessagesPerDay: 3,
+      combinadasPerDay: 2,
+      statsSearchesPerDay: 2,
+    },
   },
+
   premium: {
     id: "premium",
     name: "Premium",
-    price: 9.99,
+    emoji: "⭐",
+    priceMonthly: 9.99,
+    priceAnnual: 89.99,
     period: "/mes",
-    tagline: "El plan del apostador serio",
+    tagline: "Toda la plataforma. Para el apostador serio.",
     badge: "Más popular",
     highlighted: true,
     accent: "emerald",
     features: [
-      "value_picks_all", "value_pick_detail", "combinadas_all_modes",
-      "bot_unlimited", "stats_advanced", "retos_all", "alerts",
+      "value_picks_all", "value_pick_detail",
+      "combinadas_dream", "combinadas_ai", "combinadas_unlimited",
+      "bot_extended",
+      "stats_advanced", "stats_unlimited",
+      "retos_monthly", "alerts",
     ],
     perks: [
-      "Todos los value picks del día con edge real",
-      "Análisis completo: contexto, motivación y score",
-      "Combinadas en los 3 modos de riesgo",
-      "Bot IA ilimitado con visión de boletos",
-      "Estadísticas avanzadas y comparativas",
-      "Centro de alertas en tiempo real",
+      "Todos los value picks con análisis completo",
+      "Bot IA — hasta 15 mensajes al día",
+      "Combinadas en los 3 modos + IA por prompt",
+      "Estadísticas avanzadas ilimitadas",
+      "Alertas inteligentes de valor",
+      "1 reto comunitario incluido al mes",
+      "Todas las ligas y mercados",
     ],
-    notIncluded: ["Acceso API", "Exportación de datos"],
-    limits: { valuePicks: -1, botMessagesPerDay: -1, combinadasModes: 3 },
+    limits: {
+      valuePicks: -1,
+      botMessagesPerDay: 15,
+      combinadasPerDay: -1,
+      statsSearchesPerDay: -1,
+    },
   },
+
   pro: {
     id: "pro",
     name: "Pro",
-    price: 24.99,
+    emoji: "👑",
+    priceMonthly: 19.99,
+    priceAnnual: 179.99,
     period: "/mes",
-    tagline: "Para traders y automatización",
-    badge: "Avanzado",
+    tagline: "La experiencia definitiva. Sin límites.",
+    badge: "Exclusivo",
     accent: "violet",
     features: [
-      "value_picks_all", "value_pick_detail", "combinadas_all_modes",
-      "bot_unlimited", "stats_advanced", "retos_all", "alerts",
-      "api_access", "exports",
+      "value_picks_all", "value_pick_detail",
+      "combinadas_dream", "combinadas_ai", "combinadas_unlimited",
+      "bot_extended", "bot_unlimited",
+      "stats_advanced", "stats_unlimited",
+      "retos_monthly", "retos_unlimited", "custom_retos",
+      "alerts", "watchlist", "trader_mode", "ai_analyst",
     ],
     perks: [
-      "Todo lo de Premium",
-      "Acceso a la API de picks y cuotas",
-      "Exportación de datos a CSV",
-      "Webhooks y automatizaciones",
-      "Histórico completo del modelo",
-      "Soporte prioritario",
+      "Todo lo de Premium, sin límites",
+      "Bot IA ilimitado",
+      "Todos los retos incluidos (sin coste extra)",
+      "Retos personalizados — bankroll, cuota, días",
     ],
-    notIncluded: [],
-    limits: { valuePicks: -1, botMessagesPerDay: -1, combinadasModes: 3 },
+    proFeatures: [
+      "Combinadas IA avanzadas — \"cuota 3\", \"BTTS MLS\", \"corners Premier\"",
+      "Analista IA Personal — análisis completo a demanda",
+      "Watchlist Inteligente — alertas de equipos y ligas",
+      "Modo Trader — edge, prob. implícita, quality score, filtros",
+    ],
+    limits: {
+      valuePicks: -1,
+      botMessagesPerDay: -1,
+      combinadasPerDay: -1,
+      statsSearchesPerDay: -1,
+    },
   },
 }
 
 export const PLAN_ORDER: PlanId[] = ["free", "premium", "pro"]
 
-/** ¿Tiene este plan acceso a una feature concreta? */
+/** ¿Tiene este plan acceso a una feature? */
 export function planHas(plan: PlanId, feature: Feature): boolean {
   return PLANS[plan]?.features.includes(feature) ?? false
 }
 
-/** Devuelve el plan mínimo que desbloquea una feature (para los CTAs de upgrade) */
+/** Plan mínimo que desbloquea una feature */
 export function minPlanFor(feature: Feature): PlanId {
   for (const id of PLAN_ORDER) {
     if (planHas(id, feature)) return id
   }
   return "pro"
+}
+
+/** Límites del plan activo */
+export function planLimits(plan: PlanId): PlanLimits {
+  return PLANS[plan]?.limits ?? PLANS.free.limits
 }

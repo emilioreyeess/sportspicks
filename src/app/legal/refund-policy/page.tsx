@@ -7,9 +7,9 @@ export default function RefundPolicyPage() {
         <p>Sports Picks Analytics ofrece suscripciones mensuales de acceso a funcionalidades de análisis estadístico deportivo. Los planes disponibles son:</p>
         <div className="grid sm:grid-cols-3 gap-3 mt-3">
           {[
-            { name: "Basic", price: "$19/mes", features: "10 análisis/día, picks básicos" },
-            { name: "Premium", price: "$49/mes", features: "Ilimitado, alertas, análisis completo" },
-            { name: "Pro", price: "$99/mes", features: "API, automatización, soporte prioritario" },
+            { name: "Free", price: "0€/mes", features: "2–3 picks, combinadas básicas, bot 3/día" },
+            { name: "Premium ⭐", price: "9.99€/mes", features: "Todo desbloqueado, bot 15/día, IA combinadas" },
+            { name: "Pro 👑", price: "19.99€/mes", features: "Sin límites, retos, watchlist, modo trader" },
           ].map((p) => (
             <div key={p.name} className="bg-zinc-900 border border-zinc-800 rounded-xl p-3">
               <p className="font-bold text-white text-sm">{p.name}</p>

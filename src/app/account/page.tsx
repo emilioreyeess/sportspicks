@@ -111,7 +111,7 @@ export default function AccountPage() {
                   ? "bg-violet-500/15 text-violet-300 border-violet-700/50"
                   : "bg-emerald-500/15 text-emerald-300 border-emerald-700/50"
               }`}>
-                {planDef.price}€/mes
+                {planDef.priceMonthly}€/mes
               </span>
             ) : (
               <Link href="/pricing"
@@ -127,17 +127,17 @@ export default function AccountPage() {
         <div className="grid grid-cols-3 gap-2 mb-4">
           <UsageStat
             label="Picks hoy"
-            value={picksTotal !== null ? (isPremium ? `${picksTotal}` : `1/${picksTotal}`) : "—"}
+            value={picksTotal !== null ? (isPremium ? `${picksTotal}` : `3/${picksTotal}`) : "—"}
             color={isPremium ? "text-emerald-400" : "text-zinc-400"}
           />
           <UsageStat
             label="Bot IA"
-            value={isPremium ? "∞/día" : "3/día"}
+            value={isPro ? "∞/día" : isPremium ? "15/día" : "3/día"}
             color={isPremium ? "text-emerald-400" : "text-zinc-400"}
           />
           <UsageStat
             label="Combinadas"
-            value={isPremium ? "3 modos" : "1 modo"}
+            value={isPremium ? "∞ modos" : "2/día"}
             color={isPremium ? "text-emerald-400" : "text-zinc-400"}
           />
         </div>

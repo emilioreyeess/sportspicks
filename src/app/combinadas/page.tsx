@@ -1,8 +1,7 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { getCombinada } from "@/lib/api"
-import { DisclaimerBanner } from "@/components/legal/DisclaimerBanner"
 import { PageHeader, Card } from "@/components/ui/primitives"
 import { Icon } from "@/components/ui/icons"
 import { usePlan } from "@/lib/plan"
@@ -16,39 +15,82 @@ interface Leg {
 interface Result {
   mode: string; date: string; legs: Leg[]
   combined_odd: number; combined_prob: number
+  ai_reasoning?: string; interpretation?: string; prompt?: string
 }
 
 type ModeKey = "safe" | "balanced" | "dream"
 
-const MODES: { key: ModeKey; label: string; icon: string; legs: string; desc: string; premium: boolean; accent: string; bar: string }[] = [
-  { key: "safe",     label: "Segura",     icon: "shield",     legs: "2 patas", desc: "Selecciones más probables", premium: false, accent: "text-emerald-400", bar: "bg-emerald-500" },
-  { key: "balanced", label: "Balanceada", icon: "stats",      legs: "3 patas", desc: "Equilibrio riesgo/recompensa", premium: true, accent: "text-amber-400", bar: "bg-amber-400" },
-  { key: "dream",    label: "Soñadora",   icon: "spark",      legs: "5 patas", desc: "Cuota alta, más riesgo", premium: true, accent: "text-rose-400", bar: "bg-rose-500" },
+// safe + balanced son FREE · dream y AI son PREMIUM+
+const MODES: {
+  key: ModeKey; label: string; icon: string; legs: string; desc: string
+  requiresPremium: boolean; accent: string; bar: string
+}[] = [
+  { key: "safe",     label: "Segura",     icon: "shield", legs: "2 patas", desc: "Las más probables del día",   requiresPremium: false, accent: "text-emerald-400", bar: "bg-emerald-500" },
+  { key: "balanced", label: "Balanceada", icon: "stats",  legs: "3 patas", desc: "Equilibrio riesgo/recompensa", requiresPremium: false, accent: "text-amber-400",   bar: "bg-amber-400"   },
+  { key: "dream",    label: "Soñadora",   icon: "spark",  legs: "4 patas", desc: "Cuota alta, más riesgo",      requiresPremium: true,  accent: "text-rose-400",    bar: "bg-rose-500"    },
 ]
 
-const LEAGUES = [
-  { value: "", label: "Todas las ligas" },
-  { value: "1", label: "LaLiga" },
-  { value: "2", label: "Premier League" },
-  { value: "3", label: "Bundesliga" },
-  { value: "4", label: "Serie A" },
-  { value: "5", label: "Ligue 1" },
-]
+const DAILY_KEY = "sp_combi_day"
+const FREE_DAILY_LIMIT = 2
+
+function getTodayCount(): number {
+  if (typeof window === "undefined") return 0
+  try {
+    const raw = window.localStorage.getItem(DAILY_KEY)
+    if (!raw) return 0
+    const { date, count } = JSON.parse(raw)
+    if (date !== new Date().toISOString().split("T")[0]) return 0
+    return count ?? 0
+  } catch { return 0 }
+}
+
+function incrementTodayCount() {
+  try {
+    const date = new Date().toISOString().split("T")[0]
+    const count = getTodayCount() + 1
+    window.localStorage.setItem(DAILY_KEY, JSON.stringify({ date, count }))
+  } catch {}
+}
 
 export default function CombinadasPage() {
-  const { isPremium, isPro } = usePlan()
+  const { isPremium, isPro, plan } = usePlan()
   const upgrade = useUpgradeModal()
   const [mode, setMode] = useState<ModeKey>("safe")
-  const [leagueId, setLeagueId] = useState("")
   const [result, setResult] = useState<Result | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
+  const [todayCount, setTodayCount] = useState(0)
 
-  // AI combinada por prompt (PRO)
+  // AI combinadas (PREMIUM+)
   const [aiPrompt, setAiPrompt] = useState("")
-  const [aiResult, setAiResult] = useState<(Result & { ai_reasoning?: string; prompt?: string }) | null>(null)
+  const [aiResult, setAiResult] = useState<Result | null>(null)
   const [aiLoading, setAiLoading] = useState(false)
   const [aiError, setAiError] = useState("")
+
+  useEffect(() => { setTodayCount(getTodayCount()) }, [])
+
+  const meta = MODES.find((m) => m.key === mode)!
+  const freeAtLimit = !isPremium && todayCount >= FREE_DAILY_LIMIT
+
+  function pickMode(m: typeof MODES[number]) {
+    if (m.requiresPremium && !isPremium) { upgrade.show("combinadas_dream"); return }
+    setMode(m.key)
+  }
+
+  async function generate() {
+    if (freeAtLimit) { upgrade.show("combinadas_unlimited"); return }
+    setLoading(true); setError(""); setResult(null)
+    try {
+      const data = await getCombinada(mode)
+      if (data?.error) setError(data.error)
+      else {
+        setResult(data)
+        if (!isPremium) { incrementTodayCount(); setTodayCount(getTodayCount()) }
+      }
+    } catch {
+      setError("No hay suficientes selecciones. Prueba otro modo.")
+    } finally { setLoading(false) }
+  }
 
   async function generateAi() {
     if (!aiPrompt.trim()) return
@@ -61,46 +103,23 @@ export default function CombinadasPage() {
       const d = await r.json()
       if (d?.error) setAiError(d.error)
       else setAiResult(d)
-    } catch (e: any) {
-      setAiError(e?.message ?? "Error al generar")
-    } finally { setAiLoading(false) }
-  }
-
-  const meta = MODES.find((m) => m.key === mode)!
-
-  function pickMode(m: typeof MODES[number]) {
-    if (m.premium && !isPremium) { upgrade.show("combinadas_all_modes"); return }
-    setMode(m.key)
-  }
-
-  async function generate() {
-    setLoading(true); setError(""); setResult(null)
-    try {
-      const data = await getCombinada(mode, leagueId ? Number(leagueId) : undefined)
-      if (data?.error) setError(data.error)
-      else setResult(data)
-    } catch {
-      setError("No hay suficientes selecciones con valor. Prueba con otro modo o liga.")
-    } finally {
-      setLoading(false)
-    }
+    } catch (e: any) { setAiError(e?.message ?? "Error al generar") }
+    finally { setAiLoading(false) }
   }
 
   return (
     <div className="px-4 py-6 max-w-3xl mx-auto safe-x space-y-5">
       <PageHeader icon="combinadas" title="Combinadas"
-        subtitle="Cuotas reales y el mismo motor cuantitativo. Elige liga y perfil de riesgo." />
+        subtitle="Cuotas reales y el mismo motor cuantitativo. Elige el perfil de riesgo." />
 
-      <DisclaimerBanner variant="combinadas" />
-
-      {/* Config */}
+      {/* ── Modo selector ─────────────────────────────────────────────────────── */}
       <Card className="p-5 space-y-5">
         <div>
           <p className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 mb-2.5">Perfil de riesgo</p>
           <div className="grid grid-cols-3 gap-2">
             {MODES.map((m) => {
               const active = mode === m.key
-              const locked = m.premium && !isPremium
+              const locked = m.requiresPremium && !isPremium
               return (
                 <button key={m.key} onClick={() => pickMode(m)}
                   className={`relative rounded-xl p-3 border text-left transition-all tap ${
@@ -121,22 +140,39 @@ export default function CombinadasPage() {
           <p className="text-[11px] text-zinc-500 mt-2">{meta.desc} · cuota real por pata</p>
         </div>
 
-        <div>
-          <p className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 mb-2">Liga / Competición</p>
-          <select value={leagueId} onChange={(e) => setLeagueId(e.target.value)}
-            className="w-full bg-zinc-800 border border-zinc-700 text-sm text-zinc-200 rounded-xl px-4 py-3 outline-none">
-            {LEAGUES.map((l) => <option key={l.value} value={l.value}>{l.label}</option>)}
-          </select>
-        </div>
+        {/* Límite diario Free */}
+        {!isPremium && (
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-zinc-500">Generaciones hoy</span>
+            <span className={`font-bold ${freeAtLimit ? "text-rose-400" : "text-zinc-300"}`}>
+              {todayCount}/{FREE_DAILY_LIMIT}
+            </span>
+          </div>
+        )}
 
-        <button onClick={generate} disabled={loading}
-          className="w-full py-3.5 bg-gradient-to-r from-emerald-500 to-cyan-500 disabled:opacity-40 text-zinc-950 font-bold rounded-xl text-sm tap inline-flex items-center justify-center gap-2">
-          {loading
-            ? <><Icon name="settings" className="w-4 h-4 animate-spin" /> Generando…</>
-            : <><Icon name="spark" className="w-4 h-4" strokeWidth={2.2} /> Generar combinada {meta.label}</>}
-        </button>
+        {freeAtLimit ? (
+          <div className="rounded-xl border border-amber-800/50 bg-amber-500/8 px-4 py-3 flex items-start gap-2.5">
+            <Icon name="shield" className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-bold text-amber-300">Límite diario alcanzado</p>
+              <p className="text-xs text-amber-200/80 mt-0.5">
+                El plan Free incluye {FREE_DAILY_LIMIT} combinadas al día.{" "}
+                <Link href="/pricing" className="underline hover:text-amber-200">Actualiza a Premium ⭐</Link>{" "}
+                para generaciones ilimitadas.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <button onClick={generate} disabled={loading}
+            className="w-full py-3.5 bg-gradient-to-r from-emerald-500 to-cyan-500 disabled:opacity-40 text-zinc-950 font-bold rounded-xl text-sm tap inline-flex items-center justify-center gap-2">
+            {loading
+              ? <><Icon name="settings" className="w-4 h-4 animate-spin" /> Generando…</>
+              : <><Icon name="spark" className="w-4 h-4" strokeWidth={2.2} /> Generar combinada {meta.label}</>}
+          </button>
+        )}
       </Card>
 
+      {/* Error estándar */}
       {error && (
         <div className="flex items-start gap-2 rounded-xl border border-amber-800/50 bg-amber-500/8 px-4 py-3">
           <Icon name="shield" className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
@@ -144,153 +180,145 @@ export default function CombinadasPage() {
         </div>
       )}
 
-      {result && (
-        <Card glow className="overflow-hidden animate-scale-in">
-          {/* Summary */}
-          <div className="p-5 border-b border-zinc-800 bg-zinc-900">
-            <p className="text-[11px] text-zinc-500 mb-1.5">
-              Combinada {result.mode} · {result.legs.length} patas · cuotas reales
-            </p>
-            <div className="flex items-end justify-between">
-              <div>
-                <span className={`text-4xl font-black ${meta.accent}`}>{result.combined_odd.toFixed(2)}</span>
-                <span className="text-zinc-500 text-sm ml-1.5">cuota total</span>
-              </div>
-              <div className="text-right">
-                <p className="text-lg font-black text-white">{result.combined_prob.toFixed(1)}%</p>
-                <p className="text-[10px] text-zinc-600">prob. del modelo</p>
-              </div>
-            </div>
-            <div className="mt-3 h-2 bg-zinc-800 rounded-full overflow-hidden">
-              <div className={`h-full rounded-full ${meta.bar}`}
-                style={{ width: `${Math.min(result.combined_prob * 1.5, 100)}%` }} />
-            </div>
-          </div>
+      {/* Resultado estándar */}
+      {result && <CombinadaResult result={result} accent={meta.accent} bar={meta.bar} />}
 
-          {/* Legs */}
-          <div className="divide-y divide-zinc-800">
-            {result.legs.map((leg, i) => (
-              <div key={i} className="px-5 py-3.5 flex items-center justify-between gap-3">
-                <div className="flex items-center gap-3 min-w-0">
-                  <span className="grid place-items-center w-6 h-6 rounded-lg bg-zinc-800 text-zinc-500 font-black text-xs shrink-0">
-                    {i + 1}
-                  </span>
-                  <div className="min-w-0">
-                    <p className="text-[10px] text-zinc-600 uppercase tracking-wide">{leg.league} · {leg.market}</p>
-                    <p className="text-sm text-white font-semibold truncate">{leg.match}</p>
-                    <p className="text-xs text-emerald-400 font-medium mt-0.5 flex items-center gap-1">
-                      <Icon name="check" className="w-3 h-3" strokeWidth={2.5} /> {leg.selection}
-                    </p>
-                    {leg.reasoning && (
-                      <p className="text-[10px] text-zinc-500 mt-0.5 truncate">{leg.reasoning}</p>
-                    )}
-                  </div>
-                </div>
-                <div className="shrink-0 text-right">
-                  <p className="text-xl font-black text-white">{leg.odd.toFixed(2)}</p>
-                  <p className="text-[10px] text-zinc-600">{leg.prob}% modelo</p>
-                </div>
-              </div>
-            ))}
-          </div>
-
-          <div className="px-5 py-3 bg-zinc-950/50 border-t border-zinc-800">
-            <p className="text-[10px] text-zinc-700 text-center">
-              Cuotas reales · análisis informativo · no constituye recomendación de apuesta · +18
-            </p>
-          </div>
-        </Card>
-      )}
-
-      {/* ── AI Combinada por prompt (PRO) ───────────────────────────────────── */}
+      {/* ── AI Combinada por prompt (PREMIUM+) ──────────────────────────────── */}
       <Card className="p-5 space-y-4">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
-            <Icon name="spark" className="w-5 h-5 text-violet-400" />
-            <h2 className="text-base font-black text-white">Combinada IA por prompt</h2>
-            <PremiumBadge plan="pro" />
-          </div>
+        <div className="flex items-center gap-2">
+          <Icon name="spark" className="w-5 h-5 text-emerald-400" />
+          <h2 className="text-base font-black text-white">Combinada IA por prompt</h2>
+          <PremiumBadge plan="premium" />
         </div>
 
-        {isPro ? (
+        {isPremium ? (
           <>
             <p className="text-xs text-zinc-500 leading-relaxed">
-              Describe lo que buscas y la IA construye una combinada del pool real de hoy.
-              Ejemplos: <span className="text-zinc-400">"cuota 3", "solo LaLiga", "BTTS y Premier", "combinada segura de 2 patas".</span>
+              Escribe lo que quieres y la IA lo construye del pool real de hoy.
+              <span className="block mt-1 text-zinc-600">
+                Ejemplos: <em className="text-zinc-400 not-italic">"cuota 3"</em> · <em className="text-zinc-400 not-italic">"BTTS Premier"</em> · <em className="text-zinc-400 not-italic">"combinada defensiva"</em> · <em className="text-zinc-400 not-italic">"cuota 8 soñadora"</em>
+              </span>
             </p>
-            <textarea value={aiPrompt} onChange={(e) => setAiPrompt(e.target.value)}
-              placeholder="Ej: combinada cuota 5 con Manchester City y partidos de Premier…"
-              rows={3} maxLength={400}
-              className="w-full bg-zinc-800 border border-zinc-700 focus:border-violet-600 rounded-xl px-4 py-3 text-sm text-white outline-none resize-none transition-colors" />
-            <button onClick={generateAi} disabled={aiLoading || !aiPrompt.trim()}
-              className="w-full py-3 bg-gradient-to-r from-violet-500 to-cyan-500 text-zinc-950 font-bold rounded-xl text-sm tap inline-flex items-center justify-center gap-2 disabled:opacity-40">
-              {aiLoading
-                ? <><Icon name="settings" className="w-4 h-4 animate-spin" /> La IA está pensando…</>
-                : <><Icon name="spark" className="w-4 h-4" strokeWidth={2.2} /> Generar combinada IA</>}
-            </button>
+            <div className="flex gap-2">
+              <input
+                value={aiPrompt}
+                onChange={(e) => setAiPrompt(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter" && aiPrompt.trim()) generateAi() }}
+                placeholder="Describe tu combinada ideal…"
+                maxLength={500}
+                className="flex-1 bg-zinc-800 border border-zinc-700 focus:border-emerald-600 rounded-xl px-4 py-3 text-sm text-white outline-none transition-colors"
+              />
+              <button onClick={generateAi} disabled={aiLoading || !aiPrompt.trim()}
+                className="px-4 py-3 bg-gradient-to-r from-emerald-500 to-cyan-500 text-zinc-950 font-bold rounded-xl text-sm tap disabled:opacity-40 shrink-0 inline-flex items-center gap-1.5">
+                {aiLoading
+                  ? <Icon name="settings" className="w-4 h-4 animate-spin" />
+                  : <Icon name="spark" className="w-4 h-4" strokeWidth={2.2} />}
+                {aiLoading ? "IA…" : "Generar"}
+              </button>
+            </div>
             {aiError && (
               <div className="flex items-start gap-2 rounded-xl border border-amber-800/50 bg-amber-500/8 px-4 py-2.5">
                 <Icon name="shield" className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
                 <p className="text-sm text-amber-200/90 leading-snug">{aiError}</p>
               </div>
             )}
+            {aiResult && <CombinadaResult result={aiResult} accent="text-emerald-400" bar="bg-emerald-500" isAi />}
           </>
         ) : (
-          <div className="rounded-xl border border-violet-900/50 bg-violet-500/5 p-4 text-center">
-            <Icon name="lock" className="w-6 h-6 text-violet-400 mx-auto mb-2" />
-            <p className="text-sm font-bold text-white">Función exclusiva Pro</p>
-            <p className="text-xs text-zinc-400 mt-1 mb-3 leading-snug max-w-xs mx-auto">
-              Pide a la IA combinadas a medida: <span className="text-zinc-300">"cuota 3"</span>, <span className="text-zinc-300">"BTTS y Premier"</span>, <span className="text-zinc-300">"Madrid-Barça"</span>… Construye desde el pool real del día.
+          <div className="rounded-xl border border-emerald-900/50 bg-emerald-500/5 p-5 text-center">
+            <div className="grid place-items-center w-12 h-12 rounded-2xl bg-emerald-500/10 mx-auto mb-3">
+              <Icon name="spark" className="w-6 h-6 text-emerald-400" />
+            </div>
+            <p className="text-sm font-black text-white mb-1">Disponible en Premium ⭐</p>
+            <p className="text-xs text-zinc-400 mb-4 leading-snug max-w-xs mx-auto">
+              Pide cualquier combinada: <span className="text-zinc-300">"cuota 3"</span>, <span className="text-zinc-300">"BTTS Premier"</span>, <span className="text-zinc-300">"combinada corners MLS"</span>. La IA la construye del pool real del día.
             </p>
-            <Link href="/pricing" className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-violet-500 hover:bg-violet-400 text-white font-bold text-xs tap">
-              <Icon name="crown" className="w-3.5 h-3.5" strokeWidth={2.2} /> Desbloquear Pro
+            <Link href="/pricing"
+              className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-cyan-500 text-zinc-950 font-bold text-sm tap">
+              <Icon name="crown" className="w-4 h-4" strokeWidth={2.2} /> Ver Premium
             </Link>
-          </div>
-        )}
-
-        {aiResult && (
-          <div className="border-t border-zinc-800 pt-4 animate-scale-in">
-            {aiResult.ai_reasoning && (
-              <div className="rounded-xl border border-violet-800/50 bg-violet-500/5 px-3.5 py-2.5 mb-3">
-                <p className="text-[10px] font-bold uppercase tracking-wide text-violet-300 mb-1">💡 Razonamiento de la IA</p>
-                <p className="text-xs text-zinc-200 leading-snug">{aiResult.ai_reasoning}</p>
-              </div>
-            )}
-            <div className="flex items-end justify-between mb-3">
-              <div>
-                <span className="text-3xl font-black text-violet-300">{aiResult.combined_odd.toFixed(2)}</span>
-                <span className="text-zinc-500 text-sm ml-1.5">cuota total · {aiResult.legs.length} patas</span>
-              </div>
-              <div className="text-right">
-                <p className="text-base font-black text-white">{aiResult.combined_prob.toFixed(1)}%</p>
-                <p className="text-[10px] text-zinc-600">prob. modelo</p>
-              </div>
-            </div>
-            <div className="divide-y divide-zinc-800 -mx-5">
-              {aiResult.legs.map((leg, i) => (
-                <div key={i} className="px-5 py-3 flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <span className="grid place-items-center w-6 h-6 rounded-lg bg-violet-500/15 text-violet-300 font-black text-xs shrink-0">{i + 1}</span>
-                    <div className="min-w-0">
-                      <p className="text-[10px] text-zinc-600 uppercase tracking-wide">{leg.league} · {leg.market}</p>
-                      <p className="text-sm text-white font-semibold truncate">{leg.match}</p>
-                      <p className="text-xs text-violet-300 mt-0.5 flex items-center gap-1">
-                        <Icon name="check" className="w-3 h-3" strokeWidth={2.5} /> {leg.selection}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="shrink-0 text-right">
-                    <p className="text-lg font-black text-white">{leg.odd.toFixed(2)}</p>
-                    <p className="text-[10px] text-zinc-600">{leg.prob}% modelo</p>
-                  </div>
-                </div>
-              ))}
-            </div>
           </div>
         )}
       </Card>
 
       <upgrade.Modal />
     </div>
+  )
+}
+
+function CombinadaResult({ result, accent, bar, isAi = false }: {
+  result: Result; accent: string; bar: string; isAi?: boolean
+}) {
+  return (
+    <Card glow className="overflow-hidden animate-scale-in">
+      {/* Interpretation badge (AI only) */}
+      {isAi && result.interpretation && (
+        <div className="px-5 py-2.5 bg-zinc-950/60 border-b border-zinc-800">
+          <p className="text-[10px] font-bold uppercase tracking-wide text-emerald-400 mb-0.5">✦ IA interpretó</p>
+          <p className="text-xs text-zinc-300 leading-snug">{result.interpretation}</p>
+        </div>
+      )}
+
+      {/* Reasoning (AI only) */}
+      {isAi && result.ai_reasoning && (
+        <div className="px-5 py-2.5 border-b border-zinc-800 bg-emerald-500/5">
+          <p className="text-xs text-zinc-400 leading-snug">{result.ai_reasoning}</p>
+        </div>
+      )}
+
+      {/* Summary */}
+      <div className="p-5 border-b border-zinc-800 bg-zinc-900">
+        <p className="text-[11px] text-zinc-500 mb-1.5">
+          Combinada {result.mode} · {result.legs.length} patas · cuotas reales
+        </p>
+        <div className="flex items-end justify-between">
+          <div>
+            <span className={`text-4xl font-black ${accent}`}>{result.combined_odd.toFixed(2)}</span>
+            <span className="text-zinc-500 text-sm ml-1.5">cuota total</span>
+          </div>
+          <div className="text-right">
+            <p className="text-lg font-black text-white">{result.combined_prob.toFixed(1)}%</p>
+            <p className="text-[10px] text-zinc-600">prob. del modelo</p>
+          </div>
+        </div>
+        <div className="mt-3 h-2 bg-zinc-800 rounded-full overflow-hidden">
+          <div className={`h-full rounded-full transition-all ${bar}`}
+            style={{ width: `${Math.min(result.combined_prob * 1.5, 100)}%` }} />
+        </div>
+      </div>
+
+      {/* Legs */}
+      <div className="divide-y divide-zinc-800">
+        {result.legs.map((leg, i) => (
+          <div key={i} className="px-5 py-3.5 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <span className="grid place-items-center w-6 h-6 rounded-lg bg-zinc-800 text-zinc-500 font-black text-xs shrink-0">
+                {i + 1}
+              </span>
+              <div className="min-w-0">
+                <p className="text-[10px] text-zinc-600 uppercase tracking-wide">{leg.league} · {leg.market}</p>
+                <p className="text-sm text-white font-semibold truncate">{leg.match}</p>
+                <p className={`text-xs font-medium mt-0.5 flex items-center gap-1 ${accent}`}>
+                  <Icon name="check" className="w-3 h-3" strokeWidth={2.5} /> {leg.selection}
+                </p>
+                {leg.reasoning && (
+                  <p className="text-[10px] text-zinc-600 mt-0.5 truncate">{leg.reasoning}</p>
+                )}
+              </div>
+            </div>
+            <div className="shrink-0 text-right">
+              <p className="text-xl font-black text-white">{leg.odd.toFixed(2)}</p>
+              <p className="text-[10px] text-zinc-600">{leg.prob}% modelo</p>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="px-5 py-2.5 bg-zinc-950/50 border-t border-zinc-800">
+        <p className="text-[10px] text-zinc-700 text-center">
+          Cuotas reales · análisis informativo · no constituye recomendación de apuesta · +18
+        </p>
+      </div>
+    </Card>
   )
 }
