@@ -18,6 +18,8 @@ const PATHS: Record<string, ReactNode> = {
   settings: <><circle cx="12" cy="12" r="3.2" /><path d="M12 2.5v3M12 18.5v3M21.5 12h-3M5.5 12h-3M18 6 16 8M8 16l-2 2M18 18l-2-2M8 8 6 6" /></>,
   shield: <><path d="M12 3 5 6v5c0 5 3 8 7 10 4-2 7-5 7-10V6z" /><path d="m9 12 2 2 4-4" /></>,
   spark: <><path d="M12 4 13.4 9 18 10.4 13.4 11.8 12 16.8 10.6 11.8 6 10.4 10.6 9z" /></>,
+  chevronDown: <><path d="M6 9l6 6 6-6" /></>,
+  chevronUp: <><path d="M18 15l-6-6-6 6" /></>,
 }
 
 export function Icon({ name, className = "w-5 h-5", strokeWidth = 1.8 }: {

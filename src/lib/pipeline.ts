@@ -465,46 +465,147 @@ export function pickCombinadaFromPool(pool: PoolEntry[], mode: string, leagueId:
   }
 }
 
-// ─── Retos ───────────────────────────────────────────────────────────────────
+// ─── Retos V2 ────────────────────────────────────────────────────────────────
 
-const RETO_SPECS = [
-  { id: "reto-1", title: "Reto 12×1.5", target_picks: 12, min_odd: 1.5, days: 7, description: "12 picks consecutivos a cuota mínima 1.5. Supera el 70% de acierto para subir al ranking.", prize_description: "Top 10 en ranking comunitario" },
-  { id: "reto-2", title: "Reto 8×2.0", target_picks: 8, min_odd: 2.0, days: 5, description: "8 picks a cuota mínima 2.0. Solo los mejores analistas completan este reto.", prize_description: "Insignia de élite en el perfil" },
-  { id: "reto-3", title: "Reto 10×1.3", target_picks: 10, min_odd: 1.3, days: 10, description: "10 picks consecutivos a cuota mínima 1.3. El reto más alcanzable para empezar racha.", prize_description: "Top 20 en ranking semanal" },
-  { id: "reto-4", title: "Reto Experto 6×1.8", target_picks: 6, min_odd: 1.8, days: 7, description: "6 picks a cuota mínima 1.8. Equilibrio real entre valor y probabilidad.", prize_description: "Insignia Experto en el perfil" },
+interface RetoSpec {
+  id: string; emoji: string; title: string
+  days: number; targetOdd: number
+  minOdd: number; maxOdd: number; minProb: number
+  difficulty: string; description: string
+  stake: number; simulResult: number; color: string
+}
+
+const RETO_SPECS_V2: RetoSpec[] = [
+  {
+    id: "conservador", emoji: "🟢", title: "Conservador",
+    days: 15, targetOdd: 1.25, minOdd: 1.18, maxOdd: 1.38, minProb: 0.68,
+    difficulty: "Baja",
+    description: "15 picks consecutivos a cuota objetivo 1.25. Alta probabilidad, riesgo mínimo. El reto para construir racha.",
+    stake: 10, simulResult: 284, color: "emerald",
+  },
+  {
+    id: "balanceado", emoji: "⭐", title: "Balanceado",
+    days: 10, targetOdd: 1.40, minOdd: 1.33, maxOdd: 1.52, minProb: 0.60,
+    difficulty: "Media",
+    description: "10 picks a cuota objetivo 1.40. Equilibrio real entre probabilidad alta y retorno interesante.",
+    stake: 10, simulResult: 289, color: "amber",
+  },
+  {
+    id: "agresivo", emoji: "🔥", title: "Agresivo",
+    days: 6, targetOdd: 1.75, minOdd: 1.60, maxOdd: 1.95, minProb: 0.50,
+    difficulty: "Alta",
+    description: "6 picks a cuota objetivo 1.75. Mayor edge, mayor riesgo. Para analistas con convicción.",
+    stake: 10, simulResult: 287, color: "rose",
+  },
+  {
+    id: "elite", emoji: "👑", title: "Élite",
+    days: 4, targetOdd: 3.0, minOdd: 2.60, maxOdd: 3.50, minProb: 0.38,
+    difficulty: "Muy alta",
+    description: "4 picks a cuota objetivo 3.0. Value puro y riesgo máximo. Solo para traders con tolerancia total.",
+    stake: 10, simulResult: 810, color: "violet",
+  },
 ]
 
-export function computeRetos(data: DailyData): { challenges: any[]; note?: string } {
-  const STAKE = 10
-  const fmt = (n: number) => (n >= 1000 ? `${(n / 1000).toFixed(1).replace(".0", "")}k€` : `${n.toFixed(2)}€`)
+interface RetoPick {
+  match: string; league: string; kickoff: string
+  selection: string; market: string; odd: number
+  model_prob: number; implied_prob: number; edge: number
+  quality: number; confidence: string; reasons: string[]
+}
 
-  // Pool de selecciones reales (mejor cuota = la más probable que cumple)
-  interface Sel { match: string; league: string; kickoff: string; selection: string; odd: number; market: string }
-  const pool: Sel[] = []
+function computeRetoPick(
+  data: DailyData,
+  spec: RetoSpec,
+  used: Set<string>,
+): RetoPick | null {
+  let best: { match: MatchModel; c: Candidate; odd: number; edge: number; quality: number } | null = null
+
   for (const m of data.matches) {
-    const base = { match: `${m.homeName} vs ${m.awayName}`, league: LEAGUE_NAMES[m.slug] ?? m.slug, kickoff: m.kickoff }
-    if (m.odds.home)    pool.push({ ...base, selection: `Gana ${m.homeName}`, odd: m.odds.home, market: "1X2" })
-    if (m.odds.away)    pool.push({ ...base, selection: `Gana ${m.awayName}`, odd: m.odds.away, market: "1X2" })
-    if (m.odds.over25)  pool.push({ ...base, selection: "Over 2.5 Goles", odd: m.odds.over25, market: "Over/Under" })
-    if (m.odds.under25) pool.push({ ...base, selection: "Under 2.5 Goles", odd: m.odds.under25, market: "Over/Under" })
+    if (used.has(m.id)) continue
+    const reliability = (Math.min(m.home.gamesPlayed, 10) + Math.min(m.away.gamesPlayed, 10)) / 20
+
+    for (const c of buildCandidates(m)) {
+      if (c.suppressed) continue
+      const odd = m.odds[c.key]
+      if (!odd || !isFinite(odd)) continue
+      if (odd < spec.minOdd || odd > spec.maxOdd) continue
+      if (c.prob < spec.minProb) continue
+      if (!commonSensePass(c, m)) continue
+
+      const edge = Math.round((c.prob * 100 - impliedPct(odd)) * 10) / 10
+      if (edge < 1.5) continue
+
+      const edgeScore = 25 + clamp((edge - 1.5) / 12, 0, 1) * 75
+      const marketScore = clamp((odd - spec.minOdd) / Math.max(spec.maxOdd - spec.minOdd, 0.01), 0, 1) * 100
+      const quality = Math.round(0.38 * edgeScore + 0.30 * c.contextScore + 0.16 * marketScore + 0.16 * reliability * 100)
+
+      if (!best || quality > best.quality) best = { match: m, c, odd, edge, quality }
+    }
   }
+
+  if (!best) return null
+  used.add(best.match.id)
+
+  const m = best.match
+  const impliedProb = impliedPct(best.odd)
+  const reasons: string[] = []
+  if (best.c.story) reasons.push(`💡 ${best.c.story}`)
+  reasons.push(
+    `📊 Probabilidad del modelo: ${Math.round(best.c.prob * 100)}% · Implícita (cuota ${best.odd.toFixed(2)}): ${impliedProb}%`,
+    `📈 Edge real: +${best.edge.toFixed(1)}% · Score de calidad: ${best.quality}/100`,
+    ...best.c.extra,
+  )
+
+  return {
+    match: `${m.homeName} vs ${m.awayName}`,
+    league: LEAGUE_NAMES[m.slug] ?? m.slug,
+    kickoff: m.kickoff,
+    selection: best.c.selection,
+    market: best.c.market,
+    odd: best.odd,
+    model_prob: Math.round(best.c.prob * 100),
+    implied_prob: impliedProb,
+    edge: best.edge,
+    quality: best.quality,
+    confidence: best.quality >= 75 ? "Alta" : best.quality >= 60 ? "Media" : "Moderada",
+    reasons,
+  }
+}
+
+export function computeRetos(data: DailyData): { challenges: any[]; note?: string } {
   const used = new Set<string>()
-  function dailyPick(minOdd: number): Sel | null {
-    const elig = pool.filter((p) => p.odd >= minOdd && !used.has(p.match)).sort((a, b) => a.odd - b.odd)
-    if (elig[0]) used.add(elig[0].match)
-    return elig[0] ?? null
+
+  const challenges = RETO_SPECS_V2.map((spec) => {
+    const daily_pick = computeRetoPick(data, spec, used)
+
+    // Simulation path: compounding from stake → target odd per day
+    const path: number[] = []
+    let val = spec.stake
+    for (let d = 0; d < spec.days; d++) {
+      val = Math.round(val * spec.targetOdd * 100) / 100
+      path.push(Math.round(val))
+    }
+
+    return {
+      id: spec.id,
+      emoji: spec.emoji,
+      title: spec.title,
+      days: spec.days,
+      target_odd: spec.targetOdd,
+      difficulty: spec.difficulty,
+      color: spec.color,
+      description: spec.description,
+      simulation: { stake: spec.stake, result: spec.simulResult, path },
+      daily_pick,
+    }
+  })
+
+  return {
+    challenges,
+    note: challenges.every((c) => !c.daily_pick)
+      ? "Sin partidos con cuotas válidas para los retos hoy."
+      : undefined,
   }
-
-  const challenges = RETO_SPECS.map((s) => ({
-    id: s.id, title: s.title, description: s.description,
-    target_picks: s.target_picks, min_odd: s.min_odd,
-    payout_info: `Con ${STAKE}€ y cuota ${s.min_odd} en cada pick → combinada total **${fmt(STAKE * Math.pow(s.min_odd, s.target_picks))}** si aciertas los ${s.target_picks}`,
-    ends_at: new Date(Date.now() + s.days * 86400000).toISOString(),
-    prize_description: s.prize_description,
-    daily_pick: dailyPick(s.min_odd),
-  }))
-
-  return { challenges, note: pool.length === 0 ? "Sin partidos con cuotas reales hoy para los picks diarios." : undefined }
 }
 
 // ─── Orquestación ────────────────────────────────────────────────────────────

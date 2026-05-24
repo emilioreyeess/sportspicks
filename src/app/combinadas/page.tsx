@@ -17,6 +17,16 @@ interface Result {
   combined_odd: number; combined_prob: number
   ai_reasoning?: string; interpretation?: string; prompt?: string
 }
+interface NoMatchResult {
+  no_match: true
+  requested_market?: string
+  requested_league?: string
+  message: string
+  explanation: string
+  available_markets?: string[]
+  available_leagues?: string[]
+  suggestion?: string
+}
 
 type ModeKey = "safe" | "balanced" | "dream"
 
@@ -64,6 +74,7 @@ export default function CombinadasPage() {
   // AI combinadas (PREMIUM+)
   const [aiPrompt, setAiPrompt] = useState("")
   const [aiResult, setAiResult] = useState<Result | null>(null)
+  const [aiNoMatch, setAiNoMatch] = useState<NoMatchResult | null>(null)
   const [aiLoading, setAiLoading] = useState(false)
   const [aiError, setAiError] = useState("")
 
@@ -94,14 +105,15 @@ export default function CombinadasPage() {
 
   async function generateAi() {
     if (!aiPrompt.trim()) return
-    setAiLoading(true); setAiError(""); setAiResult(null)
+    setAiLoading(true); setAiError(""); setAiResult(null); setAiNoMatch(null)
     try {
       const r = await fetch("/api/combinadas/ai", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ prompt: aiPrompt }),
       })
       const d = await r.json()
-      if (d?.error) setAiError(d.error)
+      if (d?.no_match) setAiNoMatch(d as NoMatchResult)
+      else if (d?.error) setAiError(d.error)
       else setAiResult(d)
     } catch (e: any) { setAiError(e?.message ?? "Error al generar") }
     finally { setAiLoading(false) }
@@ -222,6 +234,7 @@ export default function CombinadasPage() {
                 <p className="text-sm text-amber-200/90 leading-snug">{aiError}</p>
               </div>
             )}
+            {aiNoMatch && <NoMatchPanel nm={aiNoMatch} onRetry={(q) => { setAiPrompt(q); setAiNoMatch(null) }} />}
             {aiResult && <CombinadaResult result={aiResult} accent="text-emerald-400" bar="bg-emerald-500" isAi />}
           </>
         ) : (
@@ -245,6 +258,71 @@ export default function CombinadasPage() {
     </div>
   )
 }
+
+// ─── No Match Panel ───────────────────────────────────────────────────────────
+
+function NoMatchPanel({ nm, onRetry }: { nm: NoMatchResult; onRetry: (q: string) => void }) {
+  const what = nm.requested_market ?? nm.requested_league ?? "lo pedido"
+  return (
+    <div className="rounded-xl border border-zinc-800 bg-zinc-950/60 overflow-hidden animate-scale-in">
+      {/* Header */}
+      <div className="px-4 py-3 border-b border-zinc-800 bg-amber-500/5 flex items-start gap-2.5">
+        <span className="text-base shrink-0 mt-0.5">🔍</span>
+        <div>
+          <p className="text-sm font-bold text-amber-300">{nm.message}</p>
+          <p className="text-xs text-zinc-400 mt-1 leading-snug">{nm.explanation}</p>
+        </div>
+      </div>
+
+      {/* Available markets */}
+      {nm.available_markets && nm.available_markets.length > 0 && (
+        <div className="px-4 py-3 border-b border-zinc-800">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-600 mb-2">
+            Mercados disponibles en el pool de hoy
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {nm.available_markets.map((m) => (
+              <span key={m} className="px-2.5 py-1 rounded-lg bg-zinc-800 text-xs text-zinc-300 font-medium border border-zinc-700">
+                {m}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Available leagues */}
+      {nm.available_leagues && nm.available_leagues.length > 0 && (
+        <div className="px-4 py-3 border-b border-zinc-800">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-600 mb-2">
+            Ligas disponibles hoy
+          </p>
+          <div className="flex flex-wrap gap-1.5">
+            {nm.available_leagues.slice(0, 8).map((l) => (
+              <span key={l} className="px-2.5 py-1 rounded-lg bg-zinc-800 text-xs text-zinc-300 font-medium border border-zinc-700">
+                {l}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Suggestion + retry */}
+      {nm.suggestion && (
+        <div className="px-4 py-3">
+          <p className="text-xs text-zinc-400 leading-snug mb-3">{nm.suggestion}</p>
+          <button
+            onClick={() => onRetry("combinada 3 patas cuota 4")}
+            className="text-xs font-bold text-emerald-400 flex items-center gap-1 tap hover:text-emerald-300">
+            <Icon name="spark" className="w-3.5 h-3.5" strokeWidth={2.2} />
+            Probar combinada estándar →
+          </button>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Combinada Result ─────────────────────────────────────────────────────────
 
 function CombinadaResult({ result, accent, bar, isAi = false }: {
   result: Result; accent: string; bar: string; isAi?: boolean
