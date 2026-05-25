@@ -7,7 +7,11 @@ import { usePlan } from "@/lib/plan"
 import { useAuth } from "@/lib/auth"
 import { Icon } from "@/components/ui/icons"
 
-const STRIPE_ENABLED = Boolean(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY)
+// Always enable Stripe in production — the API handles errors if keys are missing.
+// Demo mode only applies when explicitly running on localhost without any env var.
+const STRIPE_ENABLED = typeof window !== "undefined"
+  ? window.location.hostname !== "localhost"
+  : process.env.NODE_ENV === "production"
 
 // Tabla de comparativa
 const TABLE_ROWS = [
