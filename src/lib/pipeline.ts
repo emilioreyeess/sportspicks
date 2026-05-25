@@ -783,6 +783,8 @@ interface RetoSpec {
   days: number; targetOdd: number; nLegs: number
   /** Rango de cuota válido para CADA pata individual — evita combos absurdos */
   minLegOdd: number; maxLegOdd: number
+  /** Rango de cuota TOTAL aceptable — validación estricta antes de publicar el pick */
+  minFinalOdd: number; maxFinalOdd: number
   difficulty: string; description: string
   stake: number; simulResult: number; color: string
 }
@@ -796,41 +798,47 @@ interface RetoSpec {
 const RETO_SPECS_V2: RetoSpec[] = [
   {
     id: "conservador", emoji: "🟢", title: "Conservador",
-    days: 15, targetOdd: 1.25, nLegs: 1,
-    minLegOdd: 1.15, maxLegOdd: 1.42,
+    days: 10, targetOdd: 1.30, nLegs: 1,
+    minLegOdd: 1.25, maxLegOdd: 1.35,
+    minFinalOdd: 1.25, maxFinalOdd: 1.35,
     difficulty: "Baja",
-    description: "15 días · 1 pick diario a cuota entre 1.15 y 1.40. Alta probabilidad, riesgo mínimo. El reto para construir racha.",
-    stake: 10, simulResult: 284, color: "emerald",
+    description: "10 días · 1 pick diario a cuota entre 1.25 y 1.35. Alta probabilidad, riesgo mínimo. El reto para construir racha.",
+    stake: 10, simulResult: 138, color: "emerald",   // 10×1.30^10 ≈ 138€
   },
   {
-    id: "balanceado", emoji: "⭐", title: "Balanceado",
-    days: 10, targetOdd: 1.45, nLegs: 1,      // 1 sola pata — no combo absurdo de 1.18×1.18
-    minLegOdd: 1.28, maxLegOdd: 1.72,
+    id: "intermedio", emoji: "⭐", title: "Intermedio",
+    days: 10, targetOdd: 1.50, nLegs: 1,
+    minLegOdd: 1.45, maxLegOdd: 1.55,
+    minFinalOdd: 1.45, maxFinalOdd: 1.55,
     difficulty: "Media",
-    description: "10 días · 1 pick diario a cuota entre 1.30 y 1.70. Equilibrio entre seguridad y valor.",
-    stake: 10, simulResult: 310, color: "amber", // 10×1.45^10 ≈ 310
+    description: "10 días · 1 pick diario a cuota entre 1.45 y 1.55. Equilibrio perfecto entre valor y probabilidad.",
+    stake: 10, simulResult: 576, color: "amber",     // 10×1.50^10 ≈ 576€
   },
   {
-    id: "agresivo", emoji: "🔥", title: "Agresivo",
-    days: 5, targetOdd: 2.25, nLegs: 2,
-    minLegOdd: 1.35, maxLegOdd: 1.90,          // cada pata 1.35–1.90, producto ~2.25
+    id: "avanzado", emoji: "🔥", title: "Avanzado",
+    days: 5, targetOdd: 2.00, nLegs: 2,
+    minLegOdd: 1.35, maxLegOdd: 1.58,               // ~√2.00 ≈ 1.41 por pata
+    minFinalOdd: 1.90, maxFinalOdd: 2.10,
     difficulty: "Alta",
-    description: "5 días · Combinada de 2 picks a cuota entre 1.35 y 1.90 cada uno (combinada objetivo ~2.25).",
-    stake: 10, simulResult: 570, color: "rose", // 10×2.25^5 ≈ 570
+    description: "5 días · Combinada de 2 picks con cuota total entre 1.90 y 2.10.",
+    stake: 10, simulResult: 320, color: "rose",      // 10×2.00^5 = 320€
   },
   {
-    id: "elite", emoji: "👑", title: "Élite",
-    days: 4, targetOdd: 3.20, nLegs: 2,
-    minLegOdd: 1.55, maxLegOdd: 2.30,          // cada pata 1.55–2.30, producto ~3.20
+    id: "pro", emoji: "👑", title: "PRO",
+    days: 5, targetOdd: 3.00, nLegs: 2,
+    minLegOdd: 1.60, maxLegOdd: 1.90,               // ~√3.00 ≈ 1.73 por pata
+    minFinalOdd: 2.80, maxFinalOdd: 3.20,
     difficulty: "Muy alta",
-    description: "4 días · Combinada de 2 picks a cuota entre 1.55 y 2.30 cada uno (combinada objetivo ~3.20).",
-    stake: 10, simulResult: 1050, color: "violet", // 10×3.20^4 ≈ 1050
+    description: "5 días · Combinada de 2 picks con cuota total entre 2.80 y 3.20.",
+    stake: 10, simulResult: 2430, color: "violet",   // 10×3.00^5 = 2430€
   },
 ]
 
 interface RetoPick {
-  match: string; league: string; kickoff: string
-  selection: string; market: string; odd: number
+  match_name: string; league: string; kickoff: string
+  selection: string; market: string
+  odd: number       // cuota individual del pick
+  odds: number[]    // siempre array para consistencia estructural
   model_prob: number; implied_prob: number; edge: number
   quality: number; confidence: string; reasons: string[]
 }
@@ -855,12 +863,13 @@ function buildRetoPick(rc: RawCand): RetoPick {
     ...rc.c.extra,
   )
   return {
-    match: `${m.homeName} vs ${m.awayName}`,
+    match_name: `${m.homeName} vs ${m.awayName}`,
     league: LEAGUE_NAMES[m.slug] ?? m.slug,
     kickoff: m.kickoff,
     selection: rc.c.selection,
     market: rc.c.market,
     odd: rc.odd,
+    odds: [rc.odd],
     model_prob: Math.round(rc.c.prob * 100),
     implied_prob: impliedProb,
     edge: rc.edge,
@@ -909,12 +918,9 @@ function computeRetoCombi(
     .filter((rc) => rc.odd >= spec.minLegOdd && rc.odd <= spec.maxLegOdd)
     .slice(0, 40)
 
-  // Pool amplio (fallback de último recurso solo para 1 pata)
-  const broadPool = cands.slice(0, 30)
-
   // ── 1 pata ────────────────────────────────────────────────────────────────
   if (spec.nLegs === 1) {
-    // 1º: legPool ordenado por cercanía al targetOdd y calidad
+    // legPool ya filtra por [minLegOdd, maxLegOdd] = [minFinalOdd, maxFinalOdd]
     const legSorted = [...legPool]
       .filter((rc) => !usedMatches.has(rc.match.id))
       .sort((a, b) => {
@@ -922,31 +928,20 @@ function computeRetoCombi(
         const db = Math.abs(b.odd - spec.targetOdd) / spec.targetOdd
         return (da - db) * 0.6 + (b.quality - a.quality) * 0.4 / 100
       })
-    if (legSorted.length > 0) {
-      const rc = legSorted[0]
-      usedMatches.add(rc.match.id)
-      return {
-        picks: [buildRetoPick(rc)],
-        combined_odd: Math.round(rc.odd * 100) / 100,
-        combined_prob: Math.round(rc.c.prob * 100),
-      }
-    }
-    // Fallback: mejor del pool amplio dentro del rango ±35% del target
-    const fallback = broadPool.find((rc) => {
-      if (usedMatches.has(rc.match.id)) return false
-      return Math.abs(rc.odd - spec.targetOdd) / spec.targetOdd <= 0.35
-    })
-    if (!fallback) return null
-    usedMatches.add(fallback.match.id)
+    if (legSorted.length === 0) return null  // sin cuotas en rango → no publicar
+    const rc = legSorted[0]
+    // Validación estricta de cuota final
+    if (rc.odd < spec.minFinalOdd || rc.odd > spec.maxFinalOdd) return null
+    usedMatches.add(rc.match.id)
     return {
-      picks: [buildRetoPick(fallback)],
-      combined_odd: Math.round(fallback.odd * 100) / 100,
-      combined_prob: Math.round(fallback.c.prob * 100),
+      picks: [buildRetoPick(rc)],
+      combined_odd: Math.round(rc.odd * 100) / 100,
+      combined_prob: Math.round(rc.c.prob * 100),
     }
   }
 
-  // ── 2 patas: buscar pareja dentro del rango de pata individual ─────────────
-  // Ambas patas deben estar en [minLegOdd, maxLegOdd] Y su producto ≈ targetOdd
+  // ── 2 patas: buscar pareja cuyo producto esté en [minFinalOdd, maxFinalOdd] ──
+  // Ambas patas deben estar en [minLegOdd, maxLegOdd] Y su producto en el rango final
   let bestPair: [RawCand, RawCand] | null = null
   let bestScore = -Infinity
 
@@ -956,35 +951,21 @@ function computeRetoCombi(
     for (let j = i + 1; j < eligible.length; j++) {
       if (eligible[i].match.id === eligible[j].match.id) continue
       const combined = eligible[i].odd * eligible[j].odd
+      // Validación estricta: el producto debe estar en el rango final del reto
+      if (combined < spec.minFinalOdd || combined > spec.maxFinalOdd) continue
       const deviation = Math.abs(combined - spec.targetOdd) / spec.targetOdd
-      if (deviation > 0.30) continue   // ±30% del objetivo combinado
       const score = (eligible[i].quality + eligible[j].quality) / 2 - deviation * 60
       if (score > bestScore) { bestScore = score; bestPair = [eligible[i], eligible[j]] }
     }
   }
 
-  if (bestPair) {
-    usedMatches.add(bestPair[0].match.id)
-    usedMatches.add(bestPair[1].match.id)
-    const combined_odd = Math.round(bestPair[0].odd * bestPair[1].odd * 100) / 100
-    const combined_prob = Math.round(bestPair[0].c.prob * bestPair[1].c.prob * 10000) / 100
-    return { picks: bestPair.map(buildRetoPick), combined_odd, combined_prob }
-  }
+  if (!bestPair) return null  // sin combinación válida en el rango → no publicar
 
-  // Fallback: los 2 mejores dentro del rango de pata, sin restricción de producto
-  const avail: RawCand[] = []
-  const seen = new Set<string>()
-  for (const rc of legPool) {
-    if (usedMatches.has(rc.match.id) || seen.has(rc.match.id)) continue
-    seen.add(rc.match.id)
-    avail.push(rc)
-    if (avail.length === 2) break
-  }
-  if (avail.length < 2) return null   // sin cuotas coherentes → no publicamos nada
-  for (const rc of avail) usedMatches.add(rc.match.id)
-  const combined_odd = Math.round(avail.reduce((a, rc) => a * rc.odd, 1) * 100) / 100
-  const combined_prob = Math.round(avail.reduce((a, rc) => a * rc.c.prob, 1) * 10000) / 100
-  return { picks: avail.map(buildRetoPick), combined_odd, combined_prob }
+  usedMatches.add(bestPair[0].match.id)
+  usedMatches.add(bestPair[1].match.id)
+  const combined_odd = Math.round(bestPair[0].odd * bestPair[1].odd * 100) / 100
+  const combined_prob = Math.round(bestPair[0].c.prob * bestPair[1].c.prob * 10000) / 100
+  return { picks: bestPair.map(buildRetoPick), combined_odd, combined_prob }
 }
 
 export function computeRetos(data: DailyData): { challenges: any[]; note?: string } {

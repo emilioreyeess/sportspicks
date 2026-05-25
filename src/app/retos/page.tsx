@@ -11,8 +11,9 @@ import Link from "next/link"
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface RetoPick {
-  match: string; league: string; kickoff: string
-  selection: string; market: string; odd: number
+  match_name: string; league: string; kickoff: string
+  selection: string; market: string
+  odd: number; odds: number[]
   model_prob: number; implied_prob: number; edge: number
   quality: number; confidence: string; reasons: string[]
 }
@@ -35,7 +36,7 @@ type ResultMark = "WIN" | "LOSS" | "PENDING"
 
 interface HistoryEntry {
   date: string; combo_odd: number; result: ResultMark
-  summary: string  // short description e.g. "Gana City · Over 2.5"
+  summary: string
 }
 
 interface RetoProgress {
@@ -47,40 +48,56 @@ interface RetoProgress {
 
 const C = {
   emerald: {
-    border: "border-emerald-700/60 hover:border-emerald-500/80",
-    accent: "text-emerald-400", bar: "bg-emerald-500",
-    badge: "bg-emerald-500/15 border-emerald-700 text-emerald-400",
-    btn: "bg-gradient-to-r from-emerald-500 to-cyan-500 text-zinc-950",
-    header: "from-emerald-600/15 to-cyan-600/5",
-    leg: "border-emerald-800/40 bg-emerald-500/5",
-    legNum: "bg-emerald-500/20 text-emerald-400",
+    border:   "border-emerald-700/50 hover:border-emerald-500/70",
+    accent:   "text-emerald-400",
+    bar:      "bg-emerald-500",
+    badge:    "bg-emerald-500/15 border-emerald-700/60 text-emerald-400",
+    btn:      "bg-gradient-to-r from-emerald-500 to-cyan-500 text-zinc-950 shadow-emerald-900/40",
+    header:   "from-emerald-600/20 via-emerald-600/8 to-transparent",
+    heroBg:   "from-emerald-900/40 to-emerald-950/20",
+    leg:      "border-emerald-800/40 bg-emerald-500/5",
+    legNum:   "bg-emerald-500/20 text-emerald-400",
+    oddBadge: "bg-emerald-500/20 border-emerald-600/50 text-emerald-300",
+    glow:     "shadow-emerald-950",
   },
   amber: {
-    border: "border-amber-700/60 hover:border-amber-500/80",
-    accent: "text-amber-400", bar: "bg-amber-400",
-    badge: "bg-amber-500/15 border-amber-700 text-amber-400",
-    btn: "bg-gradient-to-r from-amber-400 to-orange-400 text-zinc-950",
-    header: "from-amber-600/15 to-orange-600/5",
-    leg: "border-amber-800/40 bg-amber-500/5",
-    legNum: "bg-amber-500/20 text-amber-400",
+    border:   "border-amber-700/50 hover:border-amber-500/70",
+    accent:   "text-amber-400",
+    bar:      "bg-amber-400",
+    badge:    "bg-amber-500/15 border-amber-700/60 text-amber-400",
+    btn:      "bg-gradient-to-r from-amber-400 to-orange-400 text-zinc-950 shadow-amber-900/40",
+    header:   "from-amber-600/20 via-amber-600/8 to-transparent",
+    heroBg:   "from-amber-900/40 to-amber-950/20",
+    leg:      "border-amber-800/40 bg-amber-500/5",
+    legNum:   "bg-amber-500/20 text-amber-400",
+    oddBadge: "bg-amber-500/20 border-amber-600/50 text-amber-300",
+    glow:     "shadow-amber-950",
   },
   rose: {
-    border: "border-rose-700/60 hover:border-rose-500/80",
-    accent: "text-rose-400", bar: "bg-rose-500",
-    badge: "bg-rose-500/15 border-rose-700 text-rose-400",
-    btn: "bg-gradient-to-r from-rose-500 to-orange-400 text-zinc-950",
-    header: "from-rose-600/15 to-orange-600/5",
-    leg: "border-rose-800/40 bg-rose-500/5",
-    legNum: "bg-rose-500/20 text-rose-400",
+    border:   "border-rose-700/50 hover:border-rose-500/70",
+    accent:   "text-rose-400",
+    bar:      "bg-rose-500",
+    badge:    "bg-rose-500/15 border-rose-700/60 text-rose-400",
+    btn:      "bg-gradient-to-r from-rose-500 to-orange-400 text-zinc-950 shadow-rose-900/40",
+    header:   "from-rose-600/20 via-rose-600/8 to-transparent",
+    heroBg:   "from-rose-900/40 to-rose-950/20",
+    leg:      "border-rose-800/40 bg-rose-500/5",
+    legNum:   "bg-rose-500/20 text-rose-400",
+    oddBadge: "bg-rose-500/20 border-rose-600/50 text-rose-300",
+    glow:     "shadow-rose-950",
   },
   violet: {
-    border: "border-violet-700/60 hover:border-violet-500/80",
-    accent: "text-violet-400", bar: "bg-violet-500",
-    badge: "bg-violet-500/15 border-violet-700 text-violet-400",
-    btn: "bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white",
-    header: "from-violet-600/15 to-fuchsia-600/5",
-    leg: "border-violet-800/40 bg-violet-500/5",
-    legNum: "bg-violet-500/20 text-violet-400",
+    border:   "border-violet-700/50 hover:border-violet-500/70",
+    accent:   "text-violet-400",
+    bar:      "bg-violet-500",
+    badge:    "bg-violet-500/15 border-violet-700/60 text-violet-400",
+    btn:      "bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white shadow-violet-900/40",
+    header:   "from-violet-600/20 via-violet-600/8 to-transparent",
+    heroBg:   "from-violet-900/40 to-violet-950/20",
+    leg:      "border-violet-800/40 bg-violet-500/5",
+    legNum:   "bg-violet-500/20 text-violet-400",
+    oddBadge: "bg-violet-500/20 border-violet-600/50 text-violet-300",
+    glow:     "shadow-violet-950",
   },
 } as const
 type ColorKey = keyof typeof C
@@ -132,13 +149,7 @@ function formatTime(iso: string) {
   catch { return "" }
 }
 
-const DIFF_COLORS: Record<string, string> = {
-  "Baja": "text-emerald-400", "Media": "text-amber-400",
-  "Alta": "text-rose-400", "Muy alta": "text-violet-400",
-}
-
 // ─── Component: ComboDisplay ──────────────────────────────────────────────────
-// Shows the picks of a daily combo with expandable reasoning per leg
 
 function ComboDisplay({ combo, color }: { combo: RetoCombo; color: ColorKey }) {
   const [openIdx, setOpenIdx] = useState<number | null>(null)
@@ -147,58 +158,72 @@ function ComboDisplay({ combo, color }: { combo: RetoCombo; color: ColorKey }) {
 
   return (
     <div className="space-y-2.5 mt-3">
-      {/* Combined header (only if multiple picks) */}
+      {/* Combined header */}
       {isMulti && (
-        <div className={`rounded-xl border px-3.5 py-2.5 flex items-center justify-between ${col.leg}`}>
+        <div className={`rounded-2xl border px-4 py-3 flex items-center justify-between ${col.leg}`}>
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-500">Mini-combinada · {combo.picks.length} picks</p>
-            <p className={`text-lg font-black mt-0.5 ${col.accent}`}>Cuota total {combo.combined_odd.toFixed(2)}</p>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-0.5">
+              Mini-combinada · {combo.picks.length} picks
+            </p>
+            <p className={`text-2xl font-black tracking-tight ${col.accent}`}>
+              {combo.combined_odd.toFixed(2)}
+            </p>
+            <p className="text-[10px] text-zinc-600 mt-0.5">cuota total</p>
           </div>
           <div className="text-right">
-            <p className="text-[10px] text-zinc-600">Prob. combinada</p>
-            <p className="text-sm font-black text-zinc-300">{combo.combined_prob.toFixed(1)}%</p>
+            <p className="text-[10px] text-zinc-600 mb-0.5">Prob. combinada</p>
+            <p className={`text-lg font-black ${col.accent}`}>{combo.combined_prob.toFixed(1)}%</p>
           </div>
         </div>
       )}
 
-      {/* Each pick as a leg */}
+      {/* Each pick */}
       {combo.picks.map((pick, i) => (
-        <div key={i} className="rounded-xl border border-zinc-800 bg-zinc-900/60 overflow-hidden">
-          {/* Leg header */}
-          <div className="px-3.5 py-3">
-            <div className="flex items-start gap-2.5">
+        <div key={i} className="rounded-2xl border border-zinc-800/80 bg-zinc-900/60 overflow-hidden">
+          <div className="px-4 py-3.5">
+            <div className="flex items-start gap-3">
               {/* Leg number */}
-              <span className={`shrink-0 grid place-items-center w-6 h-6 rounded-lg text-[11px] font-black ${col.legNum}`}>
+              <span className={`shrink-0 grid place-items-center w-6 h-6 rounded-lg text-[11px] font-black mt-0.5 ${col.legNum}`}>
                 {isMulti ? i + 1 : "→"}
               </span>
               <div className="flex-1 min-w-0">
-                <div className="flex items-start justify-between gap-2">
+                {/* Match + time */}
+                <div className="flex items-start justify-between gap-2 mb-2">
                   <div className="min-w-0">
-                    <p className="text-xs font-bold text-white leading-snug truncate">{pick.match}</p>
-                    <p className={`text-[11px] mt-0.5 ${col.accent}`}>{pick.league} · {pick.market}</p>
+                    <p className="text-sm font-black text-white leading-snug">{pick.match_name}</p>
+                    <p className={`text-[11px] mt-0.5 font-medium ${col.accent}`}>
+                      {pick.league} · {pick.market}
+                    </p>
                   </div>
                   {pick.kickoff && (
-                    <span className="text-[11px] text-zinc-600 shrink-0">⏰ {formatTime(pick.kickoff)}</span>
+                    <span className="text-[11px] text-zinc-600 shrink-0 mt-0.5">
+                      ⏰ {formatTime(pick.kickoff)}
+                    </span>
                   )}
                 </div>
-                {/* Selection + odd */}
-                <div className="flex items-center justify-between mt-2">
+                {/* Selection + odd badge */}
+                <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-[11px] text-zinc-500">Selección</p>
-                    <p className={`text-sm font-black ${col.accent}`}>{pick.selection}</p>
+                    <p className="text-[11px] text-zinc-500 mb-0.5">Selección</p>
+                    <p className={`text-base font-black ${col.accent}`}>{pick.selection}</p>
                   </div>
-                  <div className="text-right">
-                    <p className="text-[11px] text-zinc-500">Cuota</p>
-                    <p className="text-xl font-black text-white">{pick.odd.toFixed(2)}</p>
+                  <div className={`px-3.5 py-2 rounded-xl border font-black text-2xl tracking-tight ${col.oddBadge}`}>
+                    {pick.odd.toFixed(2)}
                   </div>
                 </div>
                 {/* Mini metrics */}
-                <div className="flex gap-2 mt-2 text-[11px]">
-                  <span className="text-zinc-600">Modelo <span className={`font-bold ${col.accent}`}>{pick.model_prob}%</span></span>
+                <div className="flex flex-wrap gap-x-3 gap-y-0.5 mt-2.5 text-[11px]">
+                  <span className="text-zinc-600">
+                    Modelo <span className={`font-bold ${col.accent}`}>{pick.model_prob}%</span>
+                  </span>
                   <span className="text-zinc-700">·</span>
-                  <span className="text-zinc-600">Edge <span className="font-bold text-white">+{pick.edge.toFixed(1)}%</span></span>
+                  <span className="text-zinc-600">
+                    Edge <span className="font-bold text-white">+{pick.edge.toFixed(1)}%</span>
+                  </span>
                   <span className="text-zinc-700">·</span>
-                  <span className="text-zinc-600">Calidad <span className="font-bold text-white">{pick.quality}/100</span></span>
+                  <span className="text-zinc-600">
+                    Calidad <span className="font-bold text-white">{pick.quality}/100</span>
+                  </span>
                 </div>
               </div>
             </div>
@@ -207,9 +232,9 @@ function ComboDisplay({ combo, color }: { combo: RetoCombo; color: ColorKey }) {
           {/* Reasoning toggle */}
           <button
             onClick={() => setOpenIdx(openIdx === i ? null : i)}
-            className="w-full flex items-center justify-between px-3.5 py-2 border-t border-zinc-800 bg-zinc-950/40 tap text-left"
+            className="w-full flex items-center justify-between px-4 py-2.5 border-t border-zinc-800/60 bg-zinc-950/40 tap text-left"
           >
-            <span className="text-[10px] font-bold uppercase tracking-wider text-zinc-600">
+            <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-600">
               Por qué la IA eligió este pick
             </span>
             <Icon
@@ -220,7 +245,7 @@ function ComboDisplay({ combo, color }: { combo: RetoCombo; color: ColorKey }) {
           </button>
 
           {openIdx === i && (
-            <div className="px-3.5 py-3 border-t border-zinc-800 space-y-1.5">
+            <div className="px-4 py-3 border-t border-zinc-800/60 space-y-1.5">
               {pick.reasons.map((r, ri) => (
                 <p key={ri} className="text-[11px] text-zinc-400 leading-snug">{r}</p>
               ))}
@@ -242,9 +267,9 @@ function SimulationTracker({ sim, color }: { sim: SimResult; color: ColorKey }) 
   const gain = Math.round(((end - start) / start) * 100)
 
   return (
-    <div className="mt-3 rounded-xl border border-zinc-800 bg-zinc-950/60 p-3">
-      <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-600 mb-2">
-        Desde tu último fallo · {sim.streakDays} día{sim.streakDays !== 1 ? "s" : ""} de racha
+    <div className="mt-3 rounded-2xl border border-zinc-800/60 bg-zinc-950/50 p-3.5">
+      <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 mb-2">
+        Tu racha actual · {sim.streakDays} día{sim.streakDays !== 1 ? "s" : ""} consecutivo{sim.streakDays !== 1 ? "s" : ""}
       </p>
       <div className="flex items-center gap-1.5 flex-wrap">
         {sim.path.map((v, i) => (
@@ -280,30 +305,34 @@ function YesterdaySection({
   const isPending = entry.result === "PENDING"
 
   return (
-    <div className="mt-3 rounded-xl border border-zinc-800 bg-zinc-950/40 p-3">
-      <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-600 mb-2">Pick de ayer</p>
-      <div className="flex items-start justify-between gap-2">
-        <div className="min-w-0">
-          <p className="text-xs text-zinc-400 leading-snug truncate">{entry.summary}</p>
-          <p className={`text-xs mt-0.5 font-bold ${col.accent}`}>Cuota combinada {entry.combo_odd.toFixed(2)}</p>
+    <div className="mt-3 rounded-2xl border border-zinc-800/60 bg-zinc-950/50 p-3.5">
+      <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 mb-2">Pick de ayer</p>
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0 flex-1">
+          <p className="text-xs text-zinc-400 leading-snug">{entry.summary}</p>
+          <p className={`text-sm font-black mt-0.5 ${col.accent}`}>Cuota {entry.combo_odd.toFixed(2)}</p>
         </div>
         {!isPending ? (
-          <span className={`shrink-0 text-xs font-black px-2 py-1 rounded-full border ${
+          <span className={`shrink-0 text-xs font-black px-3 py-1.5 rounded-full ${
             entry.result === "WIN"
-              ? "bg-emerald-500/15 border-emerald-700 text-emerald-400"
-              : "bg-rose-500/15 border-rose-700 text-rose-400"
+              ? "bg-emerald-500 text-white"
+              : "bg-rose-500 text-white"
           }`}>
-            {entry.result === "WIN" ? "🟢 Acertado" : "🔴 Fallado"}
+            {entry.result === "WIN" ? "✓ Ganaste" : "✗ Fallaste"}
           </span>
         ) : (
-          <div className="flex gap-1.5 shrink-0">
-            <button onClick={() => onMark("WIN")}
-              className="px-2.5 py-1 rounded-lg bg-emerald-500/15 border border-emerald-700 text-emerald-400 text-xs font-bold tap">
-              ✓ Sí
+          <div className="flex gap-2 shrink-0">
+            <button
+              onClick={() => onMark("WIN")}
+              className="px-3.5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 active:bg-emerald-600 text-white text-xs font-black transition-colors tap"
+            >
+              ✓ Gané
             </button>
-            <button onClick={() => onMark("LOSS")}
-              className="px-2.5 py-1 rounded-lg bg-rose-500/15 border border-rose-700 text-rose-400 text-xs font-bold tap">
-              ✗ No
+            <button
+              onClick={() => onMark("LOSS")}
+              className="px-3.5 py-2 rounded-xl bg-rose-500 hover:bg-rose-400 active:bg-rose-600 text-white text-xs font-black transition-colors tap"
+            >
+              ✗ Fallé
             </button>
           </div>
         )}
@@ -329,61 +358,90 @@ function RetoCard({
   const sim = calcUserSim(progress.history, challenge.simulation.stake)
   const wins = progress.history.filter((h) => h.result === "WIN").length
   const total = progress.history.filter((h) => h.result !== "PENDING").length
+  const gainPct = Math.round(
+    ((challenge.simulation.result - challenge.simulation.stake) / challenge.simulation.stake) * 100
+  )
 
   return (
-    <div className={`bg-zinc-900 border rounded-2xl overflow-hidden transition-all ${col.border}`}>
+    <div className={`relative bg-zinc-900/70 backdrop-blur-sm border rounded-2xl overflow-hidden shadow-xl transition-all ${col.border}`}>
 
       {/* Gradient header */}
       <div className={`bg-gradient-to-br ${col.header} px-5 pt-5 pb-4`}>
-        <div className="flex items-start justify-between mb-2">
+        <div className="flex items-start justify-between mb-3">
           <div>
-            <p className="text-2xl">{challenge.emoji}</p>
-            <h3 className={`text-xl font-black mt-1 ${col.accent}`}>{challenge.title}</h3>
+            <span className="text-3xl leading-none">{challenge.emoji}</span>
+            <h3 className={`text-2xl font-black tracking-tight mt-2 ${col.accent}`}>
+              {challenge.title}
+            </h3>
+            <p className="text-[11px] text-zinc-500 mt-0.5 font-medium">
+              {challenge.days} días ·{" "}
+              {challenge.n_legs > 1
+                ? `combinada ${challenge.n_legs} picks/día`
+                : "1 pick directo/día"
+              }
+            </p>
           </div>
-          <span className={`text-xs font-bold px-2 py-1 rounded-full border ${col.badge}`}>
-            <span className={DIFF_COLORS[challenge.difficulty]}>{challenge.difficulty}</span>
+          <div className="flex flex-col items-end gap-2 shrink-0">
+            <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full border ${col.badge}`}>
+              {challenge.difficulty}
+            </span>
+            <span className={`text-xs font-black px-2.5 py-1.5 rounded-xl border ${col.oddBadge}`}>
+              ~{challenge.target_odd.toFixed(2)} /día
+            </span>
+          </div>
+        </div>
+        <p className="text-xs text-zinc-500 leading-relaxed">{challenge.description}</p>
+      </div>
+
+      {/* ── HERO: Benefit ─────────────────────────────────────────────────── */}
+      <div className={`mx-5 mt-4 rounded-2xl overflow-hidden bg-gradient-to-br ${col.heroBg} border border-white/5 px-5 py-4`}>
+        <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">
+          💰 Simulación hipotética · {challenge.days} días
+        </p>
+        <div className="flex items-end gap-3 mt-2">
+          <div>
+            <span className="text-sm text-zinc-600 line-through">{challenge.simulation.stake}€</span>
+            <div className={`text-5xl font-black tracking-tighter leading-none mt-0.5 ${col.accent}`}>
+              ~{challenge.simulation.result}€
+            </div>
+          </div>
+          <span className={`text-sm font-black pb-1 ${col.accent} opacity-70`}>
+            +{gainPct}%
           </span>
         </div>
-        <p className="text-xs text-zinc-400 leading-relaxed">{challenge.description}</p>
+        <p className="text-[10px] text-zinc-700 mt-2">sin garantías · resultado estadístico</p>
       </div>
 
-      {/* Simulation box */}
-      <div className="mx-5 mt-4 rounded-xl border border-zinc-700/50 bg-zinc-800/40 px-4 py-3">
-        <p className="text-[10px] text-zinc-500 mb-1">💰 Simulación con {challenge.simulation.stake}€ (hipotético)</p>
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-zinc-500">{challenge.simulation.stake}€</span>
-          <Icon name="arrowRight" className="w-3.5 h-3.5 text-zinc-700" strokeWidth={2} />
-          <span className={`text-xl font-black ${col.accent}`}>~{challenge.simulation.result}€</span>
-          <span className="text-[11px] text-zinc-600 ml-1">en {challenge.days} días</span>
-        </div>
-      </div>
-
-      <div className="px-5 pb-5 mt-4 space-y-0">
+      <div className="px-5 pb-5 mt-4 space-y-3">
         {/* Daily combo */}
         {challenge.daily_combo ? (
           enrolled ? (
             <div>
-              <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-600 mb-1">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 mb-1">
                 Pick{challenge.n_legs > 1 ? "s" : ""} de hoy ·{" "}
                 {new Date().toLocaleDateString("es-ES", { weekday: "short", day: "numeric", month: "short" })}
               </p>
               <ComboDisplay combo={challenge.daily_combo} color={color} />
             </div>
           ) : (
-            <div className="rounded-xl border border-zinc-800 bg-zinc-950/60 px-4 py-3 flex items-center gap-3">
-              <span className="text-base shrink-0">🔒</span>
+            <div className="rounded-2xl border border-zinc-800/60 bg-zinc-950/50 px-4 py-3.5 flex items-center gap-3">
+              <span className="text-xl shrink-0">🔒</span>
               <div>
-                <p className="text-xs font-semibold text-zinc-400">
+                <p className="text-xs font-bold text-zinc-300">
                   {challenge.n_legs > 1 ? "Mini-combinada" : "Pick"} de hoy disponible
                 </p>
-                <p className="text-[11px] text-zinc-600">Inscríbete para ver los picks y el análisis diario</p>
+                <p className="text-[11px] text-zinc-600 mt-0.5">
+                  Inscríbete para ver los picks y el análisis diario
+                </p>
               </div>
             </div>
           )
         ) : (
-          <div className="rounded-xl border border-zinc-800 bg-zinc-950/60 px-4 py-3">
-            <p className="text-xs text-zinc-500">Sin picks disponibles para este reto hoy.</p>
-            <p className="text-[11px] text-zinc-600 mt-0.5">El modelo no encontró combinaciones válidas en el pool de hoy.</p>
+          <div className="rounded-2xl border border-zinc-800/60 bg-zinc-950/50 px-4 py-3.5">
+            <p className="text-xs font-semibold text-zinc-500">Sin picks válidos para hoy.</p>
+            <p className="text-[11px] text-zinc-600 mt-0.5">
+              El modelo no encontró combinaciones dentro del rango de este reto hoy.
+            </p>
           </div>
         )}
 
@@ -399,26 +457,33 @@ function RetoCard({
 
         {/* Progress bar */}
         {enrolled && total > 0 && (
-          <div className="mt-3">
-            <div className="flex justify-between text-[11px] mb-1">
+          <div className="mt-1">
+            <div className="flex justify-between text-[11px] mb-1.5">
               <span className="text-zinc-500">Tu historial</span>
-              <span className={col.accent}>{wins}✓ / {total - wins}✗ en {total} días</span>
+              <span className={`font-bold ${col.accent}`}>
+                {wins}✓ / {total - wins}✗ en {total} días
+              </span>
             </div>
             <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
-              <div className={`h-full ${col.bar} rounded-full`} style={{ width: `${total > 0 ? Math.round((wins / total) * 100) : 0}%` }} />
+              <div
+                className={`h-full ${col.bar} rounded-full transition-all`}
+                style={{ width: `${total > 0 ? Math.round((wins / total) * 100) : 0}%` }}
+              />
             </div>
-            <p className="text-[11px] text-zinc-600 mt-1">
-              {total > 0 ? `${Math.round((wins / total) * 100)}% de acierto` : ""}
-            </p>
+            {total > 0 && (
+              <p className="text-[11px] text-zinc-600 mt-1">
+                {Math.round((wins / total) * 100)}% de acierto
+              </p>
+            )}
           </div>
         )}
 
         {/* Enroll / enrolled */}
-        <div className="mt-4">
+        <div className="mt-2">
           {enrolled ? (
             <div className={`flex items-center gap-2 py-2.5 px-4 rounded-xl border ${col.badge}`}>
               <span className="text-sm">✓</span>
-              <span className="text-xs font-bold">Siguiendo este reto</span>
+              <span className="text-xs font-black">Siguiendo este reto</span>
               {progress.joinDate && (
                 <span className="text-[10px] text-zinc-500 ml-auto">
                   desde {new Date(progress.joinDate).toLocaleDateString("es-ES", { day: "numeric", month: "short" })}
@@ -426,15 +491,19 @@ function RetoCard({
               )}
             </div>
           ) : canEnroll ? (
-            <button onClick={onEnroll}
-              className={`w-full py-3 rounded-xl font-bold text-sm tap ${col.btn}`}>
+            <button
+              onClick={onEnroll}
+              className={`w-full py-3 rounded-xl font-black text-sm tap shadow-lg ${col.btn}`}
+            >
               Unirse al reto {challenge.emoji}
             </button>
           ) : (
-            <Link href="/pricing"
-              className="flex items-center justify-center gap-2 w-full py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-cyan-500 text-zinc-950 font-bold text-sm tap">
+            <Link
+              href="/pricing"
+              className="flex items-center justify-center gap-2 w-full py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-cyan-500 text-zinc-950 font-black text-sm tap shadow-lg"
+            >
               <Icon name="crown" className="w-4 h-4" strokeWidth={2.2} />
-              {challenge.id === "elite" ? "Requiere Pro 👑" : "Requiere Premium ⭐"}
+              {challenge.id === "pro" ? "Requiere Pro 👑" : "Requiere Premium ⭐"}
             </Link>
           )}
         </div>
@@ -461,7 +530,7 @@ export default function RetosPage() {
 
   useEffect(() => {
     const ids = new Set<string>()
-    for (const id of ["conservador", "balanceado", "agresivo", "elite"]) {
+    for (const id of ["conservador", "intermedio", "avanzado", "pro"]) {
       if (getProgress(id).enrolled) ids.add(id)
     }
     setEnrolledIds(ids)
@@ -499,7 +568,7 @@ export default function RetosPage() {
   }, [])
 
   function canEnroll(id: string) {
-    return id === "elite" ? isPro : isPremium
+    return id === "pro" ? isPro : isPremium
   }
 
   // Milestones del usuario
@@ -527,7 +596,7 @@ export default function RetosPage() {
       {milestones.length > 0 && (
         <div className="mb-5 space-y-2">
           {milestones.map((m, i) => (
-            <div key={i} className="flex items-center gap-3 rounded-xl border border-zinc-800 bg-zinc-900/60 px-4 py-2.5">
+            <div key={i} className="flex items-center gap-3 rounded-2xl border border-zinc-800 bg-zinc-900/60 px-4 py-2.5">
               <p className="text-sm text-zinc-300">{m}</p>
             </div>
           ))}
@@ -535,26 +604,28 @@ export default function RetosPage() {
       )}
 
       {!isPremium && (
-        <div className="mb-5 flex items-center gap-3 rounded-xl border border-emerald-800/50 bg-emerald-500/5 px-4 py-3">
-          <Icon name="crown" className="w-5 h-5 text-emerald-400 shrink-0" />
+        <div className="mb-5 flex items-center gap-3 rounded-2xl border border-emerald-800/50 bg-emerald-500/5 px-4 py-3">
+          <Icon name="crown" className="w-5 h-5 text-emerald-400 shrink-0" strokeWidth={2} />
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-zinc-200">Los retos requieren Premium ⭐ o Pro 👑</p>
-            <p className="text-[11px] text-zinc-500">El reto Élite es exclusivo para Pro.</p>
+            <p className="text-sm font-black text-zinc-200">Los retos requieren Premium ⭐ o Pro 👑</p>
+            <p className="text-[11px] text-zinc-500 mt-0.5">El reto PRO es exclusivo para usuarios Pro.</p>
           </div>
-          <Link href="/pricing" className="shrink-0 text-xs font-bold text-emerald-400 flex items-center gap-1 tap">
+          <Link href="/pricing" className="shrink-0 text-xs font-black text-emerald-400 flex items-center gap-1 tap">
             Ver planes <Icon name="arrowRight" className="w-3.5 h-3.5" strokeWidth={2.4} />
           </Link>
         </div>
       )}
 
       {isPremium && !isPro && (
-        <div className="mb-5 flex items-center gap-3 rounded-xl border border-violet-800/50 bg-violet-500/5 px-4 py-3">
-          <span className="text-base shrink-0">👑</span>
+        <div className="mb-5 flex items-center gap-3 rounded-2xl border border-violet-800/50 bg-violet-500/5 px-4 py-3">
+          <span className="text-xl shrink-0">👑</span>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-zinc-200">Reto Élite exclusivo para Pro 👑</p>
-            <p className="text-[11px] text-zinc-500">Conservador, Balanceado y Agresivo disponibles con Premium.</p>
+            <p className="text-sm font-black text-zinc-200">Reto PRO exclusivo para usuarios Pro 👑</p>
+            <p className="text-[11px] text-zinc-500 mt-0.5">
+              Conservador, Intermedio y Avanzado disponibles con Premium.
+            </p>
           </div>
-          <Link href="/pricing" className="shrink-0 text-xs font-bold text-violet-400 flex items-center gap-1 tap">
+          <Link href="/pricing" className="shrink-0 text-xs font-black text-violet-400 flex items-center gap-1 tap">
             Ver Pro <Icon name="arrowRight" className="w-3.5 h-3.5" strokeWidth={2.4} />
           </Link>
         </div>
@@ -563,7 +634,7 @@ export default function RetosPage() {
       {loading && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {[...Array(4)].map((_, i) => (
-            <div key={i} className="h-80 rounded-2xl bg-zinc-900 animate-pulse" />
+            <div key={i} className="h-96 rounded-2xl bg-zinc-900/60 animate-pulse" />
           ))}
         </div>
       )}
