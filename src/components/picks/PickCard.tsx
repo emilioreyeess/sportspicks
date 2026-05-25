@@ -2,14 +2,40 @@
 
 import { type Pick, type ConfidenceTier } from "@/types"
 
-const TIER_CONFIG: Record<ConfidenceTier, { color: string; label: string; text: string; bg: string }> = {
-  SAFE:   { color: "bg-emerald-500", label: "PREMIUM", text: "text-emerald-400", bg: "bg-emerald-500/10 border-emerald-700" },
-  HIGH:   { color: "bg-amber-400",   label: "ALTO",    text: "text-amber-400",   bg: "bg-amber-500/10 border-amber-700" },
-  MEDIUM: { color: "bg-blue-400",    label: "VALOR",   text: "text-blue-400",    bg: "bg-blue-500/10 border-blue-700" },
+const TIER_CONFIG: Record<ConfidenceTier, {
+  barColor: string; label: string; text: string; badge: string; oddBadge: string
+}> = {
+  SAFE:   {
+    barColor: "bg-emerald-500",
+    label: "PREMIUM",
+    text: "text-emerald-400",
+    badge: "bg-emerald-500/15 border-emerald-700/60 text-emerald-300",
+    oddBadge: "bg-emerald-500/15 border-emerald-600/50 text-emerald-300",
+  },
+  HIGH:   {
+    barColor: "bg-amber-400",
+    label: "ALTO",
+    text: "text-amber-400",
+    badge: "bg-amber-500/15 border-amber-700/60 text-amber-300",
+    oddBadge: "bg-amber-500/15 border-amber-600/50 text-amber-300",
+  },
+  MEDIUM: {
+    barColor: "bg-blue-400",
+    label: "VALOR",
+    text: "text-blue-400",
+    badge: "bg-blue-500/15 border-blue-700/60 text-blue-300",
+    oddBadge: "bg-blue-500/15 border-blue-600/50 text-blue-300",
+  },
 }
 
-const RESULT_COLOR: Record<string, string> = {
-  WIN: "text-emerald-400", LOSS: "text-red-400", VOID: "text-zinc-400", PENDING: "text-zinc-300",
+const RESULT_STYLE: Record<string, string> = {
+  WIN:     "bg-emerald-500 text-white",
+  LOSS:    "bg-rose-600 text-white",
+  VOID:    "bg-zinc-700 text-zinc-300",
+  PENDING: "bg-amber-500/20 border border-amber-700/50 text-amber-400",
+}
+const RESULT_LABEL: Record<string, string> = {
+  WIN: "✓ Ganó", LOSS: "✗ Falló", VOID: "— Void", PENDING: "⏳ Hoy",
 }
 
 interface Props {
@@ -27,73 +53,90 @@ export function PickCard({ pick, onClick }: Props) {
 
   return (
     <div
-      className={`relative rounded-2xl bg-zinc-900 border border-zinc-800 p-4
-        cursor-pointer hover:border-zinc-600 transition-all ${onClick ? "active:scale-[0.98]" : ""}`}
+      className={`relative rounded-2xl border border-zinc-800/80 card-premium overflow-hidden transition-all duration-200
+        cursor-pointer hover:border-zinc-700/80 hover:shadow-2xl hover:shadow-black/40 ${onClick ? "active:scale-[0.98]" : ""}`}
       onClick={() => onClick?.(pick)}
     >
-      {/* Quality + Risk badges */}
-      <div className="absolute top-3 right-3 flex flex-col items-end gap-1">
-        <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border ${cfg.bg}`}>
-          <span className={`text-[10px] font-black ${cfg.text}`}>{cfg.label}</span>
-          <span className="text-[10px] font-bold text-white">{quality}<span className="text-zinc-500">/100</span></span>
+      {/* Subtle top accent line */}
+      <div className={`absolute top-0 left-0 right-0 h-[2px] ${cfg.barColor} opacity-60`} />
+
+      {/* Quality + Risk badges — top right */}
+      <div className="absolute top-3.5 right-3.5 flex flex-col items-end gap-1.5">
+        <div className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[10px] font-black ${cfg.badge}`}>
+          {cfg.label}
+          <span className="text-white ml-0.5">{quality}<span className="text-zinc-500 font-bold">/100</span></span>
         </div>
         {pick.risk_tier && (
           <span className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wide border ${
             pick.risk_tier === "low"
-              ? "bg-emerald-500/15 text-emerald-300 border-emerald-700/50"
+              ? "bg-emerald-500/12 text-emerald-300 border-emerald-700/40"
               : pick.risk_tier === "mid"
-                ? "bg-amber-500/15 text-amber-300 border-amber-700/50"
-                : "bg-rose-500/15 text-rose-300 border-rose-700/50"
+                ? "bg-amber-500/12 text-amber-300 border-amber-700/40"
+                : "bg-rose-500/12 text-rose-300 border-rose-700/40"
           }`}>
-            {pick.risk_tier === "low" ? "🟢 Conservador" : pick.risk_tier === "mid" ? "🟡 Riesgo medio" : "🔴 Alto riesgo"}
+            {pick.risk_tier === "low" ? "🟢 Conservador" : pick.risk_tier === "mid" ? "🟡 Medio" : "🔴 Alto riesgo"}
           </span>
         )}
       </div>
 
-      {/* Match info */}
-      <div className="pr-28">
-        <p className="text-[11px] text-zinc-500 uppercase tracking-wider mb-0.5">
-          {pick.league_name} · {kickoff}
-        </p>
-        <p className="text-sm font-semibold text-white leading-snug">
-          {pick.home_team} <span className="text-zinc-500">vs</span> {pick.away_team}
-        </p>
-      </div>
-
-      {/* Pick */}
-      <div className="mt-3 flex items-end justify-between gap-3">
-        <div className="min-w-0">
-          <p className="text-[11px] text-zinc-500 uppercase tracking-wide">{pick.market}</p>
-          <p className="text-base font-bold text-white truncate">{pick.selection}</p>
+      <div className="p-4 pt-5">
+        {/* League + time */}
+        <div className="pr-28">
+          <p className="text-[10px] font-black uppercase tracking-widest text-zinc-600 mb-0.5">
+            {pick.league_name} · {kickoff}
+          </p>
+          <p className="text-sm font-black text-white leading-snug">
+            {pick.home_team} <span className="text-zinc-600 font-medium">vs</span> {pick.away_team}
+          </p>
         </div>
-        <div className="text-right shrink-0">
+
+        {/* Pick row — selection left, odd badge right */}
+        <div className="mt-3.5 flex items-end justify-between gap-3">
+          <div className="min-w-0 flex-1">
+            <p className="text-[10px] font-black uppercase tracking-widest text-zinc-600">{pick.market}</p>
+            <p className={`text-base font-black mt-0.5 truncate ${cfg.text}`}>{pick.selection}</p>
+          </div>
+          {/* Odd badge — hero number */}
           {pick.best_odd && (
-            <p className="text-xl font-black text-white leading-none">{pick.best_odd.toFixed(2)}</p>
-          )}
-          {edge && (
-            <p className="text-[11px] text-emerald-400 font-bold mt-0.5">edge +{edge}%</p>
-          )}
-          {pick.bookmaker && (
-            <p className="text-[10px] text-zinc-600">{pick.bookmaker}</p>
+            <div className={`shrink-0 px-3 py-1.5 rounded-xl border font-black text-2xl tracking-tight leading-none ${cfg.oddBadge}`}>
+              {pick.best_odd.toFixed(2)}
+            </div>
           )}
         </div>
-      </div>
 
-      {/* Value reason — the sharp differentiator */}
-      {pick.value_reason && (
-        <p className="mt-3 text-xs text-zinc-400 leading-snug border-l-2 border-zinc-700 pl-2.5">
-          {pick.value_reason}
-        </p>
-      )}
+        {/* Edge row */}
+        {(edge || pick.bookmaker) && (
+          <div className="flex items-center gap-2.5 mt-2.5 text-[11px]">
+            {edge && (
+              <span className="font-black text-emerald-400">edge +{edge}%</span>
+            )}
+            {edge && pick.bookmaker && <span className="text-zinc-700">·</span>}
+            {pick.bookmaker && (
+              <span className="text-zinc-600 font-medium">{pick.bookmaker}</span>
+            )}
+            {/* Result pill inline */}
+            {pick.result !== "PENDING" && (
+              <span className={`ml-auto px-2 py-0.5 rounded-full text-[10px] font-black ${RESULT_STYLE[pick.result]}`}>
+                {RESULT_LABEL[pick.result]}
+              </span>
+            )}
+          </div>
+        )}
 
-      {/* Result indicator */}
-      {pick.result !== "PENDING" && (
-        <div className={`mt-2 text-xs font-bold ${RESULT_COLOR[pick.result]}`}>{pick.result}</div>
-      )}
+        {/* Value reason */}
+        {pick.value_reason && (
+          <p className="mt-3 text-xs text-zinc-500 leading-snug border-l-2 border-zinc-700/80 pl-2.5 italic">
+            {pick.value_reason}
+          </p>
+        )}
 
-      {/* Quality bar */}
-      <div className="mt-3 h-1 rounded-full bg-zinc-800 overflow-hidden">
-        <div className={`h-full rounded-full ${cfg.color} transition-all`} style={{ width: `${quality}%` }} />
+        {/* Quality bar */}
+        <div className="mt-3.5 h-1 rounded-full bg-zinc-800/80 overflow-hidden">
+          <div
+            className={`h-full rounded-full ${cfg.barColor} transition-all duration-500`}
+            style={{ width: `${quality}%` }}
+          />
+        </div>
       </div>
     </div>
   )

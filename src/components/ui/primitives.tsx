@@ -12,9 +12,9 @@ export function Card({ children, className, glow, hover }: {
 }) {
   return (
     <div className={cx(
-      "rounded-2xl border border-zinc-800 bg-zinc-900/80",
+      "rounded-2xl border border-zinc-800/80 card-premium shadow-xl shadow-black/20",
       glow && "shadow-[0_0_0_1px_rgba(52,211,153,0.12),0_8px_40px_-12px_rgba(52,211,153,0.18)]",
-      hover && "card-glow transition-all cursor-pointer",
+      hover && "card-glow transition-all cursor-pointer hover:border-zinc-700/80",
       className,
     )}>
       {children}
@@ -24,19 +24,19 @@ export function Card({ children, className, glow, hover }: {
 
 /* ─── Badge ───────────────────────────────────────────────────────────────── */
 const BADGE_TONE: Record<string, string> = {
-  emerald: "bg-emerald-500/12 text-emerald-400 border-emerald-700/50",
-  amber:   "bg-amber-500/12 text-amber-400 border-amber-700/50",
-  blue:    "bg-blue-500/12 text-blue-400 border-blue-700/50",
-  violet:  "bg-violet-500/12 text-violet-400 border-violet-700/50",
-  rose:    "bg-rose-500/12 text-rose-400 border-rose-700/50",
-  zinc:    "bg-zinc-800 text-zinc-400 border-zinc-700",
+  emerald: "bg-emerald-500/15 text-emerald-300 border-emerald-700/60",
+  amber:   "bg-amber-500/15 text-amber-300 border-amber-700/60",
+  blue:    "bg-blue-500/15 text-blue-300 border-blue-700/60",
+  violet:  "bg-violet-500/15 text-violet-300 border-violet-700/60",
+  rose:    "bg-rose-500/15 text-rose-300 border-rose-700/60",
+  zinc:    "bg-zinc-800/80 text-zinc-400 border-zinc-700/60",
 }
 export function Badge({ children, tone = "zinc", className }: {
   children: ReactNode; tone?: keyof typeof BADGE_TONE; className?: string
 }) {
   return (
     <span className={cx(
-      "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide",
+      "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-wide",
       BADGE_TONE[tone], className,
     )}>
       {children}
@@ -46,10 +46,10 @@ export function Badge({ children, tone = "zinc", className }: {
 
 /* ─── Button ──────────────────────────────────────────────────────────────── */
 const BTN_VARIANT: Record<string, string> = {
-  primary:   "bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-bold",
-  secondary: "bg-zinc-800 hover:bg-zinc-700 text-white font-semibold border border-zinc-700",
-  ghost:     "bg-transparent hover:bg-zinc-800 text-zinc-300 font-medium",
-  premium:   "bg-gradient-to-r from-emerald-500 to-cyan-500 hover:opacity-90 text-zinc-950 font-bold",
+  primary:   "bg-emerald-500 hover:bg-emerald-400 active:bg-emerald-600 text-zinc-950 font-black shadow-lg shadow-emerald-900/30 hover:shadow-emerald-900/50",
+  secondary: "bg-zinc-800/80 hover:bg-zinc-700 active:bg-zinc-800 text-white font-bold border border-zinc-700/80 hover:border-zinc-600",
+  ghost:     "bg-transparent hover:bg-zinc-800/60 text-zinc-300 font-medium",
+  premium:   "bg-gradient-to-r from-emerald-500 to-cyan-500 hover:opacity-90 active:opacity-80 text-zinc-950 font-black shadow-lg shadow-emerald-900/30 btn-glow-emerald",
 }
 const BTN_SIZE: Record<string, string> = {
   sm: "px-3 py-1.5 text-xs rounded-lg",
@@ -71,7 +71,7 @@ export function Button({
   children, variant = "primary", size = "md", href, onClick, disabled, className, full, type = "button",
 }: BtnProps) {
   const cls = cx(
-    "inline-flex items-center justify-center gap-2 transition-all tap disabled:opacity-40 disabled:pointer-events-none",
+    "inline-flex items-center justify-center gap-2 transition-all duration-150 tap disabled:opacity-40 disabled:pointer-events-none hover:scale-[1.02] active:scale-[0.97]",
     BTN_VARIANT[variant], BTN_SIZE[size], full && "w-full", className,
   )
   if (href) return <Link href={href} className={cls}>{children}</Link>
@@ -88,17 +88,17 @@ export function PageHeader({ icon, title, subtitle, action }: {
   icon?: string; title: string; subtitle?: string; action?: ReactNode
 }) {
   return (
-    <div className="flex items-start justify-between gap-3 mb-5">
+    <div className="flex items-start justify-between gap-3 mb-6">
       <div className="min-w-0">
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2.5">
           {icon && (
-            <span className="grid place-items-center w-8 h-8 rounded-xl bg-zinc-800/80 text-emerald-400">
-              <Icon name={icon} className="w-4.5 h-4.5" />
+            <span className="grid place-items-center w-9 h-9 rounded-xl bg-gradient-to-br from-emerald-500/20 to-cyan-500/10 border border-emerald-700/40 text-emerald-400 shadow-[0_0_12px_rgba(52,211,153,0.15)]">
+              <Icon name={icon} className="w-4.5 h-4.5" strokeWidth={2} />
             </span>
           )}
           <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight">{title}</h1>
         </div>
-        {subtitle && <p className="text-sm text-zinc-500 mt-1 leading-snug">{subtitle}</p>}
+        {subtitle && <p className="text-sm text-zinc-500 mt-1.5 leading-snug">{subtitle}</p>}
       </div>
       {action}
     </div>
@@ -112,9 +112,9 @@ export function EmptyState({ emoji = "📭", title, hint, action }: {
   return (
     <div className="text-center py-16 px-4 animate-fade-in">
       <p className="text-4xl mb-3">{emoji}</p>
-      <p className="text-zinc-300 font-semibold">{title}</p>
-      {hint && <p className="text-sm text-zinc-600 mt-1 max-w-sm mx-auto leading-snug">{hint}</p>}
-      {action && <div className="mt-4">{action}</div>}
+      <p className="text-zinc-200 font-black">{title}</p>
+      {hint && <p className="text-sm text-zinc-500 mt-1.5 max-w-sm mx-auto leading-snug">{hint}</p>}
+      {action && <div className="mt-5">{action}</div>}
     </div>
   )
 }
