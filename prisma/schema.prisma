@@ -1,0 +1,261 @@
+// ─────────────────────────────────────────────────────────────────────────────
+// SportsPicks Analytics — Esquema relacional para el Learning Engine v2
+//
+// Estado actual: la app corre con Vercel KV (Upstash) en producción.
+// Este schema es la migración objetivo cuando el histórico supere la curva
+// natural de KV (estimado: ~10k picks o ~6 meses de actividad).
+//
+// Migración: importar PickRecord/Pattern/WeightsConfig de @/lib/learning/types
+// y volcar de KV → Postgres con un script one-shot. El resto del código
+// (decision-engine, learning) ya está desacoplado del backend de storage.
+//
+// Provider sugerido: Vercel Postgres (Neon) o Supabase, ambos compatibles con
+// Prisma sin cambios y mantienen conexión con `?pgbouncer=true&connect_timeout=15`.
+// ─────────────────────────────────────────────────────────────────────────────
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// 1. PICKS_HISTORY — el corazón del aprendizaje
+// ════════════════════════════════════════════════════════════════════════════
+
+enum PickResultEnum {
+  WIN
+  LOSS
+  VOID
+  PENDING
+}
+
+enum RiskTier {
+  low
+  mid
+  high
+}
+
+model PicksHistory {
+  id                   String   @id                              // pickId (uuid v4 o slug determinístico)
+  date                 String                                    // YYYY-MM-DD (día de publicación)
+  publishedAt          DateTime @default(now())
+
+  // ── Partido ──
+  matchId              String
+  league               String                                    // slug ("esp.1")
+  leagueName           String
+  homeTeam             String
+  awayTeam             String
+  kickoffISO           DateTime
+
+  // ── Selection ──
+  market               String                                    // "1X2", "Over/Under 2.5", ...
+  selection            String                                    // "Gana Local", ...
+  selectionType        String                                    // normalizado ("1X2-Home", "Over25", ...)
+
+  // ── Cuotas ──
+  initialOdd           Float                                     // cuota cuando se publicó
+  closingOdd           Float?                                    // cuota minutos antes del KO (Closing Line Value)
+  bookmaker            String                                    // "DraftKings", ...
+
+  // ── Scores del motor ──
+  impliedProb          Float                                     // 0-100
+  modelProb            Float                                     // 0-100 (modelo base)
+  consensusProb        Float                                     // 0-100 (5 modelos)
+  edge                 Float                                     // pp
+  qualityScore         Int                                       // 0-100
+  riskTier             RiskTier
+  uncertaintyScore     Int                                       // 0-100
+  contradictionScore   Int                                       // 0-100
+  consensusAgreement   Int                                       // 0-100 (1 - stdev)
+
+  // ── Snapshot del contexto al momento de publicar (auditabilidad) ──
+  homeForm             String                                    // "WWDLW"
+  awayForm             String
+  homeMotivStatus      String
+  awayMotivStatus      String
+  expectedGoals        Float
+
+  // ── Resultado ──
+  result               PickResultEnum @default(PENDING)
+  resultRecordedAt     DateTime?
+  homeScore            Int?
+  awayScore            Int?
+
+  // ── Origen ──
+  source               String   @default("daily-pipeline")       // "daily-pipeline" | "second-opinion" | "custom-reto"
+  userKey              String?                                   // solo para picks generados por un usuario
+
+  // ── Relaciones ──
+  modelOutputs         ModelOutput[]
+  auditLogs            AuditLog[]
+
+  @@index([date])
+  @@index([league, market])
+  @@index([result, date])
+  @@index([matchId])
+  @@map("picks_history")
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// 2. MODEL_OUTPUTS — outputs individuales de los 5 modelos por pick
+//   Permite analizar qué modelo aporta valor por liga/mercado.
+// ════════════════════════════════════════════════════════════════════════════
+
+enum ModelIdEnum {
+  A
+  B
+  C
+  D
+  E
+}
+
+model ModelOutput {
+  id            BigInt   @id @default(autoincrement())
+  pickId        String
+  modelId       ModelIdEnum
+  probability   Float                                            // 0-1
+  confidence    Float                                            // 0-1
+  abstained     Boolean
+  explanation   String   @db.Text
+  signalsJson   Json                                             // signals: Record<string, number>
+
+  pick          PicksHistory @relation(fields: [pickId], references: [id], onDelete: Cascade)
+
+  @@unique([pickId, modelId])
+  @@index([modelId])
+  @@map("model_outputs")
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// 3. MODEL_WEIGHTS — pesos dinámicos por liga × mercado × modelo
+//   Una sola fila por (scope, modelId). El learning engine sobreescribe.
+// ════════════════════════════════════════════════════════════════════════════
+
+model ModelWeights {
+  id          BigInt   @id @default(autoincrement())
+  // Scope: global ("*"), por liga, por mercado, o ambos
+  league      String   @default("*")                             // "*" | slug
+  market      String   @default("*")                             // "*" | nombre mercado
+  modelId     ModelIdEnum
+  weight      Float                                              // 0-1
+  baseWeight  Float                                              // valor inicial (para safeguard de drift)
+  updatedAt   DateTime @default(now())
+  reason      String?  @db.Text                                  // por qué se ajustó
+
+  @@unique([league, market, modelId])
+  @@index([league, market])
+  @@map("model_weights")
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// 4. AUDIT_LOGS — por qué se rechazó/aprobó/regeneró un pick
+// ════════════════════════════════════════════════════════════════════════════
+
+enum AuditAction {
+  PUBLISHED
+  REJECTED_UNCERTAINTY
+  REJECTED_CONTRADICTION
+  REJECTED_DATA_VALIDATION
+  REJECTED_QUALITY_GATE
+  REJECTED_LLM_VERIFICATION
+  SECOND_OPINION_GENERATED
+  SECOND_OPINION_NO_MATCH
+  WEIGHT_ADJUSTED
+}
+
+model AuditLog {
+  id          BigInt      @id @default(autoincrement())
+  createdAt   DateTime    @default(now())
+  action      AuditAction
+  pickId      String?
+  matchId     String?
+  details     Json                                              // payload arbitrario (scoreboard, gateResults, etc.)
+  reason      String      @db.Text                              // texto humano
+
+  pick        PicksHistory? @relation(fields: [pickId], references: [id], onDelete: SetNull)
+
+  @@index([action, createdAt])
+  @@index([matchId])
+  @@map("audit_logs")
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// 5. PATTERNS — patrones significativos detectados por el Learning Engine
+// ════════════════════════════════════════════════════════════════════════════
+
+model Pattern {
+  id                String   @id                                 // ej "market:Over25|league:usa.1"
+  market            String?
+  league            String?
+  selectionType     String?
+  riskTier          RiskTier?
+
+  samples           Int
+  wins              Int
+  losses            Int
+  voids             Int
+  winRate           Float                                        // 0-1
+  avgOdd            Float
+  avgEdge           Float
+  roi               Float                                        // %
+  expectedWinRate   Float
+  deltaVsExpected   Float
+  wilsonLower       Float
+  wilsonUpper       Float
+  significant       Boolean
+  probAdjustment    Float                                        // -0.05..+0.05
+
+  computedAt        DateTime @default(now())
+
+  @@index([significant, computedAt])
+  @@map("patterns")
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// 6. SECOND_OPINION_USAGE — quota tracking por usuario por día
+// ════════════════════════════════════════════════════════════════════════════
+
+model SecondOpinionUsage {
+  id          BigInt   @id @default(autoincrement())
+  userKey     String                                             // hash/email/IP
+  date        String                                             // YYYY-MM-DD
+  plan        String                                             // free|premium|pro
+  count       Int      @default(0)
+  updatedAt   DateTime @updatedAt
+
+  @@unique([userKey, date])
+  @@index([date])
+  @@map("second_opinion_usage")
+}
+
+// ════════════════════════════════════════════════════════════════════════════
+// 7. LEARNING_REPORTS — informes diarios del job de aprendizaje
+// ════════════════════════════════════════════════════════════════════════════
+
+model LearningReport {
+  id                    BigInt   @id @default(autoincrement())
+  date                  String   @unique                         // YYYY-MM-DD evaluado
+  ranAt                 DateTime
+  totalPicksEvaluated   Int
+  wins                  Int
+  losses                Int
+  voids                 Int
+  pending               Int
+  winRate               Float
+  roi                   Float
+
+  // Lista de patrones top y ajustes de pesos (denormalizado para lectura rápida)
+  patternsTopJson       Json
+  weightAdjustmentsJson Json
+  newPatternsDetected   Int
+  warningsJson          Json
+
+  @@index([date])
+  @@map("learning_reports")
+}
