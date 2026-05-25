@@ -5,7 +5,7 @@ import { AgeGate } from "@/components/legal/AgeGate"
 import { CookieConsent } from "@/components/legal/CookieConsent"
 import { SafariInstallBanner } from "@/components/ui/SafariInstallBanner"
 import { PlanProvider } from "@/lib/plan"
-import { AuthProvider } from "@/lib/auth"
+import { SessionWrapper } from "@/components/ui/SessionWrapper"
 import { LoginWall } from "@/components/ui/LoginWall"
 import "./globals.css"
 
@@ -65,7 +65,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="es" className="dark">
       <body className={`${inter.className} bg-zinc-950 text-white antialiased`}>
-        <AuthProvider>
+        <SessionWrapper>
           <PlanProvider>
             <AgeGate>
               <LoginWall>
@@ -75,7 +75,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
               </LoginWall>
             </AgeGate>
           </PlanProvider>
-        </AuthProvider>
+        </SessionWrapper>
       </body>
     </html>
   )

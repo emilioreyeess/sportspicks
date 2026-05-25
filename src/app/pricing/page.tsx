@@ -4,7 +4,7 @@ import { useState } from "react"
 import Link from "next/link"
 import { PLANS, PLAN_ORDER, type PlanId } from "@/lib/plans"
 import { usePlan } from "@/lib/plan"
-import { useAuth } from "@/lib/auth"
+import { useSession } from "next-auth/react"
 import { Icon } from "@/components/ui/icons"
 
 // Always enable Stripe in production — the API handles errors if keys are missing.
@@ -49,7 +49,7 @@ function annualSaving(plan: PlanId): number {
 
 export default function PricingPage() {
   const { plan, setPlan } = usePlan()
-  const { user } = useAuth()
+  const { data: session } = useSession()
   const [billing, setBilling] = useState<Billing>("monthly")
   const [justSet, setJustSet] = useState<PlanId | null>(null)
   const [checkoutLoading, setCheckoutLoading] = useState<PlanId | null>(null)
@@ -107,7 +107,7 @@ export default function PricingPage() {
     }
 
     // Use session email directly — no modal needed since user is always logged in
-    const userEmail = user?.email || emailInput.trim()
+    const userEmail = session?.user?.email || emailInput.trim()
     if (!userEmail) {
       setModalError(null)
       setEmailFor(id)
