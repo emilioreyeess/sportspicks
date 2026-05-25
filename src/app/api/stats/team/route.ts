@@ -1,7 +1,15 @@
 import { NextRequest } from "next/server"
+import { consume, getClientIp, tooManyRequests } from "@/lib/rate-limit"
 
 export const runtime = "nodejs"
 export const maxDuration = 60
+
+// Whitelist de slugs de liga válidos — protección contra SSRF en la URL de ESPN
+const VALID_SLUGS = new Set([
+  "esp.1", "eng.1", "ger.1", "ita.1", "fra.1", "usa.1", "mex.1", "por.1",
+  "ned.1", "arg.1", "bra.1", "tur.1", "sau.1", "sco.1", "col.1", "chi.1",
+  "jpn.1", "uefa.champions", "uefa.europa",
+])
 
 const LEAGUE_NAMES: Record<string, string> = {
   "esp.1": "LaLiga", "eng.1": "Premier League", "ger.1": "Bundesliga",
@@ -41,13 +49,25 @@ function getStat(team: any, ...labels: string[]): number | null {
 }
 
 export async function GET(req: NextRequest) {
-  const id = req.nextUrl.searchParams.get("id") ?? ""
+  // Rate limit: previene abuso de la API externa de ESPN
+  const ip = getClientIp(req)
+  if (!consume(`stats-team:${ip}`, 20, 4)) return tooManyRequests(60)
+
+  const idRaw = req.nextUrl.searchParams.get("id") ?? ""
   const slug = req.nextUrl.searchParams.get("slug") ?? "esp.1"
-  if (!id) return Response.json({ error: "Missing id" }, { status: 400 })
+
+  // Validación estricta: id solo dígitos (3-7), slug en whitelist (evita SSRF)
+  if (!/^\d{1,7}$/.test(idRaw)) {
+    return Response.json({ error: "ID inválido" }, { status: 400 })
+  }
+  if (!VALID_SLUGS.has(slug)) {
+    return Response.json({ error: "Liga no soportada" }, { status: 400 })
+  }
+  const id = idRaw
 
   try {
     const res = await fetch(
-      `https://site.api.espn.com/apis/site/v2/sports/soccer/${slug}/teams/${id}/schedule`,
+      `https://site.api.espn.com/apis/site/v2/sports/soccer/${encodeURIComponent(slug)}/teams/${encodeURIComponent(id)}/schedule`,
       { headers: { "User-Agent": "Mozilla/5.0" }, signal: AbortSignal.timeout(10000) }
     )
     if (!res.ok) return Response.json({ error: "Team not found" }, { status: 404 })

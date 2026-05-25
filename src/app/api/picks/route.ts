@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server"
 import { getStore } from "@/lib/store"
 import { ensureWarm, ensureFresh, runPipeline } from "@/lib/pipeline"
+import { consume, getClientIp, tooManyRequests } from "@/lib/rate-limit"
 
 export const runtime = "nodejs"
 export const maxDuration = 120
@@ -15,7 +16,6 @@ export const maxDuration = 120
  */
 export async function GET(req: NextRequest) {
   await ensureWarm()
-  const { consume, getClientIp, tooManyRequests } = await import("@/lib/rate-limit")
   const ip = getClientIp(req)
   if (!consume(ip, 30, 6)) return tooManyRequests(60)
   ensureFresh()

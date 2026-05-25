@@ -5,6 +5,7 @@ import { Sidebar } from "@/components/ui/Sidebar"
 import { TopBar } from "@/components/ui/TopBar"
 import { BottomNav } from "@/components/ui/BottomNav"
 import { GlobalFooter } from "@/components/legal/GlobalFooter"
+import { ErrorBoundary } from "@/components/ui/ErrorBoundary"
 
 /**
  * Shell de la app. Layout responsive:
@@ -28,7 +29,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <div className="flex flex-1">
         <Sidebar />
         <main className="flex-1 min-w-0 flex flex-col">
-          <div className="flex-1 animate-fade-in">{children}</div>
+          <div className="flex-1 animate-fade-in">
+            <ErrorBoundary>{children}</ErrorBoundary>
+          </div>
           <GlobalFooter />
         </main>
       </div>

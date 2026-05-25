@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server"
+import { consume, getClientIp, tooManyRequests } from "@/lib/rate-limit"
 
 const LEAGUES = [
   // Grandes ligas europeas
@@ -77,7 +78,6 @@ async function fetchLeagueTeams(slug: string, leagueName: string, flag: string, 
 }
 
 export async function GET(req: NextRequest) {
-  const { consume, getClientIp, tooManyRequests } = await import("@/lib/rate-limit")
   const ip = getClientIp(req)
   if (!consume(`search:${ip}`, 20, 4)) return tooManyRequests(60)
 

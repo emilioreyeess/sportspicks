@@ -22,6 +22,8 @@
 html {
   scroll-behavior: smooth;
   -webkit-text-size-adjust: 100%;
+  overflow-x: hidden;            /* Hard guard: evita scroll horizontal accidental */
+  text-rendering: optimizeLegibility;
 }
 
 body {
@@ -44,6 +46,33 @@ body {
 input, textarea, select { font-size: 16px; }
 @media (min-width: 640px) {
   input, textarea, select { font-size: 14px; }
+}
+
+/* ─── Mobile-first: deshabilitar hover en pantallas táctiles ────────────────
+   En táctil el :hover se queda "pegado" después de tocar. Esta regla anula
+   todos los efectos de hover si el dispositivo no tiene un cursor preciso. */
+@media (hover: none) {
+  *:hover {
+    /* Sobrescribe transformaciones de hover que se quedaban pegadas */
+    transform: none !important;
+  }
+  /* Restaura los hovers solo en activos para feedback táctil rápido */
+  .tap:active { transform: scale(0.97); opacity: 0.88; }
+}
+
+/* ─── Touch optimizations ────────────────────────────────────────────────
+   touch-action: manipulation elimina el delay 300ms en iOS y previene
+   doble-tap-zoom accidental. El sistema de diseño cuida las dimensiones. */
+button, a, [role="button"], input, select, textarea, label {
+  touch-action: manipulation;
+  -webkit-tap-highlight-color: transparent;
+}
+/* Foco accesible visible solo cuando se navega con teclado */
+:focus { outline: none; }
+:focus-visible {
+  outline: 2px solid rgba(52, 211, 153, 0.7);
+  outline-offset: 2px;
+  border-radius: 6px;
 }
 
 /* ─── Safe-area (notch iPhone) ───────────────────────────────────────────── */

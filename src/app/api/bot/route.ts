@@ -469,6 +469,13 @@ Idioma: español. Sin promesas de resultados. Apuesta responsable, +18.`
 
 type ContentBlock = { type: string; text?: string; id?: string; name?: string; input?: Record<string, string> }
 
+// ─── Input limits — defensa contra DoS y abuso de API ────────────────────────
+const MAX_MESSAGE_LEN = 4000          // 4k chars de mensaje
+const MAX_IMAGE_BYTES = 5 * 1024 * 1024  // 5 MB de imagen (Anthropic limit)
+const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"])
+const MAX_HISTORY_ITEMS = 10
+const MAX_HISTORY_RAW_BYTES = 50_000  // 50 KB de history
+
 export async function POST(req: Request) {
   // Rate limit por IP — protege la API key de Anthropic (cuesta dinero por petición)
   // Ráfaga 3 simultáneas · ritmo 10 / 5 min (~2/min sostenido)
@@ -477,19 +484,59 @@ export async function POST(req: Request) {
 
   try {
     const formData = await req.formData()
-    const message = formData.get("message") as string
-    const historyRaw = formData.get("history") as string
+    const messageRaw = formData.get("message")
+    const historyRawField = formData.get("history")
     const image = formData.get("image") as File | null
-    const history = historyRaw ? JSON.parse(historyRaw) : []
+
+    // Validar mensaje
+    const message = typeof messageRaw === "string" ? messageRaw.trim() : ""
+    if (message.length > MAX_MESSAGE_LEN) {
+      return new Response(JSON.stringify({ error: `Mensaje demasiado largo (máx. ${MAX_MESSAGE_LEN} caracteres)` }),
+        { status: 413, headers: { "Content-Type": "application/json" } })
+    }
+
+    // Validar history (parseo seguro + límites)
+    let history: Anthropic.MessageParam[] = []
+    if (typeof historyRawField === "string" && historyRawField.length > 0) {
+      if (historyRawField.length > MAX_HISTORY_RAW_BYTES) {
+        return new Response(JSON.stringify({ error: "Historial demasiado grande" }),
+          { status: 413, headers: { "Content-Type": "application/json" } })
+      }
+      try {
+        const parsed = JSON.parse(historyRawField)
+        if (Array.isArray(parsed)) {
+          history = parsed
+            .slice(-MAX_HISTORY_ITEMS)
+            .filter((m: any) => m && typeof m === "object" && (m.role === "user" || m.role === "assistant"))
+        }
+      } catch {
+        return new Response(JSON.stringify({ error: "Historial JSON inválido" }),
+          { status: 400, headers: { "Content-Type": "application/json" } })
+      }
+    }
 
     const userContent: ContentBlock[] = []
     if (image) {
+      // Validar imagen: tamaño + tipo MIME
+      if (image.size > MAX_IMAGE_BYTES) {
+        return new Response(JSON.stringify({ error: `Imagen demasiado grande (máx. ${MAX_IMAGE_BYTES / 1024 / 1024} MB)` }),
+          { status: 413, headers: { "Content-Type": "application/json" } })
+      }
+      const mime = (image.type || "image/jpeg").toLowerCase()
+      if (!ALLOWED_IMAGE_TYPES.has(mime)) {
+        return new Response(JSON.stringify({ error: "Tipo de imagen no soportado. Usa JPEG, PNG, WebP o GIF." }),
+          { status: 415, headers: { "Content-Type": "application/json" } })
+      }
       const arrayBuffer = await image.arrayBuffer()
       const base64 = Buffer.from(arrayBuffer).toString("base64")
-      userContent.push({ type: "image", source: { type: "base64", media_type: image.type || "image/jpeg", data: base64 } } as any)
+      userContent.push({ type: "image", source: { type: "base64", media_type: mime, data: base64 } } as any)
     }
     if (message) userContent.push({ type: "text", text: message })
-    if (!userContent.length) return new Response("No content", { status: 400 })
+    if (!userContent.length) {
+      return new Response(JSON.stringify({ error: "Sin contenido" }), {
+        status: 400, headers: { "Content-Type": "application/json" },
+      })
+    }
 
     const messages: Anthropic.MessageParam[] = [
       ...history.slice(-10),
