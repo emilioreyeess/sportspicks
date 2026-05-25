@@ -178,7 +178,7 @@ export default function PricingPage() {
           className={`text-sm font-bold transition-colors flex items-center gap-1.5 ${billing === "annual" ? "text-white" : "text-zinc-500 hover:text-zinc-300"}`}>
           Anual
           <span className="text-[10px] font-black bg-emerald-500/20 text-emerald-400 border border-emerald-700/50 px-1.5 py-0.5 rounded-full">
-            −25%
+            hasta −21%
           </span>
         </button>
       </div>

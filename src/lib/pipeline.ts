@@ -1228,6 +1228,56 @@ export async function ensureWarm(): Promise<void> {
   await runPipeline("cold-start")
 }
 
+// ─── Reto personalizado PRO ──────────────────────────────────────────────────
+
+/**
+ * Genera un pick único para una cuota objetivo libre.
+ * Exclusivo para usuarios PRO. Reutiliza el DailyData cacheado del pipeline.
+ *
+ * Tolerancia final: ±13% de la cuota objetivo.
+ * Para nLegs=2 las patas individuales tienen rango derivado de √targetOdd.
+ */
+export function computeCustomRetoPick(
+  targetOdd: number,
+  nLegs: 1 | 2,
+): { picks: any[]; combined_odd: number; combined_prob: number } | null {
+  const store = getStore()
+  if (!store.dailyData) return null
+  const data: DailyData = store.dailyData as DailyData
+
+  const tol = 0.13   // ±13% tolerancia para retos personalizados
+
+  let minLegOdd: number, maxLegOdd: number
+  if (nLegs === 1) {
+    minLegOdd = targetOdd * (1 - tol)
+    maxLegOdd = targetOdd * (1 + tol)
+  } else {
+    const legTarget = Math.sqrt(targetOdd)
+    minLegOdd = legTarget * (1 - tol - 0.04)   // algo más generoso en patas
+    maxLegOdd = legTarget * (1 + tol + 0.04)
+  }
+
+  const customSpec: RetoSpec = {
+    id: "custom",
+    emoji: "⚙️",
+    title: "Personalizado",
+    days: 1,
+    targetOdd,
+    nLegs,
+    minLegOdd: Math.round(minLegOdd * 100) / 100,
+    maxLegOdd: Math.round(maxLegOdd * 100) / 100,
+    minFinalOdd: Math.round(targetOdd * (1 - tol) * 100) / 100,
+    maxFinalOdd: Math.round(targetOdd * (1 + tol) * 100) / 100,
+    difficulty: "Custom",
+    description: `Cuota personalizada ~${targetOdd.toFixed(2)} · ${nLegs === 1 ? "pick simple" : "combinada 2 picks"}`,
+    stake: 10,
+    simulResult: 0,
+    color: "violet",
+  }
+
+  return computeRetoCombi(data, customSpec, new Set<string>())
+}
+
 // ─── Scheduler diario (00:00) ────────────────────────────────────────────────
 
 let scheduled = false

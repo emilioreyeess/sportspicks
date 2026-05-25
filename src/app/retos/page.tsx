@@ -344,6 +344,163 @@ function YesterdaySection({
   )
 }
 
+// ─── Component: CustomRetoCreator ─────────────────────────────────────────────
+
+const ODD_PRESETS = [
+  { label: "1.30", value: 1.30, hint: "muy seguro" },
+  { label: "1.50", value: 1.50, hint: "seguro" },
+  { label: "2.00", value: 2.00, hint: "equilibrado" },
+  { label: "3.00", value: 3.00, hint: "arriesgado" },
+]
+
+function CustomRetoCreator() {
+  const [targetOdd, setTargetOdd] = useState(2.00)
+  const [nLegs, setNLegs] = useState<1 | 2>(2)
+  const [loading, setLoading] = useState(false)
+  const [combo, setCombo] = useState<RetoCombo | null>(null)
+  const [error, setError] = useState<string | null>(null)
+
+  async function generate() {
+    setLoading(true)
+    setError(null)
+    setCombo(null)
+    try {
+      const res = await fetch("/api/retos/custom", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ targetOdd, nLegs }),
+      })
+      const data = await res.json()
+      if (data.combo) {
+        setCombo(data.combo)
+      } else {
+        setError(data.error ?? "No se encontraron picks válidos para esa cuota hoy.")
+      }
+    } catch {
+      setError("Error de conexión. Inténtalo de nuevo.")
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  return (
+    <div className="mb-6 rounded-2xl border border-violet-700/50 bg-violet-500/5 backdrop-blur-sm overflow-hidden shadow-xl">
+      {/* Header */}
+      <div className="relative bg-gradient-to-br from-violet-600/20 via-violet-600/8 to-transparent px-5 py-4 border-b border-violet-700/30">
+        <div className="pointer-events-none absolute top-0 right-0 w-32 h-32 overflow-hidden">
+          <div className="absolute -top-8 -right-8 w-32 h-32 bg-violet-500/15 rounded-full blur-2xl" />
+        </div>
+        <div className="relative flex items-center gap-3">
+          <span className="grid place-items-center w-10 h-10 rounded-xl bg-violet-500/20 border border-violet-600/40 text-xl">⚙️</span>
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="text-base font-black text-white">Reto Personalizado</h3>
+              <span className="text-[10px] font-black px-2 py-0.5 rounded-full border border-violet-600/50 bg-violet-500/15 text-violet-300">👑 PRO</span>
+            </div>
+            <p className="text-[11px] text-zinc-500 mt-0.5">Define tu cuota objetivo y el sistema busca el pick ideal del pool de hoy</p>
+          </div>
+        </div>
+      </div>
+
+      <div className="px-5 pb-5 pt-4 space-y-5">
+        {/* Target odd slider */}
+        <div>
+          <div className="flex items-end justify-between mb-3">
+            <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Cuota objetivo</label>
+            <span className="text-4xl font-black tracking-tight text-violet-400 leading-none">{targetOdd.toFixed(2)}</span>
+          </div>
+          <input
+            type="range" min={1.10} max={5.00} step={0.05} value={targetOdd}
+            onChange={e => { setTargetOdd(parseFloat(e.target.value)); setCombo(null) }}
+            className="w-full h-1.5 rounded-full appearance-none bg-zinc-800 cursor-pointer"
+            style={{ accentColor: "#a78bfa" }}
+          />
+          <div className="flex justify-between text-[10px] text-zinc-700 mt-1.5">
+            <span>1.10 · muy seguro</span>
+            <span>5.00 · muy arriesgado</span>
+          </div>
+          {/* Quick presets */}
+          <div className="flex gap-2 mt-3">
+            {ODD_PRESETS.map((p) => (
+              <button key={p.value}
+                onClick={() => { setTargetOdd(p.value); setCombo(null) }}
+                className={`flex-1 py-1.5 rounded-lg border text-xs font-black transition-all ${
+                  Math.abs(targetOdd - p.value) < 0.01
+                    ? "border-violet-600/60 bg-violet-500/20 text-violet-300"
+                    : "border-zinc-800 text-zinc-600 hover:border-zinc-700 hover:text-zinc-400"
+                }`}>
+                {p.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* N legs */}
+        <div>
+          <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-2.5 block">Tipo de pick</label>
+          <div className="grid grid-cols-2 gap-2">
+            {([1, 2] as const).map((n) => (
+              <button key={n}
+                onClick={() => { setNLegs(n); setCombo(null) }}
+                className={`py-3 rounded-xl border text-sm font-black transition-all ${
+                  nLegs === n
+                    ? "border-violet-600/60 bg-violet-500/15 text-violet-300"
+                    : "border-zinc-800/80 text-zinc-500 hover:border-zinc-700 hover:text-zinc-300"
+                }`}>
+                {n === 1 ? "Pick simple" : "Combinada 2 picks"}
+                <p className="text-[10px] font-medium mt-0.5 opacity-60">
+                  {n === 1 ? "1 partido, cuota exacta" : "2 partidos, producto ~objetivo"}
+                </p>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Generate */}
+        <button
+          onClick={generate}
+          disabled={loading}
+          className="w-full py-3.5 rounded-xl bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white font-black text-sm tap shadow-lg shadow-violet-900/30 disabled:opacity-60 transition-opacity flex items-center justify-center gap-2"
+        >
+          {loading ? (
+            <>
+              <span className="inline-block w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />
+              Buscando en el pool de hoy…
+            </>
+          ) : (
+            "🎯 Generar pick del día"
+          )}
+        </button>
+
+        {/* Error */}
+        {error && !loading && (
+          <div className="rounded-xl border border-rose-700/50 bg-rose-500/10 px-4 py-3 text-xs text-rose-300 leading-snug animate-fade-in">
+            {error}
+          </div>
+        )}
+
+        {/* Result */}
+        {combo && !loading && (
+          <div className="animate-fade-in">
+            <div className="flex items-center gap-2 mb-2">
+              <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Pick generado</span>
+              <span className="px-2 py-0.5 rounded-lg border border-violet-700/50 bg-violet-500/15 text-violet-300 text-xs font-black">
+                cuota {combo.combined_odd.toFixed(2)}
+              </span>
+            </div>
+            <ComboDisplay combo={combo} color="violet" />
+            <button
+              onClick={() => setCombo(null)}
+              className="mt-3 w-full py-2 rounded-xl border border-zinc-800 text-xs text-zinc-500 hover:text-zinc-300 hover:border-zinc-700 transition-colors tap font-medium">
+              Generar otro
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ─── Component: RetoCard ──────────────────────────────────────────────────────
 
 function RetoCard({
@@ -630,6 +787,9 @@ export default function RetosPage() {
           </Link>
         </div>
       )}
+
+      {/* Custom reto creator — PRO only */}
+      {isPro && <CustomRetoCreator />}
 
       {loading && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
