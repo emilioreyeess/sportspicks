@@ -11,10 +11,11 @@ export const NAV_MAIN: NavItem[] = [
 
 /** Navegación secundaria — sidebar y menú móvil */
 export const NAV_MORE: NavItem[] = [
-  { href: "/retos",   label: "Retos",          short: "Retos",   icon: "trophy" },
-  { href: "/pricing", label: "Planes premium", short: "Planes",  icon: "crown" },
-  { href: "/account", label: "Mi cuenta",      short: "Cuenta",  icon: "user" },
-  { href: "/about",   label: "Sobre nosotros", short: "Info",    icon: "shield" },
+  { href: "/retos",            label: "Retos",          short: "Retos",   icon: "trophy" },
+  { href: "/world-cup-2026",   label: "Mundial 2026 🏆", short: "Mundial", icon: "worldcup" },
+  { href: "/pricing",          label: "Planes premium", short: "Planes",  icon: "crown" },
+  { href: "/account",          label: "Mi cuenta",      short: "Cuenta",  icon: "user" },
+  { href: "/about",            label: "Sobre nosotros", short: "Info",    icon: "shield" },
 ]
 
 export function isActive(path: string | null, href: string): boolean {

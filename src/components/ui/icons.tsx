@@ -20,6 +20,11 @@ const PATHS: Record<string, ReactNode> = {
   spark: <><path d="M12 4 13.4 9 18 10.4 13.4 11.8 12 16.8 10.6 11.8 6 10.4 10.6 9z" /></>,
   chevronDown: <><path d="M6 9l6 6 6-6" /></>,
   chevronUp: <><path d="M18 15l-6-6-6 6" /></>,
+  worldcup: <><circle cx="12" cy="12" r="9" /><path d="M3 12h18" /><path d="M12 3a13 13 0 0 1 0 18M12 3a13 13 0 0 0 0 18" /></>,
+  flame: <><path d="M12 3c1.5 3 4 5 4 8a4 4 0 0 1-8 0c0-1.6.7-2.5 1.5-3.5C10.5 6.5 12 5 12 3z" /><path d="M12 11.5c1 1.4 2 2.4 2 4a2.5 2.5 0 0 1-5 0c0-1.2.6-2 1.5-3" /></>,
+  whistle: <><circle cx="9" cy="13" r="5" /><path d="M14 13l6-3M14 13l6 3" /></>,
+  cards: <><rect x="4" y="3.5" width="8" height="11.5" rx="1.2" /><rect x="9" y="6.5" width="9.5" height="14" rx="1.2" /></>,
+  alert: <><path d="M12 3 22 20H2z" /><path d="M12 10v4M12 17.5v.01" /></>,
 }
 
 export function Icon({ name, className = "w-5 h-5", strokeWidth = 1.8 }: {
