@@ -16,7 +16,17 @@ interface Result {
   mode: string; date: string; legs: Leg[]
   combined_odd: number; combined_prob: number
   ai_reasoning?: string; interpretation?: string; prompt?: string
+  fallback_reason?: string
 }
+
+const LEAGUES = [
+  { id: "", label: "Todas las ligas", flag: "🌍" },
+  { id: "1", label: "LaLiga", flag: "🇪🇸" },
+  { id: "2", label: "Premier League", flag: "🏴󠁧󠁢󠁥󠁮󠁧󠁿" },
+  { id: "3", label: "Bundesliga", flag: "🇩🇪" },
+  { id: "4", label: "Serie A", flag: "🇮🇹" },
+  { id: "5", label: "Ligue 1", flag: "🇫🇷" },
+]
 interface NoMatchResult {
   no_match: true
   requested_market?: string
@@ -66,6 +76,7 @@ export default function CombinadasPage() {
   const { isPremium, isPro, plan } = usePlan()
   const upgrade = useUpgradeModal()
   const [mode, setMode] = useState<ModeKey>("safe")
+  const [leagueId, setLeagueId] = useState("")
   const [result, setResult] = useState<Result | null>(null)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
@@ -92,7 +103,7 @@ export default function CombinadasPage() {
     if (freeAtLimit) { upgrade.show("combinadas_unlimited"); return }
     setLoading(true); setError(""); setResult(null)
     try {
-      const data = await getCombinada(mode)
+      const data = await getCombinada(mode, leagueId)
       if (data?.error) setError(data.error)
       else {
         setResult(data)
@@ -150,6 +161,27 @@ export default function CombinadasPage() {
             })}
           </div>
           <p className="text-[11px] text-zinc-500 mt-2">{meta.desc} · cuota real por pata</p>
+        </div>
+
+        {/* Liga selector */}
+        <div>
+          <p className="text-[11px] font-bold uppercase tracking-wider text-zinc-500 mb-2.5">Liga</p>
+          <div className="flex gap-2 overflow-x-auto no-scrollbar -mx-1 px-1 pb-1">
+            {LEAGUES.map((l) => (
+              <button
+                key={l.id}
+                onClick={() => setLeagueId(l.id)}
+                className={`shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl border text-xs font-bold transition-all tap ${
+                  leagueId === l.id
+                    ? "border-zinc-600 bg-zinc-800 text-white"
+                    : "border-zinc-800 bg-zinc-900/60 text-zinc-500 hover:text-zinc-300 hover:border-zinc-700"
+                }`}
+              >
+                <span>{l.flag}</span>
+                <span>{l.label}</span>
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Límite diario Free */}
@@ -329,6 +361,11 @@ function CombinadaResult({ result, accent, bar, isAi = false }: {
 }) {
   return (
     <Card glow className="overflow-hidden animate-scale-in">
+      {result.fallback_reason && (
+        <div className="px-5 py-2 bg-amber-500/8 border-b border-amber-800/30">
+          <p className="text-[11px] text-amber-400/90">ℹ️ {result.fallback_reason}</p>
+        </div>
+      )}
       {/* Interpretation badge (AI only) */}
       {isAi && result.interpretation && (
         <div className="px-5 py-2.5 bg-zinc-950/60 border-b border-zinc-800">

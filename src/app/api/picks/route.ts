@@ -15,6 +15,9 @@ export const maxDuration = 120
  */
 export async function GET(req: NextRequest) {
   await ensureWarm()
+  const { consume, getClientIp, tooManyRequests } = await import("@/lib/rate-limit")
+  const ip = getClientIp(req)
+  if (!consume(ip, 30, 6)) return tooManyRequests(60)
   ensureFresh()
 
   const store = getStore()

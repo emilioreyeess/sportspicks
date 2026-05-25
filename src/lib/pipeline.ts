@@ -430,6 +430,65 @@ export function computeValuePicks(data: DailyData): { picks: any[]; note?: strin
   }
 
   picks.sort((a, b) => b.quality_score - a.quality_score)
+  const MIN_DAILY_PICKS = 7
+
+  // FALLBACK: if strict engine yields fewer than MIN_DAILY_PICKS, add best remaining
+  // candidates with relaxed thresholds (skip decision-engine, lower quality gate to 40)
+  if (picks.length < MIN_DAILY_PICKS) {
+    const publishedMatchIds = new Set(picks.map((p: any) => p.id))
+    const fallbackCandidates: any[] = []
+
+    for (const m of data.matches) {
+      if (publishedMatchIds.has(m.id)) continue // already have a pick for this match
+      for (const c of buildCandidates(m)) {
+        if (c.suppressed) continue
+        const odd = m.odds[c.key]
+        if (!odd || !isFinite(odd) || odd < MIN_ODD) continue
+        const evalCand = toEvalCandidate(c, m, odd)
+        // Relaxed: edge >= 1.5 (was 3), quality >= 40 (was 52)
+        if (evalCand.edge < 1.5 || evalCand.edge > MAX_EDGE) continue
+        if (evalCand.baseQuality < 40) continue
+        if (!commonSensePass(c, m)) continue
+        const consensusProb = evalCand.prob
+        const conf = Math.round(consensusProb * 100)
+        const imp = impliedPct(odd)
+        const valueReason = c.story ||
+          `El modelo estima ${(consensusProb * 100).toFixed(1)}% frente al ${imp}% implícito de la cuota (edge +${evalCand.edge.toFixed(1)}%).`
+        const risk = riskTier(consensusProb, odd, evalCand.baseQuality)
+        fallbackCandidates.push({
+          id: m.id,
+          home_team: m.homeName, away_team: m.awayName,
+          league_name: LEAGUE_NAMES[m.slug] ?? m.slug, kickoff_utc: m.kickoff,
+          market: c.market, selection: c.selection,
+          confidence_pct: conf, confidence_tier: "MEDIUM",
+          model_prob: Math.round(consensusProb * 1000) / 10,
+          best_odd: odd, value_edge: evalCand.edge, bookmaker: m.odds.provider,
+          quality_score: evalCand.baseQuality, value_reason: valueReason,
+          risk_tier: risk,
+          result: "PENDING", plan_required: "basic",
+          _fallback: true, // internal marker
+          engine: { consensus_prob: Math.round(consensusProb * 1000) / 10, consensus_agreement: 50, uncertainty: 40, contradiction: 30, models: [] },
+          reasons: [
+            `💡 ${valueReason}`,
+            ...c.extra,
+            `Cuota real (${m.odds.provider}): ${odd.toFixed(2)} → prob. implícita ${imp}%`,
+            `Score de calidad: ${evalCand.baseQuality}/100 · Pick de completado (umbrales relajados)`,
+          ],
+        })
+        break // one fallback pick per match
+      }
+      if (picks.length + fallbackCandidates.length >= MIN_DAILY_PICKS) break
+    }
+    fallbackCandidates.sort((a, b) => b.quality_score - a.quality_score)
+    const needed = MIN_DAILY_PICKS - picks.length
+    picks.push(...fallbackCandidates.slice(0, needed))
+    const seen = new Set<string>()
+    const deduped = picks.filter((p: any) => { if (seen.has(p.id)) return false; seen.add(p.id); return true })
+    picks.length = 0
+    picks.push(...deduped)
+    picks.sort((a: any, b: any) => b.quality_score - a.quality_score)
+  }
+
   const capped = picks.slice(0, MAX_PICKS)
   return {
     picks: capped,
@@ -637,7 +696,61 @@ export function pickCombinadaFromPool(pool: PoolEntry[], mode: string, leagueId:
   const perMatch = [...byMatch.values()]
 
   if (perMatch.length < cfg.legs) {
-    return { error: `Solo ${perMatch.length} selección(es) cumplen el modo ${cfg.label} para esta liga hoy. Prueba otra liga u otro modo.` }
+    // FALLBACK 1: try without league filter if one was specified
+    if (slug) {
+      let fallback = pool.filter((p) => p.odd >= cfg.minOdd && p.odd <= cfg.maxOdd && p.prob >= cfg.minProb)
+      if (cfg.sort === "prob") fallback = fallback.filter((p) => !(p.homeDead && p.awayDead))
+      const fbByMatch = new Map<string, PoolEntry>()
+      for (const p of fallback) {
+        const cur = fbByMatch.get(p.matchId)
+        const better = !cur || (cfg.sort === "prob" ? p.prob > cur.prob : p.odd > cur.odd)
+        if (better) fbByMatch.set(p.matchId, p)
+      }
+      const fbPerMatch = [...fbByMatch.values()]
+      if (fbPerMatch.length >= cfg.legs) {
+        // use multi-league fallback
+        fbPerMatch.sort((a, b) => (cfg.sort === "prob" ? b.prob - a.prob : b.odd - a.odd))
+        const topK = fbPerMatch.slice(0, Math.max(cfg.legs * 3, cfg.legs + 4))
+        for (let i = topK.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1))
+          const t = topK[i]; topK[i] = topK[j]; topK[j] = t
+        }
+        const chosen = topK.slice(0, cfg.legs)
+        return {
+          mode: cfg.label, date: new Date().toISOString().split("T")[0],
+          fallback_reason: "Liga sin suficientes selecciones hoy — combinada con las mejores de todas las ligas",
+          legs: chosen.map((l) => ({ match: l.match, league: l.league, selection: l.selection, odd: l.odd, prob: Math.round(l.prob * 100), market: l.market, reasoning: l.reasoning })),
+          combined_odd: Math.round(chosen.reduce((a, l) => a * l.odd, 1) * 100) / 100,
+          combined_prob: Math.round(chosen.reduce((a, l) => a * l.prob, 1) * 1000) / 10,
+        }
+      }
+    }
+    // FALLBACK 2: relax prob threshold by 0.05
+    const relaxed = pool.filter((p) => p.odd >= cfg.minOdd && p.odd <= cfg.maxOdd && p.prob >= Math.max(cfg.minProb - 0.05, 0.35))
+    const rxByMatch = new Map<string, PoolEntry>()
+    for (const p of relaxed) {
+      const cur = rxByMatch.get(p.matchId)
+      const better = !cur || (cfg.sort === "prob" ? p.prob > cur.prob : p.odd > cur.odd)
+      if (better) rxByMatch.set(p.matchId, p)
+    }
+    const rxPerMatch = [...rxByMatch.values()]
+    if (rxPerMatch.length >= cfg.legs) {
+      rxPerMatch.sort((a, b) => (cfg.sort === "prob" ? b.prob - a.prob : b.odd - a.odd))
+      const topK = rxPerMatch.slice(0, Math.max(cfg.legs * 3, cfg.legs + 4))
+      for (let i = topK.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1))
+        const t = topK[i]; topK[i] = topK[j]; topK[j] = t
+      }
+      const chosen = topK.slice(0, cfg.legs)
+      return {
+        mode: cfg.label, date: new Date().toISOString().split("T")[0],
+        fallback_reason: "Umbrales ligeramente relajados para completar la combinada",
+        legs: chosen.map((l) => ({ match: l.match, league: l.league, selection: l.selection, odd: l.odd, prob: Math.round(l.prob * 100), market: l.market, reasoning: l.reasoning })),
+        combined_odd: Math.round(chosen.reduce((a, l) => a * l.odd, 1) * 100) / 100,
+        combined_prob: Math.round(chosen.reduce((a, l) => a * l.prob, 1) * 1000) / 10,
+      }
+    }
+    return { error: `Solo ${perMatch.length} selección(es) válidas hoy. Prueba otro modo.` }
   }
 
   // Top-K por métrica, luego muestreo aleatorio → variedad en cada regeneración

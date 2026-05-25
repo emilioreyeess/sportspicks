@@ -25,9 +25,9 @@ export async function getAccumulators() {
 
 // ---- Combinadas ----
 
-export async function getCombinada(mode: string, leagueId?: number) {
+export async function getCombinada(mode: string, leagueId?: string) {
   const params = new URLSearchParams({ mode })
-  if (leagueId) params.set("league_id", String(leagueId))
+  if (leagueId) params.set("league_id", leagueId)
   const res = await fetch(`/api/combinadas?${params}`)
   return res.json()
 }

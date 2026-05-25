@@ -4,6 +4,7 @@ import { useState } from "react"
 import Link from "next/link"
 import { PLANS, PLAN_ORDER, type PlanId } from "@/lib/plans"
 import { usePlan } from "@/lib/plan"
+import { useAuth } from "@/lib/auth"
 import { Icon } from "@/components/ui/icons"
 
 const STRIPE_ENABLED = Boolean(process.env.NEXT_PUBLIC_STRIPE_PUBLISHABLE_KEY)
@@ -44,6 +45,7 @@ function annualSaving(plan: PlanId): number {
 
 export default function PricingPage() {
   const { plan, setPlan } = usePlan()
+  const { user } = useAuth()
   const [billing, setBilling] = useState<Billing>("monthly")
   const [justSet, setJustSet] = useState<PlanId | null>(null)
   const [checkoutLoading, setCheckoutLoading] = useState<PlanId | null>(null)
@@ -100,8 +102,9 @@ export default function PricingPage() {
       return
     }
 
-    // Sin email todavía → abrir modal
-    if (!emailInput.trim()) {
+    // Use session email directly — no modal needed since user is always logged in
+    const userEmail = user?.email || emailInput.trim()
+    if (!userEmail) {
       setModalError(null)
       setEmailFor(id)
       return
@@ -114,13 +117,19 @@ export default function PricingPage() {
     try {
       const res = await fetch("/api/checkout", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ plan: id, email: emailInput.trim(), billing }),
+        body: JSON.stringify({ plan: id, email: userEmail, billing }),
       })
       const data = await res.json().catch(() => ({}))
       if (data?.url) {
         // Cerramos modal antes de navegar para que el back funcione bien
         setEmailFor(null)
-        window.location.href = data.url
+        // Mobile-safe navigation — window.location.href can be blocked on some mobile browsers
+        // after async operations. Use location.assign as it's triggered within the gesture chain.
+        try {
+          window.location.assign(data.url)
+        } catch {
+          window.open(data.url, "_self")
+        }
         return
       }
       // Mensaje legible incluso en móvil sin alert()

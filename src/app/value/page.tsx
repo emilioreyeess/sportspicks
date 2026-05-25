@@ -53,6 +53,37 @@ function ResultBadge({ result }: { result: ResultType }) {
   )
 }
 
+/** Generates a short post-match analysis for a pick that was settled */
+function generateLossAnalysis(pick: YesterdayPick): string | null {
+  if (pick.result !== "LOSS" && pick.result !== "WIN") return null
+  const edge = pick.value_edge ?? 0
+  const quality = pick.quality_score ?? 0
+  const market: string = (pick.market as string) ?? ""
+
+  if (pick.result === "WIN") return null // Only show analysis for losses
+
+  // High quality loss — reasoning was still sound
+  if (quality >= 65 || edge >= 6) {
+    return `El pick mantenía valor real (edge +${edge.toFixed(1)}%, calidad ${quality}/100). El resultado entra en la varianza normal — el razonamiento estadístico era correcto.`
+  }
+  // Over/Under
+  if (market === "Over/Under 2.5") {
+    if (pick.selection?.includes("Over")) {
+      return `Los equipos no alcanzaron los 3 goles esperados por el modelo. Es un mercado sensible al ritmo del partido y puede fluctuar con un solo gol extra.`
+    }
+    return `Se superaron los 2.5 goles; el partido fue más abierto de lo modelado. El mercado Under tiene alta varianza en partidos competidos.`
+  }
+  // Handicap
+  if (market === "Hándicap") {
+    return `El hándicap no se cubrió. Es un mercado de alta varianza — pequeñas diferencias de gol cambian el resultado aunque el rendimiento sea el esperado.`
+  }
+  // 1X2
+  if (edge >= 3) {
+    return `El mercado tenía menos fe en esta selección que el modelo. Con edge +${edge.toFixed(1)}%, sigue siendo un pick defendible a largo plazo aunque no haya ganado hoy.`
+  }
+  return `El resultado no acompañó esta vez. Con un edge de +${edge.toFixed(1)}%, el mercado era ajustado — la probabilidad modelada era ligeramente superior a la implícita.`
+}
+
 function YesterdayPickCard({ pick, onClick }: { pick: YesterdayPick; onClick?: () => void }) {
   const resultBorder =
     pick.result === "WIN"  ? "border-emerald-700/40 bg-emerald-900/10" :
@@ -104,6 +135,25 @@ function YesterdayPickCard({ pick, onClick }: { pick: YesterdayPick; onClick?: (
           {" · "}Score{" "}
           <span className="text-zinc-300 font-semibold">{pick.quality_score}/100</span>
         </p>
+      )}
+
+      {/* Post-match analysis for losses */}
+      {pick.result === "LOSS" && (() => {
+        const analysis = generateLossAnalysis(pick)
+        return analysis ? (
+          <div className="rounded-lg bg-zinc-900/80 border border-zinc-800 px-3 py-2 mt-1">
+            <p className="text-[11px] text-zinc-500 leading-relaxed">
+              <span className="text-zinc-400 font-semibold">Análisis: </span>{analysis}
+            </p>
+          </div>
+        ) : null
+      })()}
+      {pick.result === "WIN" && (pick.value_edge ?? 0) >= 5 && (
+        <div className="rounded-lg bg-emerald-900/20 border border-emerald-800/30 px-3 py-2 mt-1">
+          <p className="text-[11px] text-emerald-400/80 leading-relaxed">
+            ✓ Pick de alto valor confirmado — edge +{(pick.value_edge ?? 0).toFixed(1)}% materializado.
+          </p>
+        </div>
       )}
     </div>
   )

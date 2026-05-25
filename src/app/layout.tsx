@@ -5,6 +5,8 @@ import { AgeGate } from "@/components/legal/AgeGate"
 import { CookieConsent } from "@/components/legal/CookieConsent"
 import { SafariInstallBanner } from "@/components/ui/SafariInstallBanner"
 import { PlanProvider } from "@/lib/plan"
+import { AuthProvider } from "@/lib/auth"
+import { LoginWall } from "@/components/ui/LoginWall"
 import "./globals.css"
 
 const inter = Inter({ subsets: ["latin"], display: "swap" })
@@ -63,13 +65,17 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="es" className="dark">
       <body className={`${inter.className} bg-zinc-950 text-white antialiased`}>
-        <PlanProvider>
-          <AgeGate>
-            <AppShell>{children}</AppShell>
-            <CookieConsent />
-            <SafariInstallBanner />
-          </AgeGate>
-        </PlanProvider>
+        <AuthProvider>
+          <PlanProvider>
+            <AgeGate>
+              <LoginWall>
+                <AppShell>{children}</AppShell>
+                <CookieConsent />
+                <SafariInstallBanner />
+              </LoginWall>
+            </AgeGate>
+          </PlanProvider>
+        </AuthProvider>
       </body>
     </html>
   )

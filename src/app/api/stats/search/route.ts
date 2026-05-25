@@ -77,8 +77,13 @@ async function fetchLeagueTeams(slug: string, leagueName: string, flag: string, 
 }
 
 export async function GET(req: NextRequest) {
+  const { consume, getClientIp, tooManyRequests } = await import("@/lib/rate-limit")
+  const ip = getClientIp(req)
+  if (!consume(`search:${ip}`, 20, 4)) return tooManyRequests(60)
+
   const raw = (req.nextUrl.searchParams.get("q") ?? "").trim()
   if (!raw || raw.length < 2) return Response.json({ teams: [] })
+  if (raw.length > 100) return Response.json({ teams: [] })
 
   // Aplicar alias antes de buscar
   const q = TEAM_ALIASES[norm(raw)] ?? raw.toLowerCase()
