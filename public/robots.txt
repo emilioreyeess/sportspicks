@@ -1,0 +1,12 @@
+User-agent: *
+Allow: /
+Disallow: /api/
+Disallow: /account/
+Disallow: /checkout/
+Disallow: /admin/
+
+# Bots de apuestas — bloquear explícitamente
+User-agent: Googlebot-News
+Disallow: /
+
+Sitemap: https://sportspicks.app/sitemap.xml

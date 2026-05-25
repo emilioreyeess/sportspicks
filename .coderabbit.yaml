@@ -1,0 +1,45 @@
+language: es
+reviews:
+  auto_review:
+    enabled: true
+    drafts: false
+  profile: "chill"
+  path_instructions:
+    - path: "src/lib/world-cup/**"
+      instructions: |
+        Verifica que no haya datos inventados.
+        Todos los campos estadísticos deben venir de ESPN o estar marcados con source: "computed" | "curated".
+        Los campos que no podemos obtener de ESPN deben ser null con el campo en knownGaps[].
+
+    - path: "src/lib/decision-engine/**"
+      instructions: |
+        Verifica que ningún modelo devuelva probabilidades sin pasar por DataValidationGate.
+        gamesPlayed debe ser >= 5 antes de hacer cualquier cálculo estadístico.
+        Los modelos pueden abstain — nunca forzar un pick si hay incertidumbre alta.
+
+    - path: "src/app/api/**"
+      instructions: |
+        Comprueba que cada route handler tenga:
+          1. Rate limiting (consume) antes del parsing del body
+          2. Input validation con límites de tamaño
+          3. Sin console.log con PII (email, IP, nombres de usuario)
+        Para rutas que llaman a APIs externas (ESPN, Stripe): verificar SSRF protection.
+
+    - path: "src/lib/pipeline.ts"
+      instructions: |
+        REGLA DE ORO: mejor no publicar un pick que publicar uno malo.
+        Verifica que computeRetoCombi y computeCustomRetoPick devuelvan null si no hay pick válido
+        dentro del rango minFinalOdd-maxFinalOdd (sin fallbacks amplios).
+
+    - path: "src/components/legal/**"
+      instructions: |
+        Los componentes legales son críticos para el cumplimiento GDPR/COPPA.
+        No eliminar ni degradar el AgeGate ni el CookieConsent.
+        Las políticas de privacidad y cookies deben linkear correctamente.
+
+  finishing_touches:
+    docstrings:
+      enabled: false  # el equipo prefiere comentarios JSDoc manuales donde tienen valor
+
+chat:
+  auto_reply: true

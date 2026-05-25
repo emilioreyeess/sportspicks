@@ -4,6 +4,7 @@ import { AppShell } from "@/components/ui/AppShell"
 import { AgeGate } from "@/components/legal/AgeGate"
 import { CookieConsent } from "@/components/legal/CookieConsent"
 import { SafariInstallBanner } from "@/components/ui/SafariInstallBanner"
+import { ConditionalAnalytics } from "@/components/analytics/ConditionalAnalytics"
 import { PlanProvider } from "@/lib/plan"
 import { SessionWrapper } from "@/components/ui/SessionWrapper"
 import { LoginWall } from "@/components/ui/LoginWall"
@@ -72,6 +73,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <AppShell>{children}</AppShell>
                 <CookieConsent />
                 <SafariInstallBanner />
+                <ConditionalAnalytics />
               </LoginWall>
             </AgeGate>
           </PlanProvider>
