@@ -2,15 +2,20 @@
  * WorldCupDataService — fachada única para todas las consultas del Mundial 2026.
  *
  * Estrategia de datos:
- *   1. Datos estables (equipos, árbitros top) → static-data.ts
- *   2. Datos dinámicos (formas, fixtures, standings) → ESPN API con cache KV
- *   3. Datos no obtenibles públicamente (valor de mercado exacto, xG real-time
- *      de selecciones) → marcados con source: "computed" y derivados de forma
- *      transparente. Nunca inventados.
+ *   1. Grupos y equipos → static-data.ts (sorteo completado el 5 dic 2025).
+ *      Los grupos YA NO se obtienen de ESPN; son datos curados y verificados.
+ *   2. Fixtures y standings → ESPN API con cache KV (torneo inicia 11 jun 2026).
+ *   3. Formas de selecciones → ESPN API por equipo (partidos amistosos + clasificatorias recientes).
+ *   4. Datos no obtenibles (xG real, valor de mercado) → source:"computed", honestamente.
  *
- * ESPN slug del Mundial: "fifa.world".
- * Si ESPN aún no expone el calendario 2026 → el service devuelve los equipos
- * estáticos y fixtures vacíos, con metadatos claros para que la UI sepa.
+ * ESPN slugs probados (por prioridad):
+ *   1. "fifa.worldcup2026" — slug específico del torneo 2026 si ESPN ya lo expone
+ *   2. "fifa.world"        — slug genérico del Mundial (usado para 2022 y podría redirigir a 2026)
+ *
+ * Antes del inicio del torneo (11 jun 2026):
+ *   - fixtures → vacíos (ESPN no los expone pre-torneo; se cargan al kick-off)
+ *   - standings → placeholders con 0 pts (se actualizan al comenzar el torneo)
+ *   - formas → amistosos y clasificatorias recientes (fuente real)
  */
 
 import {
@@ -41,22 +46,55 @@ import type {
   DataSource,
 } from "./types"
 
-// ─── ESPN client (defensivo) ──────────────────────────────────────────────────
+// ─── ESPN client (defensivo, multi-slug) ──────────────────────────────────────
 
-const ESPN_BASE = "https://site.api.espn.com/apis/site/v2/sports/soccer/fifa.world"
+// Slugs en orden de prioridad: el específico 2026 primero, el genérico como fallback
+const ESPN_SLUGS = [
+  "fifa.worldcup2026",
+  "fifa.world",
+  "fifa.world.2026",
+]
+const ESPN_API_BASE = "https://site.api.espn.com/apis/site/v2/sports/soccer"
 const FETCH_TIMEOUT_MS = 8000
 
+/** Intenta cada slug hasta encontrar uno que responda 200 */
 async function espnFetch<T = unknown>(path: string): Promise<T | null> {
-  try {
-    const res = await fetch(`${ESPN_BASE}/${path}`, {
-      headers: { "User-Agent": "Mozilla/5.0 SportsPicks-Analytics" },
-      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-    })
-    if (!res.ok) return null
-    return (await res.json()) as T
-  } catch {
-    return null
+  for (const slug of ESPN_SLUGS) {
+    try {
+      const res = await fetch(`${ESPN_API_BASE}/${slug}/${path}`, {
+        headers: { "User-Agent": "Mozilla/5.0 SportsPicks-Analytics/2.0" },
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+        next: { revalidate: 0 },   // no cachear en Next.js fetch cache; usamos KV
+      })
+      if (res.ok) return (await res.json()) as T
+    } catch {
+      // Intentar siguiente slug
+    }
   }
+  return null
+}
+
+/** Fetch a una URL de ESPN por equipo usando el slug de selecciones nacionales */
+async function espnTeamFetch<T = unknown>(path: string): Promise<T | null> {
+  // Para stats de selecciones nacionales ESPN usa un endpoint diferente
+  const bases = [
+    `${ESPN_API_BASE}/fifa.worldcup2026/${path}`,
+    `${ESPN_API_BASE}/fifa.world/${path}`,
+    `https://site.api.espn.com/apis/site/v2/sports/soccer/national-teams/${path}`,
+  ]
+  for (const url of bases) {
+    try {
+      const res = await fetch(url, {
+        headers: { "User-Agent": "Mozilla/5.0 SportsPicks-Analytics/2.0" },
+        signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
+        next: { revalidate: 0 },
+      })
+      if (res.ok) return (await res.json()) as T
+    } catch {
+      continue
+    }
+  }
+  return null
 }
 
 // ─── Helpers internos ─────────────────────────────────────────────────────────
@@ -82,30 +120,14 @@ function matchEspnToCode(espnName: string): string | null {
 }
 
 /**
- * Devuelve los 48 equipos del Mundial. Si ESPN expone el sorteo, enriquece
- * con el grupo asignado. Si no, los equipos vienen con group=null.
+ * Devuelve los 48 equipos del Mundial con sus grupos oficiales.
+ * Los grupos vienen de static-data.ts (sorteo completado 5 dic 2025).
+ * ESPN ya no es la fuente de grupos — los datos curados son la fuente de verdad.
  */
 export async function getAllTeams(): Promise<TeamsResponse> {
-  return cached("teams:all", WC_CACHE_TTL.TEAMS, async () => {
+  return cached("teams:all:v2", WC_CACHE_TTL.TEAMS, async () => {
+    // Los grupos están en static-data; no hay que enriquecer desde ESPN
     const teams = [...WC_TEAMS]
-
-    // Intentar enriquecer con grupos de ESPN
-    const standings = await espnFetch<{ children?: Array<{ name?: string; standings?: { entries: Array<{ team: EspnTeamRef }> } }> }>("standings")
-    if (standings?.children) {
-      for (const group of standings.children) {
-        const groupLetter = (group.name?.match(/group\s+([A-L])/i)?.[1]?.toUpperCase()) as WCGroup | undefined
-        if (!groupLetter) continue
-        const entries = group.standings?.entries ?? []
-        for (const e of entries) {
-          const code = matchEspnToCode(e.team.displayName)
-          if (!code) continue
-          const idx = teams.findIndex((t) => t.code === code)
-          if (idx >= 0) {
-            teams[idx] = { ...teams[idx], group: groupLetter, source: "espn" }
-          }
-        }
-      }
-    }
 
     const byGroup: TeamsResponse["byGroup"] = {}
     for (const t of teams) {
@@ -119,8 +141,8 @@ export async function getAllTeams(): Promise<TeamsResponse> {
       teams,
       byGroup,
       fetchedAt: isoNow(),
-      source: isDrawCompleted(teams) ? "espn" : "curated",
-      drawCompleted: isDrawCompleted(teams),
+      source: "curated",         // grupos oficiales verificados, no depende de ESPN
+      drawCompleted: true,       // sorteo completado el 5 dic 2025
     }
   })
 }
@@ -151,9 +173,7 @@ export async function getTeamSquad(teamCode: string): Promise<WCSquad | null> {
   if (!team) return null
 
   return cached(`squad:${teamCode}`, WC_CACHE_TTL.SQUAD, async () => {
-    // ESPN endpoint de roster — varía por país, suele requerir teamId
-    // Intento heurístico: usar el endpoint genérico de roster por country slug.
-    const data = await espnFetch<{ athletes?: Array<{ items?: EspnRosterAthlete[] }> }>(
+    const data = await espnTeamFetch<{ athletes?: Array<{ items?: EspnRosterAthlete[] }> }>(
       `teams/${teamCode.toLowerCase()}/roster`,
     )
 
@@ -244,7 +264,7 @@ export async function getTeamForm(teamCode: string): Promise<WCTeamForm | null> 
   if (!team) return null
 
   return cached(`form:${teamCode}`, WC_CACHE_TTL.FORM, async () => {
-    const data = await espnFetch<{ events?: EspnScheduleEvent[] }>(
+    const data = await espnTeamFetch<{ events?: EspnScheduleEvent[] }>(
       `teams/${teamCode.toLowerCase()}/schedule`,
     )
 
@@ -412,8 +432,14 @@ export async function getFixtureById(matchId: string): Promise<WCFixture | null>
 // 6. STANDINGS — clasificación por grupo
 // ═══════════════════════════════════════════════════════════════════════════════
 
+/**
+ * Clasifica un grupo a partir de los standings de ESPN.
+ * Si ESPN no devuelve datos aún (pre-torneo), genera standings vacíos
+ * desde static-data (0 pts, orden FIFA ranking).
+ */
 export async function getGroupStandings(): Promise<WCGroupStanding[]> {
-  return cached("standings:all", WC_CACHE_TTL.STANDINGS, async () => {
+  return cached("standings:all:v2", WC_CACHE_TTL.STANDINGS, async () => {
+    // ── Intentar ESPN primero ─────────────────────────────────────────────
     const data = await espnFetch<{ children?: Array<{
       name?: string
       standings?: { entries: Array<{
@@ -422,40 +448,61 @@ export async function getGroupStandings(): Promise<WCGroupStanding[]> {
       }> }
     }> }>("standings")
 
-    if (!data?.children) return []
+    if (data?.children && data.children.length > 0) {
+      const result: WCGroupStanding[] = []
+      for (const group of data.children) {
+        const letter = (group.name?.match(/group\s+([A-L])/i)?.[1]?.toUpperCase()) as WCGroup | undefined
+        if (!letter) continue
 
-    const result: WCGroupStanding[] = []
-    for (const group of data.children) {
-      const letter = (group.name?.match(/group\s+([A-L])/i)?.[1]?.toUpperCase()) as WCGroup | undefined
-      if (!letter) continue
+        const teamsRows = (group.standings?.entries ?? []).map((entry, idx) => {
+          const stats = new Map(entry.stats.map((s) => [s.name, s.value ?? Number(s.displayValue) ?? 0]))
+          const code = matchEspnToCode(entry.team.displayName) ?? entry.team.abbreviation?.toUpperCase() ?? "???"
+          return {
+            teamCode: code,
+            played:       Number(stats.get("gamesPlayed") ?? 0),
+            won:          Number(stats.get("wins") ?? 0),
+            drawn:        Number(stats.get("ties") ?? stats.get("draws") ?? 0),
+            lost:         Number(stats.get("losses") ?? 0),
+            goalsFor:     Number(stats.get("pointsFor") ?? stats.get("goalsFor") ?? 0),
+            goalsAgainst: Number(stats.get("pointsAgainst") ?? stats.get("goalsAgainst") ?? 0),
+            goalDiff:     Number(stats.get("pointDifferential") ?? stats.get("goalDifference") ?? 0),
+            points:       Number(stats.get("points") ?? 0),
+            position: idx + 1,
+            qualificationStatus: "pending" as const,
+          }
+        })
 
-      const teamsRows = (group.standings?.entries ?? []).map((entry, idx) => {
-        const stats = new Map(entry.stats.map((s) => [s.name, s.value ?? Number(s.displayValue) ?? 0]))
-        const code = matchEspnToCode(entry.team.displayName) ?? entry.team.abbreviation?.toUpperCase() ?? "???"
-        return {
-          teamCode: code,
-          played: Number(stats.get("gamesPlayed") ?? 0),
-          won: Number(stats.get("wins") ?? 0),
-          drawn: Number(stats.get("ties") ?? stats.get("draws") ?? 0),
-          lost: Number(stats.get("losses") ?? 0),
-          goalsFor: Number(stats.get("pointsFor") ?? stats.get("goalsFor") ?? 0),
-          goalsAgainst: Number(stats.get("pointsAgainst") ?? stats.get("goalsAgainst") ?? 0),
-          goalDiff: Number(stats.get("pointDifferential") ?? stats.get("goalDifference") ?? 0),
-          points: Number(stats.get("points") ?? 0),
-          position: idx + 1,
-          qualificationStatus: "pending" as const,
-        }
-      })
-
-      result.push({
-        group: letter,
-        teams: teamsRows,
-        fetchedAt: isoNow(),
-        source: "espn",
-      })
+        result.push({ group: letter, teams: teamsRows, fetchedAt: isoNow(), source: "espn" })
+      }
+      if (result.length > 0) return result
     }
 
-    return result
+    // ── Fallback pre-torneo: standings vacíos desde static-data ──────────
+    // Orden inicial: por FIFA ranking (null ranking va al final)
+    const groupLetters: WCGroup[] = ["A","B","C","D","E","F","G","H","I","J","K","L"]
+    return groupLetters.map((letter) => {
+      const teamsInGroup = WC_TEAMS
+        .filter((t) => t.group === letter)
+        .sort((a, b) => {
+          if (a.fifaRanking == null && b.fifaRanking == null) return 0
+          if (a.fifaRanking == null) return 1
+          if (b.fifaRanking == null) return -1
+          return a.fifaRanking - b.fifaRanking
+        })
+
+      return {
+        group: letter,
+        teams: teamsInGroup.map((t, idx) => ({
+          teamCode: t.code,
+          played: 0, won: 0, drawn: 0, lost: 0,
+          goalsFor: 0, goalsAgainst: 0, goalDiff: 0, points: 0,
+          position: idx + 1,
+          qualificationStatus: "pending" as const,
+        })),
+        fetchedAt: isoNow(),
+        source: "curated" as const,
+      }
+    })
   })
 }
 
@@ -485,13 +532,20 @@ function detectContextFlags(fixture: WCFixture): MatchContextFlags {
   const isClassic = (() => {
     const pair = new Set([fixture.homeCode, fixture.awayCode])
     const classics: Array<Set<string>> = [
+      // Rivalidades históricas garantizadas en grupos del sorteo 2026
+      new Set(["ARG", "AUT"]),   // Grupo J — Argentina siempre es clásico
+      new Set(["ENG", "CRO"]),   // Grupo L — historial reciente Euro/WC
+      new Set(["ESP", "URU"]),   // Grupo H — clásico UEFA vs CONMEBOL
+      new Set(["FRA", "SEN"]),   // Grupo I — clásico colonial-futbolístico
+      new Set(["BRA", "MAR"]),   // Grupo C — Brasil vs Africa best team
+      new Set(["GER", "NED"]),   // posibles en KO — histórico
+      // Rivalidades eternas en fase eliminatoria
       new Set(["ARG", "BRA"]),
       new Set(["ESP", "POR"]),
       new Set(["ENG", "GER"]),
-      new Set(["NED", "GER"]),
       new Set(["USA", "MEX"]),
-      new Set(["FRA", "ITA"]),
-      new Set(["ESP", "ITA"]),
+      new Set(["FRA", "ESP"]),
+      new Set(["BRA", "ARG"]),
     ]
     return classics.some((c) => c.size === pair.size && [...c].every((t) => pair.has(t)))
   })()

@@ -5,13 +5,14 @@ import { useEffect, useState } from "react"
 import { Icon } from "@/components/ui/icons"
 import { usePlan } from "@/lib/plan"
 
+// Sections that appear in the regular tools grid (Retos removed — featured above)
 const SECTIONS = [
   {
     href: "/value", icon: "value", accent: "emerald",
     badge: "Diario", badgeColor: "text-emerald-400 bg-emerald-500/10 border-emerald-800/60",
     title: "Value Picks",
     desc: "Picks donde el modelo Poisson supera a la cuota real de DraftKings. Edge real, con contexto de motivación.",
-    highlights: ["Cuotas reales verificadas", "Modelo ajustado por rival", "Score de calidad por pick"],
+    highlights: ["Cuotas reales verificadas", "Modelo ajustado por rival", "Score de calidad"],
     iconBg: "bg-emerald-500/15 text-emerald-400",
     grad: "from-emerald-600/12 to-emerald-900/5 border-emerald-800/40",
     dotColor: "bg-emerald-400",
@@ -33,7 +34,7 @@ const SECTIONS = [
     badge: "Generador", badgeColor: "text-amber-400 bg-amber-500/10 border-amber-800/60",
     title: "Combinadas",
     desc: "Elige liga y perfil de riesgo. El sistema arma la combinada con cuotas reales y el mismo motor cuantitativo.",
-    highlights: ["Segura · Balanceada · Soñadora", "Cuota real por cada pata", "Probabilidad del modelo"],
+    highlights: ["Segura · Balanceada · Soñadora", "Cuota real por pata", "Probabilidad del modelo"],
     iconBg: "bg-amber-500/15 text-amber-400",
     grad: "from-amber-600/12 to-amber-900/5 border-amber-800/40",
     dotColor: "bg-amber-400",
@@ -50,30 +51,40 @@ const SECTIONS = [
     dotColor: "bg-blue-400",
     textColor: "text-blue-400",
   },
-  {
-    href: "/retos", icon: "trophy", accent: "rose",
-    badge: "Comunidad", badgeColor: "text-rose-400 bg-rose-500/10 border-rose-800/60",
-    title: "Retos",
-    desc: "Desafíos de tracking estadístico. Cada reto trae un pick diario real con una cuota que cumple su objetivo.",
-    highlights: ["Reto 12×1.5 · 8×2.0 · 10×1.3", "Pick diario con cuota real", "Simulación con 10€"],
-    iconBg: "bg-rose-500/15 text-rose-400",
-    grad: "from-rose-600/12 to-rose-900/5 border-rose-800/40",
-    dotColor: "bg-rose-400",
-    textColor: "text-rose-400",
-  },
 ]
 
 const FACTS = [
-  { v: "10+",    l: "Ligas",            d: "LaLiga · Premier · Champions · MLS · más" },
-  { v: "Real",   l: "Cuotas DraftKings",d: "Verificadas vía ESPN, nunca fabricadas" },
+  { v: "48",     l: "Selecciones",      d: "12 grupos, sorteo confirmado 5 dic 2025" },
+  { v: "Real",   l: "Cuotas",           d: "Verificadas vía ESPN, nunca fabricadas" },
   { v: "Poisson",l: "Modelo",           d: "Ajustado por rival, forma y motivación" },
   { v: "0",      l: "Datos inventados", d: "Prohibición absoluta de fabricar estadísticas" },
 ]
+
+// ─── Countdown helper ─────────────────────────────────────────────────────────
+function useCountdown(targetISO: string) {
+  const [text, setText] = useState("")
+  useEffect(() => {
+    const update = () => {
+      const ms = new Date(targetISO).getTime() - Date.now()
+      if (ms <= 0) { setText("¡Ya comenzó!"); return }
+      const days = Math.floor(ms / 86_400_000)
+      const hours = Math.floor((ms / 3_600_000) % 24)
+      setText(days > 0 ? `${days}d ${hours}h` : `${hours}h`)
+    }
+    update()
+    const id = setInterval(update, 60_000)
+    return () => clearInterval(id)
+  }, [targetISO])
+  return text
+}
+
+// ─── Page ─────────────────────────────────────────────────────────────────────
 
 export default function HomePage() {
   const { isPremium } = usePlan()
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null)
   const [picksCount, setPicksCount] = useState<number | null>(null)
+  const countdown = useCountdown("2026-06-11T20:00:00-04:00")
 
   useEffect(() => {
     const handler = (e: any) => { e.preventDefault(); setDeferredPrompt(e) }
@@ -100,13 +111,11 @@ export default function HomePage() {
     <div className="safe-x">
       {/* ── Hero ── */}
       <section className="relative overflow-hidden px-4 pt-10 pb-8 sm:pt-16 sm:pb-12 text-center mesh-bg">
-        {/* Ambient glows */}
         <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
           <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[300px] bg-emerald-500/6 rounded-full blur-[80px]" />
           <div className="absolute top-10 left-1/4 w-[200px] h-[200px] bg-cyan-500/5 rounded-full blur-[60px]" />
         </div>
 
-        {/* Status pill */}
         <div className="inline-flex items-center gap-2 bg-zinc-900/80 border border-zinc-800 rounded-full px-3.5 py-1.5 text-xs text-zinc-400 font-medium mb-5 backdrop-blur-sm">
           <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
           Motor cuantitativo · datos reales
@@ -137,7 +146,6 @@ export default function HomePage() {
           </Link>
         </div>
 
-        {/* PWA install prompt */}
         {deferredPrompt && (
           <div className="mt-5 animate-fade-in">
             <button onClick={installPWA}
@@ -147,13 +155,11 @@ export default function HomePage() {
             </button>
           </div>
         )}
-
-        {/* Date pill */}
         <p className="mt-4 text-xs text-zinc-600 capitalize">{today}</p>
       </section>
 
       {/* ── Facts strip ── */}
-      <section className="px-4 py-6">
+      <section className="px-4 py-5">
         <div className="max-w-4xl mx-auto grid grid-cols-2 sm:grid-cols-4 gap-2.5 stagger">
           {FACTS.map((f) => (
             <div key={f.l} className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-3.5 card-glow">
@@ -165,8 +171,116 @@ export default function HomePage() {
         </div>
       </section>
 
-      {/* ── Sections grid ── */}
-      <section className="max-w-5xl mx-auto px-4 pb-8">
+      {/* ════════════════════════════════════════════════════════════════════
+          FEATURED: World Cup 2026 + Retos — tarjetas hero prominentes
+          ════════════════════════════════════════════════════════════════════ */}
+      <section className="max-w-5xl mx-auto px-4 pb-2">
+        <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 mb-3 px-1">Destacado</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+
+          {/* ── Mundial 2026 ── */}
+          <Link href="/world-cup-2026"
+            className="group relative overflow-hidden rounded-3xl border border-amber-700/50 bg-gradient-to-br from-amber-600/15 via-zinc-900/80 to-zinc-950 backdrop-blur-sm p-5 tap hover:border-amber-600/70 transition-colors">
+            {/* Glow blobs */}
+            <div className="pointer-events-none absolute inset-0 rounded-3xl overflow-hidden">
+              <div className="absolute -top-10 -right-6 w-40 h-40 bg-amber-500/20 rounded-full blur-[50px]" />
+              <div className="absolute -bottom-12 -left-6 w-44 h-44 bg-yellow-500/10 rounded-full blur-[60px]" />
+            </div>
+
+            <div className="relative">
+              {/* Header row */}
+              <div className="flex items-start justify-between mb-4">
+                <span className="grid place-items-center w-12 h-12 rounded-2xl bg-gradient-to-br from-amber-500/25 to-yellow-600/15 border border-amber-700/40 text-amber-300 shadow-[0_0_18px_rgba(245,158,11,0.25)]">
+                  <Icon name="worldcup" className="w-6 h-6" strokeWidth={2} />
+                </span>
+                <div className="text-right">
+                  <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-700/50 bg-amber-500/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-amber-300">
+                    <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
+                    {countdown || "16d"}
+                  </span>
+                </div>
+              </div>
+
+              <h2 className="text-2xl font-black tracking-tight text-white leading-[1.1] mb-1">
+                Mundial <span className="bg-gradient-to-r from-amber-300 via-yellow-400 to-amber-200 bg-clip-text text-transparent">2026</span>
+              </h2>
+              <p className="text-sm text-zinc-400 leading-relaxed mb-4">
+                48 selecciones · 12 grupos confirmados. Grupos, árbitros élite, dark horses y motor ajustado al contexto internacional.
+              </p>
+
+              {/* Group badges preview */}
+              <div className="flex flex-wrap gap-1.5 mb-4">
+                {["A","B","C","D","E","F","G","H","I","J","K","L"].map((g) => (
+                  <span key={g} className="grid place-items-center w-6 h-6 rounded-md bg-amber-500/15 border border-amber-700/40 text-[10px] font-black text-amber-400">
+                    {g}
+                  </span>
+                ))}
+              </div>
+
+              <div className="flex items-center justify-between pt-3 border-t border-zinc-800/60">
+                <span className="text-xs text-zinc-500">🇺🇸🇲🇽🇨🇦 · 11 jun – 19 jul</span>
+                <span className="text-sm font-black text-amber-300 inline-flex items-center gap-1">
+                  Ver hub
+                  <Icon name="arrowRight" className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" strokeWidth={2.4} />
+                </span>
+              </div>
+            </div>
+          </Link>
+
+          {/* ── Retos ── */}
+          <Link href="/retos"
+            className="group relative overflow-hidden rounded-3xl border border-rose-700/50 bg-gradient-to-br from-rose-600/12 via-zinc-900/80 to-zinc-950 backdrop-blur-sm p-5 tap hover:border-rose-600/60 transition-colors">
+            {/* Glow blobs */}
+            <div className="pointer-events-none absolute inset-0 rounded-3xl overflow-hidden">
+              <div className="absolute -top-10 -right-6 w-40 h-40 bg-rose-500/15 rounded-full blur-[50px]" />
+              <div className="absolute -bottom-12 -left-6 w-44 h-44 bg-orange-500/8 rounded-full blur-[60px]" />
+            </div>
+
+            <div className="relative">
+              {/* Header row */}
+              <div className="flex items-start justify-between mb-4">
+                <span className="grid place-items-center w-12 h-12 rounded-2xl bg-gradient-to-br from-rose-500/20 to-orange-600/10 border border-rose-700/40 text-rose-300 shadow-[0_0_18px_rgba(244,63,94,0.2)]">
+                  <Icon name="trophy" className="w-6 h-6" strokeWidth={2} />
+                </span>
+                <span className="rounded-full border border-rose-700/50 bg-rose-500/10 px-2.5 py-1 text-[10px] font-black uppercase tracking-widest text-rose-300">
+                  Comunidad
+                </span>
+              </div>
+
+              <h2 className="text-2xl font-black tracking-tight text-white leading-[1.1] mb-1">Retos</h2>
+              <p className="text-sm text-zinc-400 leading-relaxed mb-4">
+                Desafíos de seguimiento estadístico con pick diario real. Cada nivel simula un bankroll distinto para que veas cómo funciona el modelo.
+              </p>
+
+              {/* Reto levels preview */}
+              <div className="grid grid-cols-2 gap-2 mb-4">
+                {[
+                  { id: "Conservador", odd: "~1.30", days: "10d", color: "text-emerald-400 border-emerald-800/60 bg-emerald-500/8" },
+                  { id: "Intermedio",  odd: "~1.50", days: "10d", color: "text-amber-400 border-amber-800/60 bg-amber-500/8" },
+                  { id: "Avanzado",    odd: "~2.00", days: "5d",  color: "text-orange-400 border-orange-800/60 bg-orange-500/8" },
+                  { id: "PRO",         odd: "~3.00", days: "5d",  color: "text-rose-400 border-rose-800/60 bg-rose-500/10" },
+                ].map((r) => (
+                  <div key={r.id} className={`rounded-xl border ${r.color} px-2.5 py-2`}>
+                    <p className="text-xs font-black text-white">{r.id}</p>
+                    <p className={`text-[10px] font-bold ${r.color.split(" ")[0]}`}>{r.odd} · {r.days}</p>
+                  </div>
+                ))}
+              </div>
+
+              <div className="flex items-center justify-between pt-3 border-t border-zinc-800/60">
+                <span className="text-xs text-zinc-500">Pick diario · simulación con 10€</span>
+                <span className="text-sm font-black text-rose-300 inline-flex items-center gap-1">
+                  Ver retos
+                  <Icon name="arrowRight" className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" strokeWidth={2.4} />
+                </span>
+              </div>
+            </div>
+          </Link>
+        </div>
+      </section>
+
+      {/* ── Regular tools grid ── */}
+      <section className="max-w-5xl mx-auto px-4 pt-6 pb-8">
         <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 mb-4 px-1">Herramientas</p>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5 stagger">
           {SECTIONS.map((s) => (
