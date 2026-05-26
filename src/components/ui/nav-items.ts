@@ -1,21 +1,25 @@
 export interface NavItem { href: string; label: string; short: string; icon: string }
 
-/** Navegación principal — barra inferior móvil (5 slots, Bot en el centro) */
+/**
+ * Navegación principal — barra inferior móvil (5 slots, Bot en el centro).
+ * Inicio: accesible tocando el nombre/logo en el TopBar.
+ * Estadísticas: en sidebar / menú móvil (NAV_MORE).
+ */
 export const NAV_MAIN: NavItem[] = [
-  { href: "/",           label: "Inicio",       short: "Inicio", icon: "home" },
-  { href: "/value",      label: "Value Picks",  short: "Value",  icon: "value" },
-  { href: "/bot",        label: "Bot IA",       short: "Bot IA", icon: "bot" },
-  { href: "/combinadas", label: "Combinadas",   short: "Combis", icon: "combinadas" },
-  { href: "/stats",      label: "Estadísticas", short: "Stats",  icon: "stats" },
+  { href: "/value",          label: "Value Picks",  short: "Value",   icon: "value"    },
+  { href: "/combinadas",     label: "Combinadas",   short: "Combis",  icon: "combinadas" },
+  { href: "/bot",            label: "Bot IA",       short: "Bot IA",  icon: "bot"      },
+  { href: "/retos",          label: "Retos",        short: "Retos",   icon: "trophy"   },
+  { href: "/world-cup-2026", label: "Mundial 2026", short: "Mundial", icon: "wc2026"   },
 ]
 
-/** Navegación secundaria — sidebar y menú móvil */
+/** Navegación secundaria — sidebar y menú móvil drawer */
 export const NAV_MORE: NavItem[] = [
-  { href: "/retos",            label: "Retos",          short: "Retos",   icon: "trophy" },
-  { href: "/world-cup-2026",   label: "Mundial 2026 🏆", short: "Mundial", icon: "worldcup" },
-  { href: "/pricing",          label: "Planes premium", short: "Planes",  icon: "crown" },
-  { href: "/account",          label: "Mi cuenta",      short: "Cuenta",  icon: "user" },
-  { href: "/about",            label: "Sobre nosotros", short: "Info",    icon: "shield" },
+  { href: "/",       label: "Inicio",          short: "Inicio",  icon: "home"    },
+  { href: "/stats",  label: "Estadísticas",    short: "Stats",   icon: "stats"   },
+  { href: "/pricing",label: "Planes premium",  short: "Planes",  icon: "crown"   },
+  { href: "/account",label: "Mi cuenta",       short: "Cuenta",  icon: "user"    },
+  { href: "/about",  label: "Sobre nosotros",  short: "Info",    icon: "shield"  },
 ]
 
 export function isActive(path: string | null, href: string): boolean {
