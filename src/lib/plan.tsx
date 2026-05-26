@@ -1,14 +1,17 @@
 "use client"
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react"
+import { useSession } from "next-auth/react"
 import { PLANS, planHas, type Feature, type PlanId } from "@/lib/plans"
 
 /**
  * Contexto de plan del usuario.
  *
- * Fuente de verdad actual: localStorage (sin Stripe). Cuando se integre el pago,
- * se sustituye `readStoredPlan` por la sesión real del usuario — el resto de la
- * app (usePlan / <Gate/> / paywalls) NO necesita cambios.
+ * Fuente de verdad (por orden de prioridad):
+ *   1. Servidor (/api/auth/plan) si hay sesión activa — grants manuales + Stripe.
+ *   2. localStorage — caché local y fallback para usuarios no autenticados.
+ *
+ * El resto de la app (usePlan / <Gate/> / paywalls) NO necesita cambios.
  */
 
 const STORAGE_KEY = "sp_plan"
@@ -30,18 +33,56 @@ function readStoredPlan(): PlanId {
   return v === "premium" || v === "pro" ? v : "free"
 }
 
+function writeStoredPlan(p: PlanId) {
+  try { window.localStorage.setItem(STORAGE_KEY, p) } catch {}
+}
+
 export function PlanProvider({ children }: { children: React.ReactNode }) {
+  const { data: session, status } = useSession()
   const [plan, setPlanState] = useState<PlanId>("free")
   const [ready, setReady] = useState(false)
 
+  // ─── Paso 1: cargar localStorage inmediatamente (sin flash) ──────────────
   useEffect(() => {
     setPlanState(readStoredPlan())
-    setReady(true)
   }, [])
+
+  // ─── Paso 2: si hay sesión, preguntar al servidor ─────────────────────────
+  useEffect(() => {
+    if (status === "loading") return        // sesión aún cargando
+    if (status === "unauthenticated") {
+      setReady(true)
+      return
+    }
+    if (!session?.user?.email) {
+      setReady(true)
+      return
+    }
+
+    // Consulta server-side: grants manuales + Stripe
+    fetch("/api/auth/plan", { credentials: "include" })
+      .then(async (r) => {
+        if (!r.ok) return
+        const data = await r.json() as { plan: PlanId; source: string }
+        const resolved = data.plan === "premium" || data.plan === "pro" ? data.plan : "free"
+        setPlanState(resolved)
+        writeStoredPlan(resolved)           // sincronizar localStorage como caché
+      })
+      .catch(() => {
+        // Error de red → usar localStorage como fallback
+        setPlanState(readStoredPlan())
+      })
+      .finally(() => setReady(true))
+  }, [status, session?.user?.email])
+
+  // ─── Para usuarios no autenticados: ready en cuanto carga localStorage ────
+  useEffect(() => {
+    if (status === "unauthenticated") setReady(true)
+  }, [status])
 
   const setPlan = useCallback((p: PlanId) => {
     setPlanState(p)
-    try { window.localStorage.setItem(STORAGE_KEY, p) } catch {}
+    writeStoredPlan(p)
   }, [])
 
   const value = useMemo<PlanContextValue>(() => ({
@@ -59,7 +100,6 @@ export function PlanProvider({ children }: { children: React.ReactNode }) {
 export function usePlan(): PlanContextValue {
   const ctx = useContext(PlanContext)
   if (!ctx) {
-    // Fallback seguro si se usa fuera del provider
     return {
       plan: "free", setPlan: () => {}, isPremium: false, isPro: false,
       can: () => false, ready: true,
