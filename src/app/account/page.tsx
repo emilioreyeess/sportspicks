@@ -3,13 +3,12 @@
 import Link from "next/link"
 import { useEffect, useState, useCallback } from "react"
 import { useSearchParams } from "next/navigation"
+import { useSession, signOut } from "next-auth/react"
 import { usePlan } from "@/lib/plan"
 import { PLANS } from "@/lib/plans"
 import { Icon } from "@/components/ui/icons"
 import { PageHeader, Card } from "@/components/ui/primitives"
 import { PremiumBadge } from "@/components/premium"
-
-// ─── Stored subscription (set in checkout/success) ───────────────────────────
 
 interface StoredSub {
   plan: string
@@ -33,10 +32,9 @@ function clearStoredSub() {
   } catch {}
 }
 
-// ─── Page ─────────────────────────────────────────────────────────────────────
-
 export default function AccountPage() {
   const searchParams = useSearchParams()
+  const { data: session } = useSession()
   const { plan, setPlan, isPremium, isPro } = usePlan()
   const planDef = PLANS[plan]
 
@@ -44,8 +42,8 @@ export default function AccountPage() {
   const [prefs, setPrefs] = useState({ valueAlerts: true, dailyDigest: false, product: true })
   const [picksTotal, setPicksTotal] = useState<number | null>(null)
   const [sub, setSub] = useState<StoredSub | null>(null)
+  const [signingOut, setSigningOut] = useState(false)
 
-  // Portal state
   const [portalLoading, setPortalLoading] = useState(false)
   const [verifying, setVerifying] = useState(false)
   const [verifyMsg, setVerifyMsg] = useState<{ ok: boolean; text: string } | null>(null)
@@ -65,7 +63,6 @@ export default function AccountPage() {
       .catch(() => {})
   }, [])
 
-  // Auto-verify when returning from Stripe portal
   useEffect(() => {
     if (searchParams.get("from") === "portal") {
       const stored = readStoredSub()
@@ -84,24 +81,18 @@ export default function AccountPage() {
     try { localStorage.setItem("sp_prefs", JSON.stringify(next)) } catch {}
   }
 
-  // ── Open Stripe Customer Portal ──────────────────────────────────────────
-
   const openPortal = useCallback(async () => {
     const customerId = sub?.customerId
     if (!customerId) return
     setPortalLoading(true)
     try {
       const res = await fetch("/api/checkout/portal", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ customer_id: customerId }),
       })
       const data = await res.json()
-      if (data.url) {
-        window.location.href = data.url
-      } else {
-        alert("No se pudo abrir el portal: " + (data.error ?? "Error"))
-      }
+      if (data.url) window.location.href = data.url
+      else alert("No se pudo abrir el portal: " + (data.error ?? "Error"))
     } catch (e: any) {
       alert("Error de red: " + e.message)
     } finally {
@@ -109,28 +100,20 @@ export default function AccountPage() {
     }
   }, [sub])
 
-  // ── Verify subscription status with Stripe ───────────────────────────────
-
   const verifySubscription = useCallback(async (customerId?: string) => {
     const cid = customerId ?? sub?.customerId
     if (!cid) {
       setVerifyMsg({ ok: false, text: "No hay suscripción guardada. Completa el pago primero." })
       return
     }
-    setVerifying(true)
-    setVerifyMsg(null)
+    setVerifying(true); setVerifyMsg(null)
     try {
       const res = await fetch(`/api/checkout/status?customer_id=${cid}`)
       const data = await res.json()
-      if (data.error) {
-        setVerifyMsg({ ok: false, text: "Error al verificar: " + data.error })
-        return
-      }
+      if (data.error) { setVerifyMsg({ ok: false, text: "Error al verificar: " + data.error }); return }
       const activePlan = data.plan as string
       setPlan(activePlan as any)
       setSub((prev) => prev ? { ...prev, plan: activePlan } : prev)
-
-      // Update localStorage plan
       try { localStorage.setItem("sp_plan", activePlan) } catch {}
 
       const periodEnd = data.period_end
@@ -138,80 +121,80 @@ export default function AccountPage() {
         : null
 
       if (activePlan === "free" && !data.period_end) {
-        // Truly expired — no paid period remaining
-        clearStoredSub()
-        setSub(null)
+        clearStoredSub(); setSub(null)
         setVerifyMsg({ ok: false, text: "Tu suscripción ha expirado. Plan revertido a Free." })
         setCancelPending(false)
       } else if (data.cancel_at_period_end || !data.active) {
-        // Cancelled but still within paid period — keep plan active
-        setVerifyMsg({
-          ok: true,
-          text: `Plan ${activePlan} activo hasta el ${periodEnd ?? "fin del período"}. Después pasará a Free.`,
-        })
+        setVerifyMsg({ ok: true, text: `Plan ${activePlan} activo hasta el ${periodEnd ?? "fin del período"}. Después pasará a Free.` })
         setCancelPending(true)
       } else {
-        setVerifyMsg({
-          ok: true,
-          text: `Plan ${activePlan} activo${periodEnd ? ` · próxima renovación el ${periodEnd}` : ""}.`,
-        })
+        setVerifyMsg({ ok: true, text: `Plan ${activePlan} activo${periodEnd ? ` · próxima renovación el ${periodEnd}` : ""}.` })
         setCancelPending(false)
       }
-    } catch (e: any) {
+    } catch {
       setVerifyMsg({ ok: false, text: "Error de red al verificar." })
     } finally {
       setVerifying(false)
     }
   }, [sub, setPlan])
 
-  const initial = (name || "U").charAt(0).toUpperCase()
-  const planColor = plan === "pro" ? "text-violet-400" : plan === "premium" ? "text-emerald-400" : "text-zinc-400"
+  async function handleSignOut() {
+    setSigningOut(true)
+    await signOut({ callbackUrl: "/" })
+  }
+
+  // Displayed email: session > stored sub > nothing
+  const displayEmail = session?.user?.email ?? sub?.email ?? null
+  const displayName  = name || session?.user?.name || "Usuario"
+  const initial      = displayName.charAt(0).toUpperCase()
+  const planColor    = plan === "pro" ? "text-violet-400" : plan === "premium" ? "text-emerald-400" : "text-zinc-400"
+  const isLoggedIn   = !!session
 
   return (
     <div className="px-4 py-6 max-w-2xl mx-auto safe-x space-y-5">
       <PageHeader icon="user" title="Mi cuenta" subtitle="Perfil, suscripción y preferencias" />
 
-      {/* Profile hero */}
+      {/* ── Profile ─────────────────────────────────────────────────────── */}
       <Card className="overflow-hidden">
-        <div className={`h-20 relative ${
-          isPro ? "bg-gradient-to-br from-violet-600/25 to-violet-900/10" :
-          isPremium ? "bg-gradient-to-br from-emerald-600/20 to-cyan-900/10" :
-          "bg-gradient-to-br from-zinc-800/60 to-zinc-900/40"
-        }`}>
-          <div className="absolute inset-0 opacity-30"
-            style={{ backgroundImage: "radial-gradient(circle at 80% 50%, rgba(255,255,255,0.04) 0%, transparent 60%)" }} />
-        </div>
+        {/* Banner */}
+        <div className={`h-16 ${
+          isPro      ? "bg-gradient-to-br from-violet-600/25 to-violet-900/10" :
+          isPremium  ? "bg-gradient-to-br from-emerald-600/20 to-cyan-900/10"  :
+                       "bg-gradient-to-br from-zinc-800/60 to-zinc-900/40"
+        }`} />
+
         <div className="px-5 pb-5 -mt-8">
           <div className="flex items-end justify-between mb-4">
             <div className={`grid place-items-center w-16 h-16 rounded-2xl border-2 text-xl font-black shadow-lg ${
-              isPro ? "bg-zinc-900 border-violet-700/60 text-violet-400" :
-              isPremium ? "bg-zinc-900 border-emerald-700/60 text-emerald-400" :
-              "bg-zinc-900 border-zinc-700 text-zinc-300"
+              isPro      ? "bg-zinc-900 border-violet-700/60 text-violet-400"  :
+              isPremium  ? "bg-zinc-900 border-emerald-700/60 text-emerald-400":
+                           "bg-zinc-900 border-zinc-700 text-zinc-300"
             }`}>{initial}</div>
             <PremiumBadge plan={plan} />
           </div>
-          <p className="text-lg font-black text-white">{name || "Usuario"}</p>
-          {sub?.email && <p className="text-xs text-zinc-500 mt-0.5">{sub.email}</p>}
+
+          <p className="text-lg font-black text-white">{displayName}</p>
+          {displayEmail && <p className="text-xs text-zinc-500 mt-0.5">{displayEmail}</p>}
+
           <label className="block mt-4">
-            <span className="text-[11px] font-bold uppercase tracking-wider text-zinc-500">Nombre para mostrar</span>
+            <span className="section-label block mb-1.5">Nombre para mostrar</span>
             <input value={name} onChange={(e) => saveName(e.target.value)} placeholder="Tu nombre"
-              className="mt-1.5 w-full bg-zinc-800 border border-zinc-700 focus:border-emerald-600 rounded-xl px-3.5 py-2.5 text-sm text-white outline-none transition-colors" />
+              className="input-base" />
           </label>
         </div>
       </Card>
 
-      {/* Subscription */}
+      {/* ── Suscripción ──────────────────────────────────────────────────── */}
       <Card className="p-5">
         <SectionTitle icon="crown" title="Suscripción" />
 
-        {/* Plan badge */}
         <div className={`rounded-xl border p-4 mb-4 ${
           isPremium ? "border-emerald-800/50 bg-emerald-500/5" : "border-zinc-800 bg-zinc-950/60"
         }`}>
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-[11px] font-bold uppercase tracking-wider text-zinc-500">Plan actual</p>
-              <div className="flex items-center gap-2 mt-1">
+              <p className="section-label mb-1">Plan actual</p>
+              <div className="flex items-center gap-2 mt-0.5">
                 <span className={`text-xl font-black ${planColor}`}>{planDef.name}</span>
                 {plan === "free" && <span className="text-[10px] text-zinc-600 font-medium">— Gratis</span>}
               </div>
@@ -236,7 +219,7 @@ export default function AccountPage() {
         {/* Usage stats */}
         <div className="grid grid-cols-3 gap-2 mb-4">
           <UsageStat label="Picks hoy"
-            value={picksTotal !== null ? (isPremium ? `${picksTotal}` : `3/${picksTotal}`) : "—"}
+            value={picksTotal !== null ? (isPremium ? String(picksTotal) : `3/${picksTotal}`) : "—"}
             color={isPremium ? "text-emerald-400" : "text-zinc-400"} />
           <UsageStat label="Bot IA"
             value={isPro ? "∞/día" : isPremium ? "15/día" : "3/día"}
@@ -246,10 +229,9 @@ export default function AccountPage() {
             color={isPremium ? "text-emerald-400" : "text-zinc-400"} />
         </div>
 
-        {/* CTA / Management */}
+        {/* CTA */}
         {isPremium && sub?.customerId ? (
           <div className="space-y-2">
-            {/* Stripe portal */}
             <button onClick={openPortal} disabled={portalLoading}
               className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50 text-white font-semibold text-sm tap transition-colors">
               {portalLoading
@@ -261,15 +243,11 @@ export default function AccountPage() {
             </p>
           </div>
         ) : isPremium ? (
-          /* Premium but no stored customer_id (old session or manual) */
-          <div className="space-y-2">
-            <Link href="/pricing"
-              className="flex items-center justify-center gap-2 w-full py-3 rounded-xl border border-zinc-700 text-zinc-300 font-semibold text-sm tap hover:bg-zinc-800 transition-colors">
-              Ver planes y gestionar
-            </Link>
-          </div>
+          <Link href="/pricing"
+            className="flex items-center justify-center gap-2 w-full py-3 rounded-xl border border-zinc-700 text-zinc-300 font-semibold text-sm tap hover:bg-zinc-800 transition-colors">
+            Ver planes y gestionar
+          </Link>
         ) : (
-          /* Free — upgrade CTA */
           <Link href="/pricing"
             className="flex items-center justify-center gap-2 w-full py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-cyan-500 text-zinc-950 font-bold text-sm tap">
             <Icon name="crown" className="w-4 h-4" strokeWidth={2.2} />
@@ -277,16 +255,11 @@ export default function AccountPage() {
           </Link>
         )}
 
-        {/* Verify button */}
-        <button
-          onClick={() => verifySubscription()}
-          disabled={verifying}
-          className="mt-2 w-full py-2 text-xs text-zinc-500 hover:text-zinc-300 disabled:opacity-40 transition-colors tap"
-        >
+        <button onClick={() => verifySubscription()} disabled={verifying}
+          className="mt-2 w-full py-2 text-xs text-zinc-500 hover:text-zinc-300 disabled:opacity-40 transition-colors tap">
           {verifying ? "Verificando con Stripe…" : "Verificar estado de suscripción"}
         </button>
 
-        {/* Verify result message */}
         {verifyMsg && (
           <div className={`mt-2 flex items-start gap-2 rounded-xl px-3.5 py-2.5 text-xs leading-snug ${
             verifyMsg.ok
@@ -299,7 +272,7 @@ export default function AccountPage() {
         )}
       </Card>
 
-      {/* Notifications */}
+      {/* ── Notificaciones ───────────────────────────────────────────────── */}
       <Card className="p-5">
         <SectionTitle icon="bell" title="Notificaciones" />
         <div className="space-y-1">
@@ -315,16 +288,16 @@ export default function AccountPage() {
         </p>
       </Card>
 
-      {/* Privacy */}
+      {/* ── Privacidad ───────────────────────────────────────────────────── */}
       <Card className="p-5">
         <SectionTitle icon="shield" title="Privacidad y seguridad" />
         <div className="space-y-0.5">
           {[
-            { label: "Términos de servicio", href: "/legal/terms" },
-            { label: "Política de privacidad", href: "/legal/privacy" },
-            { label: "Gestión de cookies", href: "/legal/cookies" },
-            { label: "Tus derechos (GDPR)", href: "/legal/gdpr" },
-            { label: "Juego responsable", href: "/legal/responsible-gaming" },
+            { label: "Términos de servicio",  href: "/legal/terms"              },
+            { label: "Política de privacidad",href: "/legal/privacy"            },
+            { label: "Gestión de cookies",    href: "/legal/cookies"            },
+            { label: "Tus derechos (GDPR)",   href: "/legal/gdpr"              },
+            { label: "Juego responsable",     href: "/legal/responsible-gaming" },
           ].map((l) => (
             <Link key={l.href} href={l.href}
               className="flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-zinc-800/60 transition-colors tap">
@@ -334,6 +307,38 @@ export default function AccountPage() {
           ))}
         </div>
       </Card>
+
+      {/* ── Sesión ───────────────────────────────────────────────────────── */}
+      {isLoggedIn && (
+        <Card className="p-5">
+          <SectionTitle icon="user" title="Sesión" />
+          {displayEmail && (
+            <p className="text-sm text-zinc-400 mb-4">
+              Conectado como <span className="text-zinc-200 font-medium">{displayEmail}</span>
+            </p>
+          )}
+          <button
+            onClick={handleSignOut}
+            disabled={signingOut}
+            className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-rose-800/60 bg-rose-500/8 hover:bg-rose-500/15 text-rose-400 font-bold text-sm tap transition-all disabled:opacity-50"
+          >
+            {signingOut ? (
+              <>
+                <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                  <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="3" opacity="0.25"/>
+                  <path d="M21 12a9 9 0 0 0-9-9" stroke="currentColor" strokeWidth="3" strokeLinecap="round"/>
+                </svg>
+                Cerrando sesión…
+              </>
+            ) : (
+              <>
+                <Icon name="logout" className="w-4 h-4" strokeWidth={2} />
+                Cerrar sesión
+              </>
+            )}
+          </button>
+        </Card>
+      )}
 
       <p className="text-[11px] text-zinc-700 text-center pb-2">
         SportsPicks Analytics · análisis estadístico informativo · +18
@@ -359,8 +364,8 @@ function ToggleRow({ label, hint, on, onChange }: { label: string; hint: string;
         <p className="text-sm text-zinc-200 font-medium">{label}</p>
         <p className="text-[11px] text-zinc-500 leading-snug">{hint}</p>
       </div>
-      <span className={`relative w-11 h-6 rounded-full shrink-0 transition-colors ${on ? "bg-emerald-500" : "bg-zinc-700"}`}>
-        <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all shadow-sm ${on ? "left-[22px]" : "left-0.5"}`} />
+      <span className={`relative w-11 h-6 rounded-full shrink-0 transition-colors duration-200 ${on ? "bg-emerald-500" : "bg-zinc-700"}`}>
+        <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white transition-all duration-200 shadow-sm ${on ? "left-[22px]" : "left-0.5"}`} />
       </span>
     </button>
   )
