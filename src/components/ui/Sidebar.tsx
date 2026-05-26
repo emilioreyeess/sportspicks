@@ -1,8 +1,10 @@
 "use client"
 
 import Link from "next/link"
+import Image from "next/image"
 import { usePathname } from "next/navigation"
 import { useEffect, useState } from "react"
+import { useSession } from "next-auth/react"
 import { Icon } from "@/components/ui/icons"
 import { NAV_MAIN, NAV_MORE, isActive } from "@/components/ui/nav-items"
 import { usePlan } from "@/lib/plan"
@@ -12,6 +14,7 @@ export function Sidebar() {
   const path = usePathname()
   const { plan } = usePlan()
   const planDef = PLANS[plan]
+  const { data: session } = useSession()
   const [picksCount, setPicksCount] = useState<number | null>(null)
 
   useEffect(() => {
@@ -20,6 +23,15 @@ export function Sidebar() {
       .then(d => setPicksCount(d.total ?? null))
       .catch(() => {})
   }, [])
+
+  const user       = session?.user
+  const userName   = user?.name  ?? null
+  const userEmail  = user?.email ?? null
+  const userImage  = user?.image ?? null
+  const initial    = (userName ?? userEmail ?? "U").charAt(0).toUpperCase()
+  const planColor  = plan === "pro" ? "border-violet-700/60 text-violet-400"
+                   : plan === "premium" ? "border-emerald-700/60 text-emerald-400"
+                   : "border-zinc-700/60 text-zinc-400"
 
   return (
     <aside className="hidden lg:flex flex-col w-60 shrink-0 border-r border-zinc-800/50 glass-dark sticky top-0 h-screen">
@@ -55,6 +67,41 @@ export function Sidebar() {
           <SideLink key={item.href} item={item} active={isActive(path, item.href)} />
         ))}
       </nav>
+
+      {/* User profile */}
+      {user && (
+        <div className="px-3 py-3 border-t border-zinc-800/50">
+          <Link href="/account"
+            className="flex items-center gap-2.5 rounded-xl px-2 py-2 hover:bg-zinc-800/50 transition-colors tap group">
+            {/* Avatar */}
+            <div className={`relative shrink-0 w-8 h-8 rounded-full border-2 overflow-hidden ${planColor.split(" ")[0]}`}>
+              {userImage ? (
+                <Image
+                  src={userImage}
+                  alt={userName ?? "Perfil"}
+                  fill
+                  sizes="32px"
+                  className="object-cover"
+                />
+              ) : (
+                <div className={`w-full h-full flex items-center justify-center text-xs font-black bg-zinc-800 ${planColor.split(" ")[1]}`}>
+                  {initial}
+                </div>
+              )}
+            </div>
+            {/* Name + email */}
+            <div className="min-w-0 flex-1">
+              {userName && (
+                <p className="text-xs font-bold text-zinc-200 truncate leading-tight">{userName}</p>
+              )}
+              {userEmail && (
+                <p className="text-[10px] text-zinc-500 truncate leading-tight">{userEmail}</p>
+              )}
+            </div>
+            <Icon name="settings" className="w-3.5 h-3.5 text-zinc-600 group-hover:text-zinc-400 transition-colors shrink-0" strokeWidth={1.8} />
+          </Link>
+        </div>
+      )}
 
       {/* Plan card */}
       <div className="p-2.5 border-t border-zinc-800/50">

@@ -17,6 +17,11 @@ const nextConfig = {
       { protocol: "https", hostname: "a.espncdn.com" },
       { protocol: "https", hostname: "a1.espncdn.com" },
       { protocol: "https", hostname: "a2.espncdn.com" },
+      // Google profile photos (NextAuth)
+      { protocol: "https", hostname: "lh3.googleusercontent.com" },
+      { protocol: "https", hostname: "lh4.googleusercontent.com" },
+      { protocol: "https", hostname: "lh5.googleusercontent.com" },
+      { protocol: "https", hostname: "lh6.googleusercontent.com" },
     ],
   },
 
@@ -28,7 +33,7 @@ const nextConfig = {
       "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com https://analytics.umami.is https://*.sentry.io",
       "style-src 'self' 'unsafe-inline'",
       // Imágenes: propias + data URIs + blob + ESPN CDN + Supabase storage
-      "img-src 'self' data: blob: https://a.espncdn.com https://a1.espncdn.com https://a2.espncdn.com https://*.supabase.co",
+      "img-src 'self' data: blob: https://a.espncdn.com https://a1.espncdn.com https://a2.espncdn.com https://*.supabase.co https://*.googleusercontent.com",
       "font-src 'self'",
       // Frames: Stripe solamente
       "frame-src https://js.stripe.com https://hooks.stripe.com",
