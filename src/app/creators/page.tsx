@@ -236,28 +236,45 @@ function ImageGenerator() {
   const [scanError, setScanError] = useState("")
   const fileRef                   = useRef<HTMLInputElement>(null)
 
+  async function compressToBase64(file: File, maxPx = 1200, quality = 0.82): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const img = new Image()
+      const url = URL.createObjectURL(file)
+      img.onload = () => {
+        const scale = Math.min(1, maxPx / Math.max(img.width, img.height))
+        const w = Math.round(img.width * scale)
+        const h = Math.round(img.height * scale)
+        const c = document.createElement("canvas")
+        c.width = w; c.height = h
+        c.getContext("2d")!.drawImage(img, 0, 0, w, h)
+        URL.revokeObjectURL(url)
+        resolve(c.toDataURL("image/jpeg", quality).split(",")[1])
+      }
+      img.onerror = reject
+      img.src = url
+    })
+  }
+
   async function handleScan(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
     setScanError(""); setScanning(true)
     try {
-      const buffer = await file.arrayBuffer()
-      const base64 = btoa(String.fromCharCode(...new Uint8Array(buffer)))
-      const mime   = file.type || "image/jpeg"
-      const res    = await fetch("/api/tipster/extract-bet", {
+      const base64 = await compressToBase64(file)
+      const res = await fetch("/api/tipster/extract-bet", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ imageBase64: base64, mimeType: mime }),
+        body: JSON.stringify({ imageBase64: base64, mimeType: "image/jpeg" }),
       })
       const data = await res.json()
       if (!res.ok || !data.bet) throw new Error(data.error ?? "Error")
       const bet = data.bet
-      if (bet.title)  setTitle(bet.title)
+      if (bet.title)       setTitle(bet.title)
       if (bet.legs?.length) setLegs(bet.legs.map((l: any) => ({
         match: l.match ?? "", selection: l.selection ?? "", odds: parseFloat(l.odds) || 1.5,
       })))
       setShowForm(true)
-    } catch (err: any) {
+    } catch {
       setScanError("No se pudo leer el boleto. Intenta con una captura más clara.")
     } finally {
       setScanning(false)
@@ -561,10 +578,20 @@ function CreatorsDashboard() {
   )
 }
 
+const VIP_KEY = "sp_vip_unlocked"
+
 // ── Page ──────────────────────────────────────────────────────
 export default function CreatorsPage() {
   const { status } = useSession()
-  const [unlocked, setUnlocked] = useState(false)
+  const [unlocked, setUnlocked] = useState(() => {
+    if (typeof window === "undefined") return false
+    return localStorage.getItem(VIP_KEY) === "1"
+  })
+
+  function handleUnlock() {
+    localStorage.setItem(VIP_KEY, "1")
+    setUnlocked(true)
+  }
 
   if (status === "loading") {
     return <div className="flex items-center justify-center min-h-[60vh]">
@@ -572,5 +599,7 @@ export default function CreatorsPage() {
     </div>
   }
 
-  return unlocked ? <CreatorsDashboard /> : <VipCodeGate onUnlock={() => setUnlocked(true)} />
+  return unlocked ? <CreatorsDashboard /> : <VipCodeGate onUnlock={handleUnlock} />
 }
+
+export { VIP_KEY }

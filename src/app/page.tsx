@@ -191,6 +191,32 @@ function useCountdown(targetISO: string) {
   return text
 }
 
+function TipsterQuickAccess() {
+  const [isVip, setIsVip] = useState(false)
+  useEffect(() => { setIsVip(localStorage.getItem("sp_vip_unlocked") === "1") }, [])
+  if (!isVip) return null
+  return (
+    <section className="max-w-5xl mx-auto px-4 pb-4">
+      <div className="rounded-2xl border border-violet-700/40 bg-gradient-to-br from-violet-900/15 via-zinc-900/80 to-zinc-950 overflow-hidden">
+        <div className="px-5 pt-4 pb-3 border-b border-violet-800/30 flex items-center gap-2">
+          <span className="text-[10px] font-black bg-violet-500/15 border border-violet-700/50 text-violet-400 px-2 py-0.5 rounded-full">TIPSTER VIP</span>
+          <p className="text-sm font-black text-white">Panel de Tipster</p>
+        </div>
+        <div className="grid grid-cols-2 divide-x divide-zinc-800/50">
+          <Link href="/creators" className="flex flex-col items-center gap-1.5 py-4 hover:bg-violet-500/5 tap transition-colors">
+            <Icon name="image" className="w-5 h-5 text-violet-400" strokeWidth={2} />
+            <span className="text-xs font-bold text-zinc-300">Crear imagen</span>
+          </Link>
+          <Link href="/creators" className="flex flex-col items-center gap-1.5 py-4 hover:bg-amber-500/5 tap transition-colors">
+            <Icon name="gift" className="w-5 h-5 text-amber-400" strokeWidth={2} />
+            <span className="text-xs font-bold text-zinc-300">Mis bounties</span>
+          </Link>
+        </div>
+      </div>
+    </section>
+  )
+}
+
 export default function HomePage() {
   const { isPremium } = usePlan()
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null)
@@ -399,6 +425,9 @@ export default function HomePage() {
           })}
         </div>
       </section>
+
+      {/* ── Panel Tipster VIP (solo visible si desbloqueado) ────────────── */}
+      <TipsterQuickAccess />
 
       {/* ── Grupos de amigos ─────────────────────────────────────────────── */}
       <section className="max-w-5xl mx-auto px-4 pb-4">
