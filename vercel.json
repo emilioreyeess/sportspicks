@@ -7,7 +7,7 @@
     },
     {
       "path": "/api/world-cup/sync",
-      "schedule": "0 */2 * * *"
+      "schedule": "0 10 * * *"
     }
   ]
 }
