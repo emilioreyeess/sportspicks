@@ -232,6 +232,38 @@ function ImageGenerator() {
   const [generating, setGenerating] = useState(false)
   const [done, setDone]           = useState(false)
   const [showForm, setShowForm]   = useState(true)
+  const [scanning, setScanning]   = useState(false)
+  const [scanError, setScanError] = useState("")
+  const fileRef                   = useRef<HTMLInputElement>(null)
+
+  async function handleScan(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setScanError(""); setScanning(true)
+    try {
+      const buffer = await file.arrayBuffer()
+      const base64 = btoa(String.fromCharCode(...new Uint8Array(buffer)))
+      const mime   = file.type || "image/jpeg"
+      const res    = await fetch("/api/tipster/extract-bet", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ imageBase64: base64, mimeType: mime }),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.bet) throw new Error(data.error ?? "Error")
+      const bet = data.bet
+      if (bet.title)  setTitle(bet.title)
+      if (bet.legs?.length) setLegs(bet.legs.map((l: any) => ({
+        match: l.match ?? "", selection: l.selection ?? "", odds: parseFloat(l.odds) || 1.5,
+      })))
+      setShowForm(true)
+    } catch (err: any) {
+      setScanError("No se pudo leer el boleto. Intenta con una captura más clara.")
+    } finally {
+      setScanning(false)
+      if (fileRef.current) fileRef.current.value = ""
+    }
+  }
 
   const combinedOdds = calcCombinedOdds(legs)
 
@@ -268,9 +300,25 @@ function ImageGenerator() {
         </div>
         <button onClick={() => setShowForm(v => !v)}
           className="text-[11px] text-zinc-500 hover:text-zinc-300 tap font-bold">
-          {showForm ? "Ocultar formulario" : "Editar datos"}
+          {showForm ? "Ocultar" : "Editar datos"}
         </button>
       </div>
+
+      {/* Scan button */}
+      <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={handleScan} />
+      <button onClick={() => fileRef.current?.click()} disabled={scanning}
+        className="w-full py-3 rounded-xl border-2 border-dashed border-violet-700/50 hover:border-violet-500/70 bg-violet-500/5 hover:bg-violet-500/10 text-violet-400 font-bold text-sm tap transition-all flex items-center justify-center gap-2 disabled:opacity-50">
+        {scanning
+          ? <><span className="w-4 h-4 rounded-full border-2 border-violet-400/30 border-t-violet-400 animate-spin" /> Leyendo boleto...</>
+          : <><Icon name="download" className="w-4 h-4 rotate-180" strokeWidth={2.2} /> Subir captura del boleto</>
+        }
+      </button>
+      {scanError && <p className="text-xs text-rose-400 text-center font-bold">{scanError}</p>}
+      {!scanError && !scanning && (
+        <p className="text-[10px] text-zinc-600 text-center -mt-2">
+          Sube una captura de tu boleto y el sistema rellena los datos automáticamente
+        </p>
+      )}
 
       {/* Editable form */}
       {showForm && (
