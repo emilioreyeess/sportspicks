@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { Icon } from "@/components/ui/icons"
 import { useSession } from "next-auth/react"
 import Link from "next/link"
@@ -9,12 +9,15 @@ import Link from "next/link"
 interface Group {
   id: string
   name: string
+  emoji: string
   avatar_emoji: string
   member_count: number
   last_message: string | null
   last_message_at: string | null
   unread: number
+  my_role: "admin" | "member"
   role: "admin" | "member"
+  invite_code?: string
 }
 
 type ChatTab = "chat" | "members" | "ranking"
@@ -52,10 +55,35 @@ function EmptyRanking() {
   )
 }
 
+interface Message { id: string; content: string; user_email: string; sender_name: string; sender_avatar?: string; created_at: string }
+
 // ── Chat view ─────────────────────────────────────────────────
 function ChatView({ group, onBack }: { group: Group; onBack: () => void }) {
   const [tab, setTab] = useState<ChatTab>("chat")
   const [input, setInput] = useState("")
+  const [messages, setMessages] = useState<Message[]>([])
+  const [sending, setSending] = useState(false)
+  const { data: session } = useSession()
+
+  const loadMessages = useCallback(async () => {
+    const res = await fetch(`/api/groups/${group.id}/messages`)
+    if (res.ok) { const d = await res.json(); setMessages(d.messages ?? []) }
+  }, [group.id])
+
+  useEffect(() => { loadMessages() }, [loadMessages])
+
+  const sendMessage = async () => {
+    const text = input.trim()
+    if (!text || sending) return
+    setSending(true); setInput("")
+    await fetch(`/api/groups/${group.id}/messages`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ content: text }),
+    })
+    setSending(false)
+    loadMessages()
+  }
 
   const TABS: { id: ChatTab; label: string; icon: string }[] = [
     { id: "chat",    label: "Chat",         icon: "groups"      },
@@ -96,27 +124,42 @@ function ChatView({ group, onBack }: { group: Group; onBack: () => void }) {
       {/* Content */}
       {tab === "chat" && (
         <>
-          <div className="flex-1 overflow-y-auto">
-            <EmptyChat />
+          <div className="flex-1 overflow-y-auto px-4 py-3 space-y-3">
+            {messages.length === 0 ? <EmptyChat /> : messages.map((msg) => {
+              const isMe = msg.user_email === session?.user?.email
+              return (
+                <div key={msg.id} className={`flex gap-2 ${isMe ? "flex-row-reverse" : ""}`}>
+                  <div className="w-7 h-7 rounded-full bg-zinc-800 grid place-items-center text-xs font-bold shrink-0 overflow-hidden">
+                    {msg.sender_avatar ? <img src={msg.sender_avatar} className="w-full h-full object-cover" alt="" /> : msg.sender_name?.[0]?.toUpperCase()}
+                  </div>
+                  <div className={`max-w-[75%] ${isMe ? "items-end" : "items-start"} flex flex-col gap-0.5`}>
+                    {!isMe && <span className="text-[10px] text-zinc-500 px-1">{msg.sender_name}</span>}
+                    <div className={`px-3 py-2 rounded-2xl text-sm ${isMe ? "bg-emerald-600 text-white rounded-tr-sm" : "bg-zinc-800 text-zinc-100 rounded-tl-sm"}`}>
+                      {msg.content}
+                    </div>
+                    <span className="text-[9px] text-zinc-700 px-1">
+                      {new Date(msg.created_at).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}
+                    </span>
+                  </div>
+                </div>
+              )
+            })}
           </div>
           {/* Input */}
           <div className="shrink-0 px-4 py-3 border-t border-zinc-800/60 bg-zinc-950/80 backdrop-blur-sm">
             <div className="flex items-center gap-2">
-              <button className="tap p-2 rounded-xl border border-zinc-800 hover:border-zinc-700 bg-zinc-900 text-zinc-500 hover:text-emerald-400 transition-colors" title="Compartir boleto">
-                <Icon name="ticket" className="w-4 h-4" strokeWidth={2} />
-              </button>
               <input
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && sendMessage()}
                 placeholder="Escribe un mensaje..."
                 className="flex-1 bg-zinc-900 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-zinc-700"
               />
-              <button disabled={!input.trim()}
+              <button disabled={!input.trim() || sending} onClick={sendMessage}
                 className="tap p-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white disabled:opacity-30 transition-all">
                 <Icon name="arrowRight" className="w-4 h-4" strokeWidth={2.4} />
               </button>
             </div>
-            <p className="text-[9px] text-zinc-700 mt-1.5 text-center">El chat en tiempo real se activa en la próxima fase.</p>
           </div>
         </>
       )}
@@ -176,10 +219,25 @@ function GroupItem({ group, onClick }: { group: Group; onClick: () => void }) {
 }
 
 // ── Create modal ──────────────────────────────────────────────
-function CreateGroupModal({ onClose }: { onClose: () => void }) {
+function CreateGroupModal({ onClose, onCreated }: { onClose: () => void; onCreated: () => void }) {
   const [name, setName] = useState("")
   const [emoji, setEmoji] = useState("⚽")
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState("")
   const EMOJIS = ["⚽","🏀","🎾","🏈","⚾","🏐","🏉","🎱","🔥","⚡","🏆","💎"]
+
+  const handleCreate = async () => {
+    if (!name.trim()) return
+    setSaving(true); setError("")
+    const res = await fetch("/api/groups", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: name.trim(), emoji }),
+    })
+    setSaving(false)
+    if (res.ok) { onCreated(); onClose() }
+    else { const d = await res.json(); setError(d.error ?? "Error al crear") }
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
@@ -202,19 +260,35 @@ function CreateGroupModal({ onClose }: { onClose: () => void }) {
         <input value={name} onChange={(e) => setName(e.target.value)}
           placeholder="Nombre del grupo" maxLength={40}
           className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-zinc-700" />
-        <button disabled={!name.trim()}
+        {error && <p className="text-xs text-red-400">{error}</p>}
+        <button disabled={!name.trim() || saving} onClick={handleCreate}
           className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-30 text-white font-bold text-sm tap transition-all">
-          Crear grupo
+          {saving ? "Creando…" : "Crear grupo"}
         </button>
-        <p className="text-[10px] text-zinc-700 text-center">La creación real se activa en la próxima fase.</p>
       </div>
     </div>
   )
 }
 
 // ── Join modal ────────────────────────────────────────────────
-function JoinGroupModal({ onClose }: { onClose: () => void }) {
+function JoinGroupModal({ onClose, onJoined }: { onClose: () => void; onJoined: () => void }) {
   const [code, setCode] = useState("")
+  const [saving, setSaving] = useState(false)
+  const [error, setError] = useState("")
+
+  const handleJoin = async () => {
+    if (code.length < 4) return
+    setSaving(true); setError("")
+    const res = await fetch("/api/groups/join", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ invite_code: code }),
+    })
+    setSaving(false)
+    if (res.ok) { onJoined(); onClose() }
+    else { const d = await res.json(); setError(d.error ?? "Código inválido") }
+  }
+
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
@@ -229,9 +303,10 @@ function JoinGroupModal({ onClose }: { onClose: () => void }) {
         <input value={code} onChange={(e) => setCode(e.target.value.toUpperCase())}
           placeholder="XXXXXX" maxLength={6}
           className="w-full text-center text-2xl font-black tracking-[0.3em] bg-zinc-900 border border-zinc-800 rounded-xl px-3.5 py-3 text-white placeholder:text-zinc-700 focus:outline-none focus:border-zinc-700 uppercase" />
-        <button disabled={code.length < 4}
+        {error && <p className="text-xs text-red-400 text-center">{error}</p>}
+        <button disabled={code.length < 4 || saving} onClick={handleJoin}
           className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-30 text-white font-bold text-sm tap transition-all">
-          Unirse
+          {saving ? "Uniéndose…" : "Unirse"}
         </button>
       </div>
     </div>
@@ -244,7 +319,29 @@ export default function GroupsPage() {
   const [activeGroup, setActiveGroup] = useState<Group | null>(null)
   const [showCreate, setShowCreate]   = useState(false)
   const [showJoin, setShowJoin]       = useState(false)
-  const groups: Group[] = [] // populated from API in Phase 3
+  const [groups, setGroups]           = useState<Group[]>([])
+  const [loadingGroups, setLoadingGroups] = useState(true)
+
+  const loadGroups = useCallback(async () => {
+    setLoadingGroups(true)
+    const res = await fetch("/api/groups")
+    if (res.ok) {
+      const d = await res.json()
+      setGroups((d.groups ?? []).map((g: any) => ({
+        ...g,
+        avatar_emoji: g.emoji ?? "⚽",
+        role: g.my_role ?? "member",
+        unread: 0,
+        last_message: null,
+        last_message_at: null,
+      })))
+    }
+    setLoadingGroups(false)
+  }, [])
+
+  useEffect(() => {
+    if (status === "authenticated") loadGroups()
+  }, [status, loadGroups])
 
   if (status === "unauthenticated") {
     return (
@@ -281,7 +378,11 @@ export default function GroupsPage() {
         </div>
       </div>
 
-      {groups.length > 0 ? (
+      {loadingGroups ? (
+        <div className="flex items-center justify-center py-20">
+          <div className="w-7 h-7 rounded-full border-2 border-emerald-500 border-t-transparent animate-spin" />
+        </div>
+      ) : groups.length > 0 ? (
         <div className="border-t border-zinc-800/40">
           {groups.map((g) => <GroupItem key={g.id} group={g} onClick={() => setActiveGroup(g)} />)}
         </div>
@@ -316,8 +417,8 @@ export default function GroupsPage() {
         </p>
       </div>
 
-      {showCreate && <CreateGroupModal onClose={() => setShowCreate(false)} />}
-      {showJoin   && <JoinGroupModal  onClose={() => setShowJoin(false)}   />}
+      {showCreate && <CreateGroupModal onClose={() => setShowCreate(false)} onCreated={loadGroups} />}
+      {showJoin   && <JoinGroupModal  onClose={() => setShowJoin(false)}   onJoined={loadGroups}  />}
     </div>
   )
 }
