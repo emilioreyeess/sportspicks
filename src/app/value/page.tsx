@@ -9,7 +9,7 @@ import { DisclaimerBanner } from "@/components/legal/DisclaimerBanner"
 import { PageHeader, Card, Skeleton, EmptyState } from "@/components/ui/primitives"
 import { Icon } from "@/components/ui/icons"
 import { usePlan } from "@/lib/plan"
-import { LockedSection, UpgradeBanner } from "@/components/premium"
+import { UpgradeBanner } from "@/components/premium"
 
 const MARKETS = ["Todos", "1X2", "Over/Under 2.5"]
 const TIERS = [
@@ -392,16 +392,8 @@ export default function ValuePage() {
             <div className="space-y-3">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 stagger">
                 {visible.map((p) => <PickCard key={p.id} pick={p} onClick={setSelected} />)}
+                {locked.map((p) => <PickCard key={p.id} pick={p} locked />)}
               </div>
-              {locked.length > 0 && (
-                <LockedSection feature="value_picks_all"
-                  title={`+${locked.length} value pick${locked.length === 1 ? "" : "s"} Premium`}
-                  hint="Desbloquea todos los picks del día con edge real y análisis completo.">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {locked.slice(0, 4).map((p) => <PickCard key={p.id} pick={p} />)}
-                  </div>
-                </LockedSection>
-              )}
             </div>
           )}
         </>

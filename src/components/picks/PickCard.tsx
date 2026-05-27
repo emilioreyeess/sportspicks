@@ -1,5 +1,6 @@
 "use client"
 
+import Link from "next/link"
 import { type Pick, type ConfidenceTier } from "@/types"
 
 const TIER_CONFIG: Record<ConfidenceTier, {
@@ -41,9 +42,10 @@ const RESULT_LABEL: Record<string, string> = {
 interface Props {
   pick: Pick
   onClick?: (pick: Pick) => void
+  locked?: boolean
 }
 
-export function PickCard({ pick, onClick }: Props) {
+export function PickCard({ pick, onClick, locked = false }: Props) {
   const cfg = TIER_CONFIG[pick.confidence_tier]
   const kickoff = new Date(pick.kickoff_utc).toLocaleString("es-ES", {
     weekday: "short", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit",
@@ -90,44 +92,54 @@ export function PickCard({ pick, onClick }: Props) {
           </p>
         </div>
 
-        {/* Pick row — selection left, odd badge right */}
-        <div className="mt-3.5 flex items-end justify-between gap-3">
-          <div className="min-w-0 flex-1">
-            <p className="text-[10px] font-black uppercase tracking-widest text-zinc-600">{pick.market}</p>
-            <p className={`text-base font-black mt-0.5 truncate ${cfg.text}`}>{pick.selection}</p>
-          </div>
-          {/* Odd badge — hero number */}
-          {pick.best_odd && (
-            <div className={`shrink-0 px-3 py-1.5 rounded-xl border font-black text-2xl tracking-tight leading-none ${cfg.oddBadge}`}>
-              {pick.best_odd.toFixed(2)}
+        {/* Pick row — locked or visible */}
+        {locked ? (
+          <div className="mt-3.5 rounded-xl border border-zinc-700/50 bg-zinc-900/60 px-4 py-3 flex items-center justify-between gap-3">
+            <div>
+              <p className="text-[10px] font-black uppercase tracking-widest text-zinc-600">{pick.market}</p>
+              <p className="text-sm font-black text-zinc-600 mt-0.5 blur-[5px] select-none">████████ @{(pick.best_odd ?? 0).toFixed(2)}</p>
             </div>
-          )}
-        </div>
-
-        {/* Edge row */}
-        {(edge || pick.bookmaker) && (
-          <div className="flex items-center gap-2.5 mt-2.5 text-[11px]">
-            {edge && (
-              <span className="font-black text-emerald-400">edge +{edge}%</span>
-            )}
-            {edge && pick.bookmaker && <span className="text-zinc-700">·</span>}
-            {pick.bookmaker && (
-              <span className="text-zinc-600 font-medium">{pick.bookmaker}</span>
-            )}
-            {/* Result pill inline */}
-            {pick.result !== "PENDING" && (
-              <span className={`ml-auto px-2 py-0.5 rounded-full text-[10px] font-black ${RESULT_STYLE[pick.result]}`}>
-                {RESULT_LABEL[pick.result]}
-              </span>
-            )}
+            <Link
+              href="/pricing"
+              onClick={e => e.stopPropagation()}
+              className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-500 to-cyan-500 text-zinc-950 font-black text-[11px] tap"
+            >
+              🔒 Premium
+            </Link>
           </div>
-        )}
+        ) : (
+          <>
+            <div className="mt-3.5 flex items-end justify-between gap-3">
+              <div className="min-w-0 flex-1">
+                <p className="text-[10px] font-black uppercase tracking-widest text-zinc-600">{pick.market}</p>
+                <p className={`text-base font-black mt-0.5 truncate ${cfg.text}`}>{pick.selection}</p>
+              </div>
+              {pick.best_odd && (
+                <div className={`shrink-0 px-3 py-1.5 rounded-xl border font-black text-2xl tracking-tight leading-none ${cfg.oddBadge}`}>
+                  {pick.best_odd.toFixed(2)}
+                </div>
+              )}
+            </div>
 
-        {/* Value reason */}
-        {pick.value_reason && (
-          <p className="mt-3 text-xs text-zinc-500 leading-snug border-l-2 border-zinc-700/80 pl-2.5 italic">
-            {pick.value_reason}
-          </p>
+            {(edge || pick.bookmaker) && (
+              <div className="flex items-center gap-2.5 mt-2.5 text-[11px]">
+                {edge && <span className="font-black text-emerald-400">edge +{edge}%</span>}
+                {edge && pick.bookmaker && <span className="text-zinc-700">·</span>}
+                {pick.bookmaker && <span className="text-zinc-600 font-medium">{pick.bookmaker}</span>}
+                {pick.result !== "PENDING" && (
+                  <span className={`ml-auto px-2 py-0.5 rounded-full text-[10px] font-black ${RESULT_STYLE[pick.result]}`}>
+                    {RESULT_LABEL[pick.result]}
+                  </span>
+                )}
+              </div>
+            )}
+
+            {pick.value_reason && (
+              <p className="mt-3 text-xs text-zinc-500 leading-snug border-l-2 border-zinc-700/80 pl-2.5 italic">
+                {pick.value_reason}
+              </p>
+            )}
+          </>
         )}
 
         {/* Quality bar */}
