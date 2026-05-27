@@ -82,6 +82,7 @@ export async function POST(req: NextRequest) {
     const legs = body.legs.map((l) => ({
       bet_id: bet.id,
       match: l.match,
+      market: l.selection,
       selection: l.selection,
       odds: l.odds,
       status: "pending",

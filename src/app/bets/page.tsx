@@ -26,7 +26,7 @@ const emptyForm = () => ({
 })
 
 export default function BetsPage() {
-  const { data: session, status } = useSession()
+  const { status } = useSession()
   const router = useRouter()
   const [bets, setBets] = useState<Bet[]>([])
   const [stats, setStats] = useState<Stats | null>(null)
