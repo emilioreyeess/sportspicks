@@ -58,13 +58,28 @@ Reglas:
     })
 
     const raw = (msg.content[0] as any).text?.trim() ?? ""
-    // Strip markdown code fences if present
-    const json = raw.replace(/^```[a-z]*\n?/i, "").replace(/\n?```$/i, "").trim()
-    const data = JSON.parse(json)
+    console.log("[extract-bet] Claude raw response:", raw.slice(0, 500))
+
+    // Extract JSON object robustly — find first { ... } block
+    const match = raw.match(/\{[\s\S]*\}/)
+    if (!match) {
+      console.error("[extract-bet] No JSON found in response:", raw)
+      return Response.json({ error: "No se encontró JSON en la respuesta" }, { status: 422 })
+    }
+    const data = JSON.parse(match[0])
+
+    // Normalise legs
+    if (Array.isArray(data.legs)) {
+      data.legs = data.legs.map((l: any) => ({
+        match:     String(l.match ?? l.partido ?? l.mercado ?? ""),
+        selection: String(l.selection ?? l.seleccion ?? l.pick ?? ""),
+        odds:      parseFloat(l.odds ?? l.cuota ?? 1) || 1.5,
+      }))
+    }
 
     return Response.json({ ok: true, bet: data })
   } catch (e: any) {
-    console.error("[extract-bet]", e?.message)
+    console.error("[extract-bet] error:", e?.message)
     return Response.json({ error: "No se pudo leer el boleto", detail: e?.message }, { status: 422 })
   }
 }
