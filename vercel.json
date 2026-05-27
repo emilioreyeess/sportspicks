@@ -6,6 +6,10 @@
       "schedule": "5 0 * * *"
     },
     {
+      "path": "/api/cron/settle-picks",
+      "schedule": "0 1 * * *"
+    },
+    {
       "path": "/api/world-cup/sync",
       "schedule": "0 10 * * *"
     }

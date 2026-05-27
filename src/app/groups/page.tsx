@@ -56,6 +56,7 @@ function EmptyRanking() {
 }
 
 interface Message { id: string; content: string; user_email: string; sender_name: string; sender_avatar?: string; created_at: string }
+interface RankingEntry { email: string; name: string; avatar_url?: string; role: string; picks: number; won: number; winrate: number; yield: number; profit: number }
 
 // ── Chat view ─────────────────────────────────────────────────
 function ChatView({ group, onBack }: { group: Group; onBack: () => void }) {
@@ -63,6 +64,8 @@ function ChatView({ group, onBack }: { group: Group; onBack: () => void }) {
   const [input, setInput] = useState("")
   const [messages, setMessages] = useState<Message[]>([])
   const [sending, setSending] = useState(false)
+  const [ranking, setRanking] = useState<RankingEntry[]>([])
+  const [rankingLoading, setRankingLoading] = useState(false)
   const { data: session } = useSession()
 
   const loadMessages = useCallback(async () => {
@@ -71,6 +74,13 @@ function ChatView({ group, onBack }: { group: Group; onBack: () => void }) {
   }, [group.id])
 
   useEffect(() => { loadMessages() }, [loadMessages])
+
+  const loadRanking = useCallback(async () => {
+    setRankingLoading(true)
+    const res = await fetch(`/api/groups/${group.id}/ranking`)
+    if (res.ok) { const d = await res.json(); setRanking(d.ranking ?? []) }
+    setRankingLoading(false)
+  }, [group.id])
 
   const sendMessage = async () => {
     const text = input.trim()
@@ -113,7 +123,7 @@ function ChatView({ group, onBack }: { group: Group; onBack: () => void }) {
       {/* Tab bar */}
       <div className="shrink-0 flex border-b border-zinc-800/60 bg-zinc-950/60">
         {TABS.map((t) => (
-          <button key={t.id} onClick={() => setTab(t.id)}
+          <button key={t.id} onClick={() => { setTab(t.id); if (t.id === "ranking" && !ranking.length) loadRanking() }}
             className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-bold tap transition-all border-b-2 ${tab === t.id ? "border-emerald-500 text-white" : "border-transparent text-zinc-600 hover:text-zinc-400"}`}>
             <Icon name={t.icon} className="w-3.5 h-3.5" strokeWidth={2} />
             {t.label}
@@ -172,22 +182,34 @@ function ChatView({ group, onBack }: { group: Group; onBack: () => void }) {
 
       {tab === "ranking" && (
         <div className="flex-1 overflow-y-auto">
-          {/* Ranking header info */}
-          <div className="px-4 pt-4 pb-2">
-            <div className="grid grid-cols-3 gap-2 text-center">
-              {[
-                { label: "Picks",    value: "—" },
-                { label: "Winrate",  value: "—" },
-                { label: "Yield",    value: "—" },
-              ].map((s) => (
-                <div key={s.label} className="rounded-xl border border-zinc-800/60 bg-zinc-900/40 p-2.5">
-                  <p className="text-lg font-black text-zinc-400">{s.value}</p>
-                  <p className="text-[10px] text-zinc-600">{s.label}</p>
+          {rankingLoading ? (
+            <div className="flex items-center justify-center py-16">
+              <div className="w-7 h-7 rounded-full border-2 border-emerald-500 border-t-transparent animate-spin" />
+            </div>
+          ) : ranking.length === 0 ? (
+            <EmptyRanking />
+          ) : (
+            <div className="px-4 pt-4 pb-6 space-y-2">
+              {ranking.map((r, i) => (
+                <div key={r.email} className="flex items-center gap-3 rounded-xl border border-zinc-800/60 bg-zinc-900/40 p-3">
+                  <div className={`w-7 h-7 rounded-full grid place-items-center text-xs font-black shrink-0 ${i === 0 ? "bg-amber-500 text-black" : i === 1 ? "bg-zinc-400 text-black" : i === 2 ? "bg-amber-700 text-white" : "bg-zinc-800 text-zinc-400"}`}>
+                    {i + 1}
+                  </div>
+                  <div className="w-7 h-7 rounded-full bg-zinc-700 grid place-items-center text-xs font-bold shrink-0 overflow-hidden">
+                    {r.avatar_url ? <img src={r.avatar_url} className="w-full h-full object-cover" alt="" /> : r.name?.[0]?.toUpperCase()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-bold text-white truncate">{r.name}</p>
+                    <p className="text-[10px] text-zinc-500">{r.picks} picks · {r.won} ganadas</p>
+                  </div>
+                  <div className="text-right shrink-0">
+                    <p className={`text-sm font-black ${r.yield >= 0 ? "text-emerald-400" : "text-red-400"}`}>{r.yield > 0 ? "+" : ""}{r.yield}%</p>
+                    <p className="text-[10px] text-zinc-500">{r.winrate}% WR</p>
+                  </div>
                 </div>
               ))}
             </div>
-          </div>
-          <EmptyRanking />
+          )}
         </div>
       )}
     </div>

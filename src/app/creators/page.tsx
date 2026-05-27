@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useState } from "react"
+import { useRef, useState, useEffect } from "react"
 import { Icon } from "@/components/ui/icons"
 import { useSession } from "next-auth/react"
 
@@ -180,10 +180,17 @@ function VipCodeGate({ onUnlock }: { onUnlock: () => void }) {
   async function handleSubmit() {
     if (!code.trim()) return
     setLoading(true); setError("")
-    await new Promise((r) => setTimeout(r, 600))
-    // Validation wired to API in Phase 3
-    if (code.toUpperCase() === "DEMO99") { onUnlock() }
-    else { setError("Código inválido o expirado.") }
+    try {
+      const res = await fetch("/api/tipster/validate-code", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ code }),
+      })
+      if (res.ok) { onUnlock() }
+      else { const d = await res.json(); setError(d.error ?? "Código inválido o expirado.") }
+    } catch {
+      setError("Error de conexión. Inténtalo de nuevo.")
+    }
     setLoading(false)
   }
 
@@ -454,19 +461,32 @@ function BountyDashboard() {
   const [sending, setSending]       = useState(false)
   const [sent, setSent]             = useState(false)
   const [submitError, setSubmitError] = useState("")
-  const bounties: any[] = []
+  const [bounties, setBounties]     = useState<any[]>([])
+
+  useEffect(() => {
+    fetch("/api/tipster/claim-bounty")
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.bounties) setBounties(d.bounties) })
+      .catch(() => {})
+  }, [sent])
 
   async function handleClaim() {
     if (!twitterUrl.trim()) return
     setSending(true); setSubmitError("")
     try {
-      // API wired in Phase 3 — optimistic success for now
-      await new Promise(r => setTimeout(r, 700))
-      setSent(true)
-      setShowSubmit(false)
-      setTwitterUrl("")
+      const res = await fetch("/api/tipster/claim-bounty", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ twitter_url: twitterUrl.trim() }),
+      })
+      if (res.ok) {
+        setSent(true); setShowSubmit(false); setTwitterUrl("")
+      } else {
+        const d = await res.json()
+        setSubmitError(d.error ?? "Error al enviar.")
+      }
     } catch {
-      setSubmitError("Error al enviar. Inténtalo de nuevo.")
+      setSubmitError("Error de conexión. Inténtalo de nuevo.")
     } finally {
       setSending(false)
     }
