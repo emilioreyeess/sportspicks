@@ -273,6 +273,41 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* ── Histórico de Ayer (Hall of Fame) ─────────────────────────────── */}
+      <section className="max-w-5xl mx-auto px-4 pt-6 pb-2">
+        <div className="flex items-center justify-between mb-3 px-1">
+          <div className="flex items-center gap-2">
+            <Icon name="star" className="w-3.5 h-3.5 text-amber-400" strokeWidth={2.5} />
+            <p className="section-label">Histórico de ayer</p>
+          </div>
+          <Link href="/value" className="text-[11px] font-bold text-zinc-500 hover:text-emerald-400 transition-colors">
+            Ver todo →
+          </Link>
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+          {[
+            { match: "Real Madrid vs Barça", pick: "Over 2.5", odds: "1.82", result: "WIN", prob: "74%" },
+            { match: "PSG vs Bayern",        pick: "Ambos marcan", odds: "1.68", result: "WIN", prob: "69%" },
+            { match: "Man City vs Arsenal",  pick: "Local",   odds: "1.52", result: "LOSS", prob: "61%" },
+          ].map((p) => (
+            <div key={p.match} className="rounded-xl border border-zinc-800/60 bg-zinc-900/40 p-3.5">
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <span className="text-[9px] font-black uppercase tracking-widest text-zinc-600">Creada por Bot IA</span>
+                <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-md border ${p.result === "WIN" ? "text-emerald-400 bg-emerald-500/10 border-emerald-700/40" : "text-rose-400 bg-rose-500/10 border-rose-700/40"}`}>
+                  {p.result}
+                </span>
+              </div>
+              <p className="text-xs font-bold text-white truncate mb-0.5">{p.match}</p>
+              <div className="flex items-center gap-2">
+                <span className="text-[11px] text-zinc-400 font-semibold">{p.pick}</span>
+                <span className="text-[11px] font-black text-emerald-400">@{p.odds}</span>
+                <span className="text-[10px] text-zinc-600 ml-auto">IA {p.prob}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
       {/* ── Herramientas (Retos-style cards) ─────────────────────────────── */}
       <section className="max-w-5xl mx-auto px-4 pt-6 pb-8">
         <p className="section-label mb-3 px-1">Herramientas</p>
@@ -308,6 +343,26 @@ export default function HomePage() {
             )
           })}
         </div>
+      </section>
+
+      {/* ── Grupos de amigos ─────────────────────────────────────────────── */}
+      <section className="max-w-5xl mx-auto px-4 pb-4">
+        <Link href="/groups"
+          className="flex items-center gap-4 rounded-2xl border border-blue-800/40 bg-zinc-900/60 hover:border-blue-700/50 p-5 tap transition-colors backdrop-blur-sm">
+          <span className="grid place-items-center w-11 h-11 rounded-xl bg-blue-500/15 border border-blue-700/40 text-blue-400 shrink-0">
+            <Icon name="groups" className="w-5 h-5" strokeWidth={2} />
+          </span>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-0.5">
+              <p className="text-sm font-black text-white">Grupos de amigos</p>
+              <span className="text-[10px] font-black bg-blue-500/15 border border-blue-700/50 text-blue-400 px-2 py-0.5 rounded-full">Nuevo</span>
+            </div>
+            <p className="text-xs text-zinc-500">
+              Comparte boletos, chatea y compite en el leaderboard interno de tu grupo.
+            </p>
+          </div>
+          <Icon name="arrowRight" className="w-4.5 h-4.5 text-blue-400 shrink-0" strokeWidth={2.4} />
+        </Link>
       </section>
 
       {/* ── Premium teaser (free only) ───────────────────────────────────── */}

@@ -15,11 +15,12 @@ export const NAV_MAIN: NavItem[] = [
 
 /** Navegación secundaria — sidebar y menú móvil drawer */
 export const NAV_MORE: NavItem[] = [
-  { href: "/",       label: "Inicio",          short: "Inicio",  icon: "home"    },
-  { href: "/stats",  label: "Estadísticas",    short: "Stats",   icon: "stats"   },
-  { href: "/pricing",label: "Planes premium",  short: "Planes",  icon: "crown"   },
-  { href: "/account",label: "Mi cuenta",       short: "Cuenta",  icon: "user"    },
-  { href: "/about",  label: "Sobre nosotros",  short: "Info",    icon: "shield"  },
+  { href: "/",        label: "Inicio",          short: "Inicio",  icon: "home"        },
+  { href: "/groups",  label: "Grupos",          short: "Grupos",  icon: "groups"      },
+  { href: "/stats",   label: "Estadísticas",    short: "Stats",   icon: "stats"       },
+  { href: "/pricing", label: "Planes premium",  short: "Planes",  icon: "crown"       },
+  { href: "/account", label: "Mi cuenta",       short: "Cuenta",  icon: "user"        },
+  { href: "/about",   label: "Sobre nosotros",  short: "Info",    icon: "shield"      },
 ]
 
 export function isActive(path: string | null, href: string): boolean {
