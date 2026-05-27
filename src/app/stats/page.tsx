@@ -391,15 +391,36 @@ function StatCard({ icon, value, label, color }: { icon: string; value: string; 
 }
 
 // ─── Render del markdown simple (negrita, saltos de línea) ────────────────────
+// CN-007: No dangerouslySetInnerHTML — parse inline **bold** with React elements
+
+function InlineLine({ text }: { text: string }) {
+  // Split on **bold** markers and render as React spans/strongs
+  const parts = text.split(/\*\*(.+?)\*\*/g)
+  return (
+    <>
+      {parts.map((part, i) =>
+        i % 2 === 1
+          ? <strong key={i} className="text-white font-bold">{part}</strong>
+          : <span key={i}>{part}</span>
+      )}
+    </>
+  )
+}
 
 function AnalysisText({ text }: { text: string }) {
-  // Convierte **negrita** y saltos de línea en HTML mínimo
-  const html = text
-    .replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>")
-    .split("\n")
-    .map((line) => `<p class="${line.startsWith("<strong>") ? "text-white font-bold mt-4 first:mt-0" : "text-zinc-300 text-sm leading-relaxed"}">${line || "&nbsp;"}</p>`)
-    .join("")
-  return <div dangerouslySetInnerHTML={{ __html: html }} className="space-y-0.5" />
+  const lines = text.split("\n")
+  return (
+    <div className="space-y-0.5">
+      {lines.map((line, i) => {
+        const isBold = /^\*\*/.test(line)
+        return (
+          <p key={i} className={isBold ? "text-white font-bold mt-4 first:mt-0" : "text-zinc-300 text-sm leading-relaxed"}>
+            {line ? <InlineLine text={line} /> : <>&nbsp;</>}
+          </p>
+        )
+      })}
+    </div>
+  )
 }
 
 // ─── Vista completa del equipo ────────────────────────────────────────────────

@@ -17,7 +17,8 @@ export async function GET() {
     .eq("tipster_email", session.user.email)
     .order("submitted_at", { ascending: false })
 
-  if (error) return Response.json({ error: error.message }, { status: 500 })
+  // CN-026: Return generic message — do not expose internal DB error details
+  if (error) return Response.json({ error: "Error interno del servidor" }, { status: 500 })
   return Response.json({ bounties: bounties ?? [] })
 }
 
@@ -108,6 +109,7 @@ export async function POST(req: NextRequest) {
     .select()
     .single()
 
-  if (error) return Response.json({ error: error.message }, { status: 500 })
+  // CN-026: Return generic message — do not expose internal DB error details
+  if (error) return Response.json({ error: "Error interno del servidor" }, { status: 500 })
   return Response.json({ ok: true, bounty: data }, { status: 201 })
 }

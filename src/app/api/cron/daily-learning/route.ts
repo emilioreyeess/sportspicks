@@ -14,15 +14,15 @@ export const runtime = "nodejs"
 export const maxDuration = 60   // hasta 60s para procesar todas las ligas
 
 async function handle(req: NextRequest) {
-  // Verificación de Vercel Cron
+  // CN-005: CRON_SECRET required and must be ≥ 16 chars; reject if missing in any env
   const secret = process.env.CRON_SECRET
   const auth = req.headers.get("authorization")
-  if (secret) {
-    if (auth !== `Bearer ${secret}`) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-    }
-  } else if (process.env.VERCEL === "1") {
-    console.warn("[cron] CRON_SECRET no configurado en producción — endpoint sin protección")
+  if (!secret || secret.length < 16) {
+    console.error("[cron] CRON_SECRET no configurado o demasiado corto — rechazando petición")
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
+  if (auth !== `Bearer ${secret}`) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
   // Permite ?date=YYYY-MM-DD para re-procesar manualmente un día concreto

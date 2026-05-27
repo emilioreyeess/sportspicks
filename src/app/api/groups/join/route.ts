@@ -43,7 +43,8 @@ export async function POST(req: NextRequest) {
     role: "member",
   })
 
-  if (error) return Response.json({ error: error.message }, { status: 500 })
+  // CN-026: Return generic message — do not expose internal DB error details
+  if (error) return Response.json({ error: "Error al unirse al grupo" }, { status: 500 })
 
   return Response.json({ ok: true, group })
 }

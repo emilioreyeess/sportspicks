@@ -44,8 +44,9 @@ export default function AdminPage() {
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
 
+  // CN-025: Token kept in React state only — not persisted to sessionStorage
   useEffect(() => {
-    try { setToken(sessionStorage.getItem("sp_admin_token")) } catch {}
+    // No-op: token lives in component state; cleared on page reload (intentional)
   }, [])
 
   const load = useCallback(async (tok: string) => {
@@ -56,7 +57,6 @@ export default function AdminPage() {
       })
       if (r.status === 401) {
         setTokenError("Token incorrecto")
-        sessionStorage.removeItem("sp_admin_token")
         setToken(null)
         return
       }
@@ -75,7 +75,7 @@ export default function AdminPage() {
   function submitToken(e: React.FormEvent) {
     e.preventDefault()
     if (!tokenInput.trim()) return
-    sessionStorage.setItem("sp_admin_token", tokenInput.trim())
+    // CN-025: Store only in React state — do not persist to sessionStorage
     setToken(tokenInput.trim())
     setTokenInput("")
     setLoading(true)
@@ -112,7 +112,7 @@ export default function AdminPage() {
               Entrar
             </button>
             <p className="text-[10px] text-zinc-600 text-center mt-2">
-              El token está en `.env.local` del servidor. Se guarda solo en esta sesión del navegador.
+              El token está en `.env.local` del servidor. Solo existe en memoria — se borra al recargar.
             </p>
           </form>
         </Card>

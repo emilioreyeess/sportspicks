@@ -10,6 +10,15 @@ build/
 .env.*.local
 *.pem
 
+# CN-033: Additional secret / credential file patterns
+*.p12
+*.pfx
+*.jks
+credentials.json
+service-account*.json
+.npmrc
+.pypirc
+
 # Logs
 *.log
 

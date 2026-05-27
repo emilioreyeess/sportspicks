@@ -16,25 +16,8 @@ export function middleware(_req: NextRequest) {
   res.headers.set("X-DNS-Prefetch-Control", "off")
   res.headers.set("X-Permitted-Cross-Domain-Policies", "none")
 
-  // ── Content Security Policy ───────────────────────────────────────────────
-  // Note: 'unsafe-inline' for scripts is required by Next.js hydration (inline <script> tags).
-  // Remove 'unsafe-inline' only when migrating to nonce-based CSP with next.config.js nonces.
-  const csp = [
-    "default-src 'self'",
-    "script-src 'self' 'unsafe-inline' 'unsafe-eval'",   // unsafe-eval needed for Next.js dev + some libs
-    "style-src 'self' 'unsafe-inline'",                   // unsafe-inline needed for Tailwind/CSS-in-JS
-    "img-src 'self' data: blob: https:",                  // https: allows external avatars/images
-    "font-src 'self' data:",
-    "connect-src 'self' https://*.supabase.co https://api.stripe.com wss://*.supabase.co",
-    "frame-src 'none'",
-    "frame-ancestors 'none'",
-    "object-src 'none'",
-    "base-uri 'self'",
-    "form-action 'self'",
-    "upgrade-insecure-requests",
-  ].join("; ")
-
-  res.headers.set("Content-Security-Policy", csp)
+  // CN-015: CSP is defined only in next.config.js headers() to avoid duplicates.
+  // Middleware sets the remaining security headers; CSP comes from next.config.js.
 
   return res
 }

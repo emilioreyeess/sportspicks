@@ -6,8 +6,11 @@ import { createServiceClient } from "@/lib/supabase/client"
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
-function randomCode(len = 6) {
-  return Math.random().toString(36).toUpperCase().slice(2, 2 + len)
+// CN-013: Use cryptographically secure PRNG for invite codes
+import { randomBytes } from "crypto"
+
+function randomCode(len = 8): string {
+  return randomBytes(len).toString("base64url").slice(0, len).toUpperCase()
 }
 
 export async function GET() {
@@ -32,7 +35,8 @@ export async function GET() {
     .in("id", groupIds)
     .order("created_at", { ascending: false })
 
-  if (error) return Response.json({ error: error.message }, { status: 500 })
+  // CN-026: Return generic message — do not expose internal DB error details
+  if (error) return Response.json({ error: "Error interno del servidor" }, { status: 500 })
 
   // Attach member count
   const enriched = await Promise.all(
@@ -75,7 +79,7 @@ export async function POST(req: NextRequest) {
     .select()
     .single()
 
-  if (error || !group) return Response.json({ error: error?.message ?? "Error" }, { status: 500 })
+  if (error || !group) return Response.json({ error: "Error al crear el grupo" }, { status: 500 })
 
   // Add creator as admin member
   await sb.from("group_members").insert({

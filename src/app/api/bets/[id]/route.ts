@@ -51,7 +51,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     if (existing.status !== "pending") {
       return Response.json({ error: "Esta apuesta ya fue liquidada" }, { status: 409 })
     }
-    return Response.json({ error: error?.message ?? "Error al actualizar" }, { status: 500 })
+    // CN-026: Return generic message — do not expose internal DB error details
+    return Response.json({ error: "Error al actualizar" }, { status: 500 })
   }
 
   // Also settle all legs with the same status

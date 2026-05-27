@@ -29,8 +29,9 @@ const nextConfig = {
   async headers() {
     const ContentSecurityPolicy = [
       "default-src 'self'",
+      // CN-028: Removed 'unsafe-eval' — not required by Next.js 14 in production
       // Scripts: propios + inline (Next.js lo necesita) + Stripe + Umami
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.stripe.com https://analytics.umami.is https://*.sentry.io",
+      "script-src 'self' 'unsafe-inline' https://js.stripe.com https://analytics.umami.is https://*.sentry.io",
       "style-src 'self' 'unsafe-inline'",
       // Imágenes: propias + data URIs + blob + ESPN CDN + Supabase storage
       "img-src 'self' data: blob: https://a.espncdn.com https://a1.espncdn.com https://a2.espncdn.com https://*.supabase.co https://*.googleusercontent.com",

@@ -31,7 +31,8 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
     .order("created_at", { ascending: true })
     .limit(100)
 
-  if (error) return Response.json({ error: error.message }, { status: 500 })
+  // CN-026: Return generic message — do not expose internal DB error details
+  if (error) return Response.json({ error: "Error interno del servidor" }, { status: 500 })
   return Response.json({ messages: messages ?? [] })
 }
 
@@ -64,6 +65,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
     .select()
     .single()
 
-  if (error) return Response.json({ error: error.message }, { status: 500 })
+  // CN-026: Return generic message — do not expose internal DB error details
+  if (error) return Response.json({ error: "Error interno del servidor" }, { status: 500 })
   return Response.json({ ok: true, message }, { status: 201 })
 }

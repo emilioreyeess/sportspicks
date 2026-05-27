@@ -15,7 +15,9 @@ async function upsertUserToSupabase(user: {
     console.error("[users_log] Missing env vars — SUPABASE_URL:", !!url, "SERVICE_ROLE_KEY:", !!key)
     return
   }
-  console.log("[users_log] Attempting upsert for:", user.email)
+  // CN-027: Mask email in logs to avoid PII leakage
+  const maskedEmail = user.email ? user.email.slice(0, 3) + "***" : "unknown"
+  console.log("[users_log] Attempting upsert for:", maskedEmail)
 
   try {
     const { createClient } = await import("@supabase/supabase-js")
@@ -28,7 +30,7 @@ async function upsertUserToSupabase(user: {
       last_sign_in: new Date().toISOString(),
     }, { onConflict: "email", ignoreDuplicates: false })
     if (error) console.error("[users_log] Supabase error:", error.message)
-    else console.log("[users_log] Usuario guardado:", user.email)
+    else console.log("[users_log] Usuario guardado:", maskedEmail)
   } catch (e) {
     console.error("[users_log] Exception:", e)
   }

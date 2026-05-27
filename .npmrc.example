@@ -1,0 +1,3 @@
+# CN-022: Lock registry to prevent dependency confusion attacks.
+# Copy this file to .npmrc (which is gitignored) and adjust if needed.
+registry=https://registry.npmjs.org/

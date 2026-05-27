@@ -29,6 +29,7 @@ export async function GET() {
 
   const healthy = pipelineHealthy // KV degradado no es crítico para servir picks
 
+  // CN-030: Omit version/commit/env from unauthenticated response to reduce fingerprinting
   return Response.json(
     {
       status: healthy ? "ok" : "degraded",
@@ -39,10 +40,6 @@ export async function GET() {
       pipeline_status: s.meta.status,
       last_success_at: s.meta.lastSuccessAt,
       date: s.date,
-      uptime_s: Math.round(process.uptime()),
-      version: process.env.NEXT_PUBLIC_VERSION ?? "1.0.0",
-      commit: process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? "local",
-      env: process.env.NODE_ENV,
     },
     { status: healthy ? 200 : 503 },
   )

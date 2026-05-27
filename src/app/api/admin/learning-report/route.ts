@@ -14,7 +14,22 @@ import { getLearningStorage } from "@/lib/learning"
 
 export const runtime = "nodejs"
 
+// CN-004: Admin-only endpoint — require constant-time token check
+const ADMIN_TOKEN = process.env.ADMIN_TOKEN || ""
+
+function isAuthorized(req: NextRequest): boolean {
+  if (!ADMIN_TOKEN) return false
+  const t = req.headers.get("x-admin-token") ?? ""
+  if (t.length !== ADMIN_TOKEN.length) return false
+  let diff = 0
+  for (let i = 0; i < t.length; i++) diff |= t.charCodeAt(i) ^ ADMIN_TOKEN.charCodeAt(i)
+  return diff === 0
+}
+
 export async function GET(req: NextRequest) {
+  if (!isAuthorized(req)) {
+    return NextResponse.json({ error: "No autorizado" }, { status: 401 })
+  }
   const url = new URL(req.url)
   const limit = parseInt(url.searchParams.get("reports") ?? "14", 10)
 

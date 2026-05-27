@@ -19,7 +19,8 @@ export async function GET() {
     .eq("user_email", email)
     .order("created_at", { ascending: false })
 
-  if (error) return Response.json({ error: error.message }, { status: 500 })
+  // CN-026: Return generic message — do not expose internal DB error details
+  if (error) return Response.json({ error: "Error interno del servidor" }, { status: 500 })
 
   // Compute stats
   const settled = (bets ?? []).filter((b) => b.status === "won" || b.status === "lost")

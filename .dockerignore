@@ -1,0 +1,36 @@
+# CN-019: Prevent secrets and dev artifacts from leaking into Docker image
+.env
+.env.*
+.env.local
+*.env
+
+node_modules/
+.next/
+out/
+build/
+
+# Dev / IDE
+.vscode/
+.idea/
+*.swp
+
+# Tests
+__tests__/
+*.test.ts
+*.test.tsx
+*.spec.ts
+*.spec.tsx
+coverage/
+.nyc_output/
+
+# Version control
+.git/
+.github/
+.gitignore
+
+# Docs
+*.md
+docs/
+
+# Logs
+*.log

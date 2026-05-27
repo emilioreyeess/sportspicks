@@ -1,4 +1,6 @@
 import Anthropic from "@anthropic-ai/sdk"
+import { getServerSession } from "next-auth"
+import { authOptions } from "@/lib/auth-options"
 import { fetchStandings, classifyMotivation } from "@/lib/engine"
 import { consume, getClientIp, tooManyRequests } from "@/lib/rate-limit"
 
@@ -477,6 +479,12 @@ const MAX_HISTORY_ITEMS = 10
 const MAX_HISTORY_RAW_BYTES = 50_000  // 50 KB de history
 
 export async function POST(req: Request) {
+  // CN-024: Require authenticated session
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.email) {
+    return new Response(JSON.stringify({ error: "No autorizado" }), { status: 401, headers: { "Content-Type": "application/json" } })
+  }
+
   // Rate limit por IP — protege la API key de Anthropic (cuesta dinero por petición)
   // Ráfaga 3 simultáneas · ritmo 10 / 5 min (~2/min sostenido)
   const ip = getClientIp(req)
