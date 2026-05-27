@@ -15,126 +15,146 @@ interface BetData {
 }
 
 async function generateBetImage(bet: BetData): Promise<Blob> {
-  const W = 600
-  const H = 120 + bet.legs.length * 64 + 160
+  const W    = 600
+  const LEGS = bet.legs.length
+  const H    = 140 + LEGS * 70 + 180
   const canvas = document.createElement("canvas")
-  canvas.width  = W * 2  // retina
+  canvas.width  = W * 2
   canvas.height = H * 2
   const ctx = canvas.getContext("2d")!
   ctx.scale(2, 2)
 
-  // Background
-  const bg = ctx.createLinearGradient(0, 0, 0, H)
-  bg.addColorStop(0, "#0d0d0d")
-  bg.addColorStop(1, "#111418")
-  ctx.fillStyle = bg
-  ctx.roundRect(0, 0, W, H, 20)
-  ctx.fill()
+  // Pure black background
+  ctx.fillStyle = "#000000"
+  ctx.fillRect(0, 0, W, H)
 
-  // Border
-  ctx.strokeStyle = "rgba(34,197,94,0.3)"
+  // Subtle green border
+  ctx.strokeStyle = "rgba(34,197,94,0.35)"
   ctx.lineWidth = 1.5
-  ctx.roundRect(0.75, 0.75, W - 1.5, H - 1.5, 20)
-  ctx.stroke()
+  ctx.strokeRect(0.75, 0.75, W - 1.5, H - 1.5)
 
-  // Header glow
-  const glow = ctx.createLinearGradient(0, 0, W, 80)
-  glow.addColorStop(0, "rgba(34,197,94,0.08)")
-  glow.addColorStop(1, "rgba(34,197,94,0)")
-  ctx.fillStyle = glow
-  ctx.roundRect(0, 0, W, 80, [20, 20, 0, 0])
+  // Top accent line
+  ctx.fillStyle = "#22c55e"
+  ctx.fillRect(0, 0, W, 3)
+
+  // ── Logo (top-left corner) ─────────────────────────────────
+  // Circle icon
+  ctx.fillStyle = "#22c55e"
+  ctx.beginPath(); ctx.arc(28, 28, 14, 0, Math.PI * 2); ctx.fill()
+  ctx.fillStyle = "#000000"
+  ctx.font = "bold 14px system-ui, sans-serif"
+  ctx.textAlign = "center"
+  ctx.fillText("SP", 28, 33)
+  ctx.textAlign = "left"
+  // Brand name
+  ctx.fillStyle = "#ffffff"
+  ctx.font = "bold 14px system-ui, sans-serif"
+  ctx.fillText("SportsPicks", 50, 25)
+  ctx.fillStyle = "#4ade80"
+  ctx.font = "10px system-ui, sans-serif"
+  ctx.fillText("Analytics Engine", 50, 39)
+
+  // VIP badge (top-right)
+  ctx.fillStyle = "rgba(139,92,246,0.2)"
+  ctx.roundRect(W - 106, 14, 90, 24, 12)
   ctx.fill()
-
-  // Branding
-  ctx.fillStyle = "#6ee7b7"
-  ctx.font = "bold 11px system-ui, sans-serif"
-  ctx.fillText("⚡ SportsPicks Analytics", 24, 32)
-
-  // VIP badge
-  ctx.fillStyle = "rgba(139,92,246,0.15)"
-  ctx.roundRect(W - 110, 18, 86, 22, 11)
-  ctx.fill()
-  ctx.strokeStyle = "rgba(139,92,246,0.4)"
+  ctx.strokeStyle = "rgba(139,92,246,0.5)"
   ctx.lineWidth = 1
-  ctx.roundRect(W - 110, 18, 86, 22, 11)
+  ctx.roundRect(W - 106, 14, 90, 24, 12)
   ctx.stroke()
   ctx.fillStyle = "#a78bfa"
   ctx.font = "bold 10px system-ui, sans-serif"
-  ctx.fillText("TIPSTER VIP", W - 98, 33)
+  ctx.textAlign = "center"
+  ctx.fillText("TIPSTER VIP", W - 61, 30)
+  ctx.textAlign = "left"
+
+  // Divider after header
+  ctx.strokeStyle = "rgba(34,197,94,0.15)"
+  ctx.lineWidth = 1
+  ctx.beginPath(); ctx.moveTo(20, 56); ctx.lineTo(W - 20, 56); ctx.stroke()
 
   // Title
   ctx.fillStyle = "#ffffff"
-  ctx.font = "bold 20px system-ui, sans-serif"
-  ctx.fillText(bet.title, 24, 68)
+  ctx.font = "bold 22px system-ui, sans-serif"
+  ctx.fillText(bet.title, 24, 88)
 
-  // Divider
-  ctx.strokeStyle = "rgba(255,255,255,0.06)"
-  ctx.lineWidth = 1
-  ctx.beginPath()
-  ctx.moveTo(24, 82); ctx.lineTo(W - 24, 82)
-  ctx.stroke()
+  // Divider after title
+  ctx.strokeStyle = "rgba(255,255,255,0.07)"
+  ctx.beginPath(); ctx.moveTo(24, 100); ctx.lineTo(W - 24, 100); ctx.stroke()
 
-  // Legs
-  let y = 106
-  for (const leg of bet.legs) {
-    ctx.fillStyle = "rgba(255,255,255,0.04)"
-    ctx.roundRect(20, y - 18, W - 40, 52, 10)
-    ctx.fill()
+  // ── Legs ──────────────────────────────────────────────────
+  let y = 124
+  for (let i = 0; i < LEGS; i++) {
+    const leg = bet.legs[i]
+    // Alternating row background
+    ctx.fillStyle = i % 2 === 0 ? "rgba(255,255,255,0.03)" : "rgba(255,255,255,0.015)"
+    ctx.fillRect(16, y - 20, W - 32, 58)
 
     ctx.fillStyle = "#f4f4f5"
     ctx.font = "600 13px system-ui, sans-serif"
-    ctx.fillText(leg.match, 32, y)
+    ctx.fillText(leg.match, 28, y)
 
     ctx.fillStyle = "#71717a"
     ctx.font = "12px system-ui, sans-serif"
-    ctx.fillText(leg.selection, 32, y + 18)
+    ctx.fillText(leg.selection, 28, y + 18)
 
+    // Odds pill (right)
+    ctx.fillStyle = "rgba(34,197,94,0.12)"
+    ctx.roundRect(W - 80, y - 14, 64, 26, 8)
+    ctx.fill()
     ctx.fillStyle = "#4ade80"
-    ctx.font = "bold 15px system-ui, sans-serif"
-    ctx.fillText(`@${leg.odds.toFixed(2)}`, W - 80, y + 4)
+    ctx.font = "bold 14px system-ui, sans-serif"
+    ctx.textAlign = "center"
+    ctx.fillText(`@${leg.odds.toFixed(2)}`, W - 48, y + 4)
+    ctx.textAlign = "left"
 
-    y += 64
+    y += 70
   }
 
-  // Combined odds block
-  const blockY = y + 8
-  ctx.fillStyle = "rgba(34,197,94,0.1)"
-  ctx.roundRect(20, blockY, W - 40, 72, 12)
-  ctx.fill()
-  ctx.strokeStyle = "rgba(34,197,94,0.25)"
+  // ── Combined odds block ────────────────────────────────────
+  const blockY = y + 10
+  ctx.fillStyle = "rgba(34,197,94,0.08)"
+  ctx.fillRect(16, blockY, W - 32, 80)
+  ctx.strokeStyle = "rgba(34,197,94,0.3)"
   ctx.lineWidth = 1
-  ctx.roundRect(20, blockY, W - 40, 72, 12)
-  ctx.stroke()
+  ctx.strokeRect(16, blockY, W - 32, 80)
 
+  // Combined odds
   ctx.fillStyle = "#4ade80"
-  ctx.font = "bold 32px system-ui, sans-serif"
-  ctx.fillText(`@${bet.combinedOdds.toFixed(2)}`, 32, blockY + 44)
+  ctx.font = "bold 38px system-ui, sans-serif"
+  ctx.fillText(`@${bet.combinedOdds.toFixed(2)}`, 28, blockY + 52)
 
+  // Prob + Ventaja (right side)
   ctx.fillStyle = "#a1a1aa"
   ctx.font = "11px system-ui, sans-serif"
-  ctx.fillText(`Prob. IA: ${bet.aiProb}%`, W - 160, blockY + 28)
+  ctx.textAlign = "right"
+  ctx.fillText(`Probabilidad IA: ${bet.aiProb}%`, W - 24, blockY + 32)
   ctx.fillStyle = "#4ade80"
-  ctx.font = "bold 12px system-ui, sans-serif"
-  ctx.fillText(`Edge: +${bet.edge}%`, W - 160, blockY + 48)
+  ctx.font = "bold 13px system-ui, sans-serif"
+  ctx.fillText(`Ventaja: +${bet.edge}%`, W - 24, blockY + 52)
+  ctx.textAlign = "left"
 
-  // Disclaimer
-  const discY = blockY + 88
-  ctx.fillStyle = "rgba(255,255,255,0.03)"
-  ctx.roundRect(20, discY, W - 40, 40, 10)
-  ctx.fill()
-  ctx.fillStyle = "#52525b"
-  ctx.font = "10px system-ui, sans-serif"
-  const disc = "⚠️ Apuesta con valor matemático detectado. No existen picks seguros, sujeto a varianza deportiva."
+  // ── Disclaimer ─────────────────────────────────────────────
+  const discY = blockY + 100
+  ctx.fillStyle = "rgba(255,200,0,0.06)"
+  ctx.fillRect(16, discY, W - 32, 52)
+  ctx.strokeStyle = "rgba(255,200,0,0.2)"
+  ctx.lineWidth = 1
+  ctx.strokeRect(16, discY, W - 32, 52)
+
+  ctx.fillStyle = "#d4d4d8"  // much more readable: light gray
+  ctx.font = "12px system-ui, sans-serif"
+  const disc = "⚠️  Apuesta con valor matemático detectado. No existen picks seguros, sujeto a varianza deportiva."
   const words = disc.split(" ")
-  let line = ""; let lineY = discY + 16
+  let line = ""; let lineY = discY + 20
   for (const w of words) {
     const test = line + w + " "
-    if (ctx.measureText(test).width > W - 64 && line) {
-      ctx.fillText(line.trim(), 32, lineY)
-      line = w + " "; lineY += 14
+    if (ctx.measureText(test).width > W - 56 && line) {
+      ctx.fillText(line.trim(), 28, lineY)
+      line = w + " "; lineY += 18
     } else { line = test }
   }
-  ctx.fillText(line.trim(), 32, lineY)
+  ctx.fillText(line.trim(), 28, lineY)
 
   return new Promise((resolve) => canvas.toBlob((b) => resolve(b!), "image/png", 1))
 }
