@@ -16,15 +16,17 @@ async function upsertUserToSupabase(user: {
   try {
     const { createClient } = await import("@supabase/supabase-js")
     const sb = createClient(url, key, { auth: { persistSession: false } })
-    await sb.from("users_log").upsert({
+    const { error } = await sb.from("users_log").upsert({
       email:      user.email,
       name:       user.name ?? null,
       avatar_url: user.image ?? null,
       provider:   user.provider ?? "google",
       last_sign_in: new Date().toISOString(),
     }, { onConflict: "email", ignoreDuplicates: false })
-  } catch {
-    // No bloquear el login si Supabase falla
+    if (error) console.error("[users_log] Supabase error:", error.message)
+    else console.log("[users_log] Usuario guardado:", user.email)
+  } catch (e) {
+    console.error("[users_log] Exception:", e)
   }
 }
 
