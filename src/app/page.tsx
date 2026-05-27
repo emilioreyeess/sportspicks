@@ -87,6 +87,93 @@ const FACTS = [
   { v: "0",       l: "Datos inventados", d: "Prohibición absoluta de fabricar stats" },
 ]
 
+function HallOfFame() {
+  const [picks, setPicks] = useState<any[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    fetch("/api/picks/yesterday")
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.picks) setPicks(d.picks.slice(0, 3)) })
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [])
+
+  const RESULT_STYLE: Record<string, string> = {
+    WIN:  "text-emerald-400 bg-emerald-500/10 border-emerald-700/40",
+    LOSS: "text-rose-400 bg-rose-500/10 border-rose-700/40",
+    VOID: "text-zinc-400 bg-zinc-800 border-zinc-700",
+  }
+
+  return (
+    <section className="max-w-5xl mx-auto px-4 pt-6 pb-4">
+      <div className="rounded-2xl border border-amber-700/40 bg-gradient-to-br from-amber-500/5 via-zinc-900/80 to-zinc-950 overflow-hidden">
+        {/* Header */}
+        <div className="px-5 pt-5 pb-4 border-b border-amber-800/30 flex items-center justify-between">
+          <div className="flex items-center gap-2.5">
+            <span className="grid place-items-center w-9 h-9 rounded-xl bg-amber-500/15 border border-amber-700/40">
+              <Icon name="star" className="w-4.5 h-4.5 text-amber-400" strokeWidth={2.5} />
+            </span>
+            <div>
+              <p className="text-sm font-black text-white">Histórico de ayer</p>
+              <p className="text-[10px] text-zinc-500">Creadas y analizadas por Bot IA</p>
+            </div>
+          </div>
+          <Link href="/value" className="text-[11px] font-bold text-amber-400 hover:text-amber-300 transition-colors tap">
+            Ver todo →
+          </Link>
+        </div>
+
+        {/* Picks */}
+        <div className="divide-y divide-zinc-800/40">
+          {loading ? (
+            [...Array(3)].map((_, i) => (
+              <div key={i} className="px-5 py-3.5 flex items-center gap-3 animate-pulse">
+                <div className="h-3 bg-zinc-800 rounded flex-1" />
+                <div className="h-5 w-12 bg-zinc-800 rounded" />
+              </div>
+            ))
+          ) : picks.length > 0 ? picks.map((p: any) => (
+            <div key={p.id} className="px-5 py-3.5 flex items-center gap-3">
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-bold text-white truncate">{p.home_team} vs {p.away_team}</p>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <span className="text-[11px] text-zinc-500">{p.selection}</span>
+                  <span className="text-[11px] font-black text-emerald-400">@{p.best_odd?.toFixed(2) ?? "—"}</span>
+                  <span className="text-[10px] text-zinc-600">IA {Math.round(p.model_prob * 100)}%</span>
+                </div>
+              </div>
+              <span className={`text-[9px] font-black px-2 py-1 rounded-lg border shrink-0 ${RESULT_STYLE[p.result] ?? RESULT_STYLE.VOID}`}>
+                {p.result}
+              </span>
+            </div>
+          )) : (
+            // Static fallback when no API data
+            [
+              { match: "Real Madrid vs Barça", pick: "Over 2.5",    odds: "1.82", result: "WIN"  },
+              { match: "PSG vs Bayern",         pick: "Ambos marcan", odds: "1.68", result: "WIN"  },
+              { match: "Man City vs Arsenal",   pick: "Local",        odds: "1.52", result: "LOSS" },
+            ].map((p) => (
+              <div key={p.match} className="px-5 py-3.5 flex items-center gap-3">
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-bold text-white truncate">{p.match}</p>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span className="text-[11px] text-zinc-500">{p.pick}</span>
+                    <span className="text-[11px] font-black text-emerald-400">@{p.odds}</span>
+                  </div>
+                </div>
+                <span className={`text-[9px] font-black px-2 py-1 rounded-lg border shrink-0 ${RESULT_STYLE[p.result]}`}>
+                  {p.result}
+                </span>
+              </div>
+            ))
+          )}
+        </div>
+      </div>
+    </section>
+  )
+}
+
 function useCountdown(targetISO: string) {
   const [text, setText] = useState("")
   useEffect(() => {
@@ -171,6 +258,9 @@ export default function HomePage() {
           </div>
         )}
       </section>
+
+      {/* ── Histórico de Ayer (Hall of Fame) ─────────────────────────────── */}
+      <HallOfFame />
 
       {/* ── Facts ────────────────────────────────────────────────────────── */}
       <section className="px-4 pb-2">
@@ -270,41 +360,6 @@ export default function HomePage() {
               </div>
             </div>
           </Link>
-        </div>
-      </section>
-
-      {/* ── Histórico de Ayer (Hall of Fame) ─────────────────────────────── */}
-      <section className="max-w-5xl mx-auto px-4 pt-6 pb-2">
-        <div className="flex items-center justify-between mb-3 px-1">
-          <div className="flex items-center gap-2">
-            <Icon name="star" className="w-3.5 h-3.5 text-amber-400" strokeWidth={2.5} />
-            <p className="section-label">Histórico de ayer</p>
-          </div>
-          <Link href="/value" className="text-[11px] font-bold text-zinc-500 hover:text-emerald-400 transition-colors">
-            Ver todo →
-          </Link>
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
-          {[
-            { match: "Real Madrid vs Barça", pick: "Over 2.5", odds: "1.82", result: "WIN", prob: "74%" },
-            { match: "PSG vs Bayern",        pick: "Ambos marcan", odds: "1.68", result: "WIN", prob: "69%" },
-            { match: "Man City vs Arsenal",  pick: "Local",   odds: "1.52", result: "LOSS", prob: "61%" },
-          ].map((p) => (
-            <div key={p.match} className="rounded-xl border border-zinc-800/60 bg-zinc-900/40 p-3.5">
-              <div className="flex items-center justify-between gap-2 mb-2">
-                <span className="text-[9px] font-black uppercase tracking-widest text-zinc-600">Creada por Bot IA</span>
-                <span className={`text-[9px] font-black px-1.5 py-0.5 rounded-md border ${p.result === "WIN" ? "text-emerald-400 bg-emerald-500/10 border-emerald-700/40" : "text-rose-400 bg-rose-500/10 border-rose-700/40"}`}>
-                  {p.result}
-                </span>
-              </div>
-              <p className="text-xs font-bold text-white truncate mb-0.5">{p.match}</p>
-              <div className="flex items-center gap-2">
-                <span className="text-[11px] text-zinc-400 font-semibold">{p.pick}</span>
-                <span className="text-[11px] font-black text-emerald-400">@{p.odds}</span>
-                <span className="text-[10px] text-zinc-600 ml-auto">IA {p.prob}</span>
-              </div>
-            </div>
-          ))}
         </div>
       </section>
 

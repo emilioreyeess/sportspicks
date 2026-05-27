@@ -1,10 +1,157 @@
 "use client"
 
-import { useState } from "react"
+import { useRef, useState } from "react"
 import { Icon } from "@/components/ui/icons"
 import { useSession } from "next-auth/react"
 
-// ── VIP Code Gate ─────────────────────────────────────────────
+// ── Canvas image generator ────────────────────────────────────
+interface BetLeg { match: string; selection: string; odds: number }
+interface BetData {
+  title: string
+  legs: BetLeg[]
+  combinedOdds: number
+  aiProb: number
+  edge: number
+}
+
+async function generateBetImage(bet: BetData): Promise<Blob> {
+  const W = 600
+  const H = 120 + bet.legs.length * 64 + 160
+  const canvas = document.createElement("canvas")
+  canvas.width  = W * 2  // retina
+  canvas.height = H * 2
+  const ctx = canvas.getContext("2d")!
+  ctx.scale(2, 2)
+
+  // Background
+  const bg = ctx.createLinearGradient(0, 0, 0, H)
+  bg.addColorStop(0, "#0d0d0d")
+  bg.addColorStop(1, "#111418")
+  ctx.fillStyle = bg
+  ctx.roundRect(0, 0, W, H, 20)
+  ctx.fill()
+
+  // Border
+  ctx.strokeStyle = "rgba(34,197,94,0.3)"
+  ctx.lineWidth = 1.5
+  ctx.roundRect(0.75, 0.75, W - 1.5, H - 1.5, 20)
+  ctx.stroke()
+
+  // Header glow
+  const glow = ctx.createLinearGradient(0, 0, W, 80)
+  glow.addColorStop(0, "rgba(34,197,94,0.08)")
+  glow.addColorStop(1, "rgba(34,197,94,0)")
+  ctx.fillStyle = glow
+  ctx.roundRect(0, 0, W, 80, [20, 20, 0, 0])
+  ctx.fill()
+
+  // Branding
+  ctx.fillStyle = "#6ee7b7"
+  ctx.font = "bold 11px system-ui, sans-serif"
+  ctx.fillText("⚡ SportsPicks Analytics", 24, 32)
+
+  // VIP badge
+  ctx.fillStyle = "rgba(139,92,246,0.15)"
+  ctx.roundRect(W - 110, 18, 86, 22, 11)
+  ctx.fill()
+  ctx.strokeStyle = "rgba(139,92,246,0.4)"
+  ctx.lineWidth = 1
+  ctx.roundRect(W - 110, 18, 86, 22, 11)
+  ctx.stroke()
+  ctx.fillStyle = "#a78bfa"
+  ctx.font = "bold 10px system-ui, sans-serif"
+  ctx.fillText("TIPSTER VIP", W - 98, 33)
+
+  // Title
+  ctx.fillStyle = "#ffffff"
+  ctx.font = "bold 20px system-ui, sans-serif"
+  ctx.fillText(bet.title, 24, 68)
+
+  // Divider
+  ctx.strokeStyle = "rgba(255,255,255,0.06)"
+  ctx.lineWidth = 1
+  ctx.beginPath()
+  ctx.moveTo(24, 82); ctx.lineTo(W - 24, 82)
+  ctx.stroke()
+
+  // Legs
+  let y = 106
+  for (const leg of bet.legs) {
+    ctx.fillStyle = "rgba(255,255,255,0.04)"
+    ctx.roundRect(20, y - 18, W - 40, 52, 10)
+    ctx.fill()
+
+    ctx.fillStyle = "#f4f4f5"
+    ctx.font = "600 13px system-ui, sans-serif"
+    ctx.fillText(leg.match, 32, y)
+
+    ctx.fillStyle = "#71717a"
+    ctx.font = "12px system-ui, sans-serif"
+    ctx.fillText(leg.selection, 32, y + 18)
+
+    ctx.fillStyle = "#4ade80"
+    ctx.font = "bold 15px system-ui, sans-serif"
+    ctx.fillText(`@${leg.odds.toFixed(2)}`, W - 80, y + 4)
+
+    y += 64
+  }
+
+  // Combined odds block
+  const blockY = y + 8
+  ctx.fillStyle = "rgba(34,197,94,0.1)"
+  ctx.roundRect(20, blockY, W - 40, 72, 12)
+  ctx.fill()
+  ctx.strokeStyle = "rgba(34,197,94,0.25)"
+  ctx.lineWidth = 1
+  ctx.roundRect(20, blockY, W - 40, 72, 12)
+  ctx.stroke()
+
+  ctx.fillStyle = "#4ade80"
+  ctx.font = "bold 32px system-ui, sans-serif"
+  ctx.fillText(`@${bet.combinedOdds.toFixed(2)}`, 32, blockY + 44)
+
+  ctx.fillStyle = "#a1a1aa"
+  ctx.font = "11px system-ui, sans-serif"
+  ctx.fillText(`Prob. IA: ${bet.aiProb}%`, W - 160, blockY + 28)
+  ctx.fillStyle = "#4ade80"
+  ctx.font = "bold 12px system-ui, sans-serif"
+  ctx.fillText(`Edge: +${bet.edge}%`, W - 160, blockY + 48)
+
+  // Disclaimer
+  const discY = blockY + 88
+  ctx.fillStyle = "rgba(255,255,255,0.03)"
+  ctx.roundRect(20, discY, W - 40, 40, 10)
+  ctx.fill()
+  ctx.fillStyle = "#52525b"
+  ctx.font = "10px system-ui, sans-serif"
+  const disc = "⚠️ Apuesta con valor matemático detectado. No existen picks seguros, sujeto a varianza deportiva."
+  const words = disc.split(" ")
+  let line = ""; let lineY = discY + 16
+  for (const w of words) {
+    const test = line + w + " "
+    if (ctx.measureText(test).width > W - 64 && line) {
+      ctx.fillText(line.trim(), 32, lineY)
+      line = w + " "; lineY += 14
+    } else { line = test }
+  }
+  ctx.fillText(line.trim(), 32, lineY)
+
+  return new Promise((resolve) => canvas.toBlob((b) => resolve(b!), "image/png", 1))
+}
+
+async function shareOrDownload(blob: Blob, filename: string) {
+  const file = new File([blob], filename, { type: "image/png" })
+  if (navigator.canShare?.({ files: [file] })) {
+    await navigator.share({ files: [file], title: "SportsPicks — Boleto IA" })
+  } else {
+    const url = URL.createObjectURL(blob)
+    const a   = document.createElement("a")
+    a.href = url; a.download = filename; a.click()
+    URL.revokeObjectURL(url)
+  }
+}
+
+// ── VIP Gate ──────────────────────────────────────────────────
 function VipCodeGate({ onUnlock }: { onUnlock: () => void }) {
   const [code, setCode]     = useState("")
   const [error, setError]   = useState("")
@@ -12,15 +159,11 @@ function VipCodeGate({ onUnlock }: { onUnlock: () => void }) {
 
   async function handleSubmit() {
     if (!code.trim()) return
-    setLoading(true)
-    setError("")
-    // Logic wired in next phase
-    await new Promise((r) => setTimeout(r, 800))
-    if (code.toUpperCase() === "DEMO99") {
-      onUnlock()
-    } else {
-      setError("Código inválido o expirado.")
-    }
+    setLoading(true); setError("")
+    await new Promise((r) => setTimeout(r, 600))
+    // Validation wired to API in Phase 3
+    if (code.toUpperCase() === "DEMO99") { onUnlock() }
+    else { setError("Código inválido o expirado.") }
     setLoading(false)
   }
 
@@ -33,26 +176,17 @@ function VipCodeGate({ onUnlock }: { onUnlock: () => void }) {
       <p className="text-sm text-zinc-500 max-w-xs mb-8 leading-relaxed">
         Esta sección es exclusiva para tipsters verificados. Introduce tu código de acceso.
       </p>
-
       <div className="w-full max-w-xs space-y-3">
-        <input
-          value={code}
-          onChange={(e) => { setCode(e.target.value.toUpperCase()); setError("") }}
+        <input value={code} onChange={(e) => { setCode(e.target.value.toUpperCase()); setError("") }}
           onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
-          placeholder="Código VIP"
-          maxLength={12}
-          className="w-full text-center text-xl font-black tracking-[0.25em] bg-zinc-900 border border-zinc-800 rounded-xl px-3.5 py-3.5 text-white placeholder:text-zinc-700 focus:outline-none focus:border-zinc-700 uppercase"
-        />
+          placeholder="Código VIP" maxLength={12}
+          className="w-full text-center text-xl font-black tracking-[0.25em] bg-zinc-900 border border-zinc-800 rounded-xl px-3.5 py-3.5 text-white placeholder:text-zinc-700 focus:outline-none focus:border-zinc-700 uppercase" />
         {error && <p className="text-xs text-rose-400 font-bold">{error}</p>}
-        <button
-          onClick={handleSubmit}
-          disabled={loading || !code.trim()}
-          className="w-full py-3.5 rounded-xl bg-violet-600 hover:bg-violet-500 disabled:opacity-30 text-white font-bold text-sm tap transition-all"
-        >
+        <button onClick={handleSubmit} disabled={loading || !code.trim()}
+          className="w-full py-3.5 rounded-xl bg-violet-600 hover:bg-violet-500 disabled:opacity-30 text-white font-bold text-sm tap transition-all">
           {loading ? "Verificando..." : "Acceder"}
         </button>
       </div>
-
       <p className="text-[10px] text-zinc-700 mt-8 max-w-xs">
         ¿No tienes código? Contacta con el equipo de SportsPicks para solicitar acceso de tipster verificado.
       </p>
@@ -60,21 +194,13 @@ function VipCodeGate({ onUnlock }: { onUnlock: () => void }) {
   )
 }
 
-// ── Bet card for image generator ──────────────────────────────
-interface BetPreview {
-  title: string
-  legs: { match: string; selection: string; odds: number }[]
-  combinedOdds: number
-  aiProb: number
-  edge: number
-}
-
-const DEMO_BET: BetPreview = {
+// ── Image Generator ───────────────────────────────────────────
+const DEFAULT_BET: BetData = {
   title: "Combinada Premium",
   legs: [
-    { match: "Real Madrid vs Barça", selection: "Over 2.5", odds: 1.72 },
-    { match: "PSG vs Bayern", selection: "Ambos marcan", odds: 1.55 },
-    { match: "Man City vs Arsenal", selection: "Local", odds: 1.60 },
+    { match: "Real Madrid vs Barça",  selection: "Over 2.5",    odds: 1.72 },
+    { match: "PSG vs Bayern",         selection: "Ambos marcan", odds: 1.55 },
+    { match: "Man City vs Arsenal",   selection: "Local",        odds: 1.60 },
   ],
   combinedOdds: 4.26,
   aiProb: 38.4,
@@ -82,12 +208,22 @@ const DEMO_BET: BetPreview = {
 }
 
 function ImageGenerator() {
-  const [bet] = useState<BetPreview>(DEMO_BET)
+  const [bet]        = useState<BetData>(DEFAULT_BET)
   const [generating, setGenerating] = useState(false)
+  const [done, setDone]             = useState(false)
+  const previewRef   = useRef<HTMLDivElement>(null)
 
-  function handleGenerate() {
-    setGenerating(true)
-    setTimeout(() => setGenerating(false), 1500)
+  async function handleGenerate() {
+    setGenerating(true); setDone(false)
+    try {
+      const blob = await generateBetImage(bet)
+      await shareOrDownload(blob, `sportspicks-boleto-${Date.now()}.png`)
+      setDone(true)
+    } catch (e) {
+      console.error(e)
+    } finally {
+      setGenerating(false)
+    }
   }
 
   return (
@@ -97,15 +233,13 @@ function ImageGenerator() {
         <span className="text-xs font-black uppercase tracking-widest text-violet-400">Generador de imagen</span>
       </div>
 
-      {/* Preview card */}
-      <div className="rounded-2xl border border-violet-700/50 bg-gradient-to-br from-violet-900/30 via-zinc-900 to-zinc-950 overflow-hidden">
-        {/* Card header */}
+      {/* Preview */}
+      <div ref={previewRef}
+        className="rounded-2xl border border-violet-700/50 bg-gradient-to-br from-violet-900/30 via-zinc-900 to-zinc-950 overflow-hidden">
         <div className="px-5 pt-5 pb-4 border-b border-violet-800/30">
           <div className="flex items-center gap-2 mb-3">
             <span className="text-xs font-black text-zinc-400">⚡ SportsPicks Analytics</span>
-            <span className="ml-auto text-[10px] font-black bg-violet-500/15 border border-violet-700/50 text-violet-400 px-2 py-0.5 rounded-full">
-              TIPSTER VIP
-            </span>
+            <span className="ml-auto text-[10px] font-black bg-violet-500/15 border border-violet-700/50 text-violet-400 px-2 py-0.5 rounded-full">TIPSTER VIP</span>
           </div>
           <h3 className="text-lg font-black text-white">{bet.title}</h3>
           <div className="flex items-center gap-3 mt-2">
@@ -116,8 +250,6 @@ function ImageGenerator() {
             </div>
           </div>
         </div>
-
-        {/* Legs */}
         <div className="px-5 py-3 space-y-2.5">
           {bet.legs.map((leg, i) => (
             <div key={i} className="flex items-center justify-between gap-2 py-1.5 border-b border-zinc-800/50 last:border-0">
@@ -129,8 +261,6 @@ function ImageGenerator() {
             </div>
           ))}
         </div>
-
-        {/* Disclaimer */}
         <div className="px-5 py-3 bg-zinc-900/60 border-t border-zinc-800/50">
           <p className="text-[9px] text-zinc-600 leading-relaxed">
             ⚠️ Apuesta con valor matemático detectado. No existen picks seguros, sujeto a varianza deportiva.
@@ -138,35 +268,32 @@ function ImageGenerator() {
         </div>
       </div>
 
-      <button
-        onClick={handleGenerate}
-        disabled={generating}
-        className="w-full py-3 rounded-xl bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white font-bold text-sm tap transition-all flex items-center justify-center gap-2"
-      >
-        <Icon name="download" className="w-4 h-4" strokeWidth={2.2} />
-        {generating ? "Generando imagen..." : "Descargar imagen para Twitter/X"}
+      <button onClick={handleGenerate} disabled={generating}
+        className="w-full py-3 rounded-xl bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white font-bold text-sm tap transition-all flex items-center justify-center gap-2">
+        <Icon name={done ? "check" : "download"} className="w-4 h-4" strokeWidth={2.2} />
+        {generating ? "Generando imagen..." : done ? "¡Descargada!" : "Guardar imagen en galería"}
       </button>
-      <p className="text-[10px] text-zinc-700 text-center">La generación real de imagen se activa en la siguiente fase.</p>
+
+      {done && (
+        <p className="text-[11px] text-emerald-400 text-center font-bold">
+          ✓ Imagen guardada. Ahora compártela en Twitter/X y reclama tu bounty.
+        </p>
+      )}
     </div>
   )
 }
 
-// ── Bounty dashboard ─────────────────────────────────────────
-const DEMO_BOUNTIES = [
-  { id: "1", bet_title: "Combinada 3 legs @4.26", twitter_url: "https://x.com/...", status: "pending",  payout: null,  submitted_at: "Hace 2h" },
-  { id: "2", bet_title: "Over 2.5 UCL @1.80",     twitter_url: "https://x.com/...", status: "approved", payout: 15.00, submitted_at: "Hace 1d" },
-  { id: "3", bet_title: "Real Madrid Local @1.40", twitter_url: "https://x.com/...", status: "rejected", payout: null,  submitted_at: "Hace 3d" },
-]
-
+// ── Bounty dashboard ──────────────────────────────────────────
 const BOUNTY_STATUS = {
-  pending:  { label: "Pendiente", cls: "text-amber-400 bg-amber-500/10 border-amber-700/40" },
+  pending:  { label: "Pendiente", cls: "text-amber-400 bg-amber-500/10 border-amber-700/40"   },
   approved: { label: "Aprobado",  cls: "text-emerald-400 bg-emerald-500/10 border-emerald-700/40" },
-  rejected: { label: "Rechazado", cls: "text-rose-400 bg-rose-500/10 border-rose-700/40" },
+  rejected: { label: "Rechazado", cls: "text-rose-400 bg-rose-500/10 border-rose-700/40"     },
 } as const
 
 function BountyDashboard() {
   const [showSubmit, setShowSubmit] = useState(false)
   const [twitterUrl, setTwitterUrl] = useState("")
+  const bounties: any[] = [] // populated from API in Phase 3
 
   return (
     <div className="space-y-4">
@@ -181,65 +308,56 @@ function BountyDashboard() {
         </button>
       </div>
 
-      {/* How it works */}
       <div className="rounded-xl border border-zinc-800/60 bg-zinc-900/40 p-3.5 space-y-1.5">
-        <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500">¿Cómo funciona?</p>
+        <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-2">¿Cómo funciona?</p>
         {[
           "1. Genera la imagen de tu apuesta ganadora",
-          "2. Publícala en Twitter/X con el hashtag #SportsPicks",
+          "2. Publícala en Twitter/X con #SportsPicks",
           "3. Pega la URL del tweet aquí",
-          "4. Si la cuota era > 1.50 y ganó, recibes el bounty",
-        ].map((s) => (
-          <p key={s} className="text-[11px] text-zinc-500">{s}</p>
-        ))}
+          "4. Si la cuota era > 1.50 y ganó → cobras el bounty",
+        ].map((s) => <p key={s} className="text-[11px] text-zinc-500">{s}</p>)}
       </div>
 
-      {/* Submit form */}
       {showSubmit && (
         <div className="rounded-xl border border-amber-700/40 bg-amber-500/5 p-4 space-y-3">
           <p className="text-xs font-black text-amber-300">Reclamar bounty</p>
-          <input
-            value={twitterUrl}
-            onChange={(e) => setTwitterUrl(e.target.value)}
+          <input value={twitterUrl} onChange={(e) => setTwitterUrl(e.target.value)}
             placeholder="https://x.com/tu_tweet..."
-            className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-zinc-700"
-          />
-          <button
-            disabled={!twitterUrl.trim()}
-            className="w-full py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 disabled:opacity-30 text-white font-bold text-sm tap"
-          >
+            className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-zinc-700" />
+          <button disabled={!twitterUrl.trim()}
+            className="w-full py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 disabled:opacity-30 text-white font-bold text-sm tap">
             Enviar reclamación
           </button>
         </div>
       )}
 
-      {/* Bounty list */}
-      <div className="space-y-2">
-        {DEMO_BOUNTIES.map((b) => {
-          const s = BOUNTY_STATUS[b.status as keyof typeof BOUNTY_STATUS]
-          return (
-            <div key={b.id} className="rounded-xl border border-zinc-800/60 bg-zinc-900/40 p-3.5">
-              <div className="flex items-start justify-between gap-2">
-                <div className="min-w-0">
-                  <p className="text-xs font-bold text-white truncate">{b.bet_title}</p>
-                  <p className="text-[10px] text-zinc-600 mt-0.5">{b.submitted_at}</p>
+      {bounties.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-14 text-center">
+          <Icon name="gift" className="w-10 h-10 text-zinc-700 mb-3" strokeWidth={1.5} />
+          <p className="text-sm font-black text-zinc-400">Sin bounties aún</p>
+          <p className="text-[11px] text-zinc-600 mt-1">Genera una imagen, publícala y reclama tu recompensa.</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {bounties.map((b: any) => {
+            const s = BOUNTY_STATUS[b.status as keyof typeof BOUNTY_STATUS]
+            return (
+              <div key={b.id} className="rounded-xl border border-zinc-800/60 bg-zinc-900/40 p-3.5">
+                <div className="flex items-start justify-between gap-2">
+                  <p className="text-xs font-bold text-white truncate flex-1">{b.bet_title}</p>
+                  <span className={`text-[9px] font-black px-2 py-0.5 rounded-md border shrink-0 ${s.cls}`}>{s.label}</span>
                 </div>
-                <span className={`text-[9px] font-black px-2 py-0.5 rounded-md border shrink-0 ${s.cls}`}>
-                  {s.label}
-                </span>
+                {b.payout && <p className="text-sm font-black text-emerald-400 mt-1.5">+{b.payout.toFixed(2)}€ recibido</p>}
               </div>
-              {b.payout && (
-                <p className="text-sm font-black text-emerald-400 mt-1.5">+{b.payout.toFixed(2)}€ recibido</p>
-              )}
-            </div>
-          )
-        })}
-      </div>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }
 
-// ── Dashboard tabs ────────────────────────────────────────────
+// ── Dashboard ─────────────────────────────────────────────────
 type Tab = "generator" | "bounties"
 
 function CreatorsDashboard() {
@@ -247,41 +365,20 @@ function CreatorsDashboard() {
 
   return (
     <div className="safe-x">
-      {/* Header */}
       <div className="px-4 pt-6 pb-4">
         <div className="flex items-center gap-2 mb-1">
           <span className="section-label">Área VIP</span>
-          <span className="text-[10px] font-black bg-violet-500/15 border border-violet-700/50 text-violet-400 px-2 py-0.5 rounded-full">
-            TIPSTER
-          </span>
+          <span className="text-[10px] font-black bg-violet-500/15 border border-violet-700/50 text-violet-400 px-2 py-0.5 rounded-full">TIPSTER</span>
         </div>
         <h1 className="text-xl font-black text-white">Hub de Creadores</h1>
       </div>
 
-      {/* Stats row */}
-      <div className="px-4 mb-5">
-        <div className="grid grid-cols-3 gap-2">
-          {[
-            { label: "Bounties",  value: "2",    color: "text-amber-400" },
-            { label: "Ganados",   value: "1",    color: "text-emerald-400" },
-            { label: "Pagado",    value: "15€",  color: "text-emerald-400" },
-          ].map((s) => (
-            <div key={s.label} className="rounded-xl border border-zinc-800/60 bg-zinc-900/40 p-3 text-center">
-              <p className={`text-xl font-black ${s.color}`}>{s.value}</p>
-              <p className="text-[10px] text-zinc-500 mt-0.5">{s.label}</p>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Tab switcher */}
       <div className="px-4 mb-5">
         <div className="flex gap-1 p-1 rounded-xl bg-zinc-900 border border-zinc-800">
           {([["generator", "image", "Generador imagen"], ["bounties", "gift", "Mis bounties"]] as const).map(([id, icon, label]) => (
             <button key={id} onClick={() => setTab(id)}
               className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-bold tap transition-all ${tab === id ? "bg-zinc-800 text-white" : "text-zinc-500 hover:text-zinc-400"}`}>
-              <Icon name={icon} className="w-3.5 h-3.5" strokeWidth={2} />
-              {label}
+              <Icon name={icon} className="w-3.5 h-3.5" strokeWidth={2} />{label}
             </button>
           ))}
         </div>
@@ -300,7 +397,9 @@ export default function CreatorsPage() {
   const [unlocked, setUnlocked] = useState(false)
 
   if (status === "loading") {
-    return <div className="flex items-center justify-center min-h-[60vh]"><div className="w-8 h-8 rounded-full border-2 border-violet-500/40 border-t-violet-500 animate-spin" /></div>
+    return <div className="flex items-center justify-center min-h-[60vh]">
+      <div className="w-8 h-8 rounded-full border-2 border-violet-500/40 border-t-violet-500 animate-spin" />
+    </div>
   }
 
   return unlocked ? <CreatorsDashboard /> : <VipCodeGate onUnlock={() => setUnlocked(true)} />

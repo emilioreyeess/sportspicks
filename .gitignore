@@ -18,3 +18,4 @@ build/
 
 # Cache local de Claude
 .claude/
+.vercel
