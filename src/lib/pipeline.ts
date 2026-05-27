@@ -30,8 +30,10 @@ const LEAGUE_MAP: Record<string, string> = {
 const MIN_EDGE = 3
 const MAX_EDGE = 15
 const MIN_ODD = 1.40
-const QUALITY_GATE = 52
+const QUALITY_GATE = 56   // raised from 52 — stricter quality bar
 const MAX_PICKS = 10
+// Minimum odds for a handicap pick where the selected team is a clear underdog 1X2
+const MIN_ODD_HANDICAP_UNDERDOG = 1.75
 
 // ─── Tipos ──────────────────────────────────────────────────────────────────
 
@@ -302,8 +304,25 @@ function commonSensePass(c: Candidate, m: MatchModel): boolean {
   }
   // ─── Hándicap ─────────────────────────────────────────────────────────────
   if (c.market === "Hándicap") {
+    // Reject underdog-with-advantage at short odds (e.g. Arsenal +0.5 @ 1.60 vs PSG)
+    // If the team is a clear 1X2 underdog but receives a positive handicap line,
+    // the odds must compensate for the inherent risk.
+    if (c.key === "spreadAway") {
+      const awayProb1x2 = m.mdl.pAway
+      const isUnderdog   = awayProb1x2 < 0.40
+      const positiveSpread = m.odds.spreadLine != null && m.odds.spreadLine > 0  // line > 0 means away gets +
+      const oddVal = m.odds[c.key] ?? 0
+      if (isUnderdog && positiveSpread && oddVal < MIN_ODD_HANDICAP_UNDERDOG) return false
+    }
+    if (c.key === "spreadHome") {
+      const homeProb1x2 = m.mdl.pHome
+      const isUnderdog   = homeProb1x2 < 0.40
+      const positiveSpread = m.odds.spreadLine != null && m.odds.spreadLine < 0  // negative line means home gets +
+      const oddVal = m.odds[c.key] ?? 0
+      if (isUnderdog && positiveSpread && oddVal < MIN_ODD_HANDICAP_UNDERDOG) return false
+    }
     if (c.prob >= 0.55) return true
-    if (c.prob >= 0.45 && c.contextScore >= 55) return true
+    if (c.prob >= 0.45 && c.contextScore >= 60) return true
     return false
   }
   return true
@@ -650,15 +669,19 @@ export interface PoolEntry {
   awayDead: boolean
 }
 
-export function buildCombinadaPool(data: DailyData): PoolEntry[] {
+export function buildCombinadaPool(data: DailyData, excludeMatchIds: Set<string> = new Set()): PoolEntry[] {
   const pool: PoolEntry[] = []
   for (const m of data.matches) {
+    // Segregation: skip matches already used as value picks
+    if (excludeMatchIds.has(m.id)) continue
     const matchName = `${m.homeName} vs ${m.awayName}`
     const league = LEAGUE_NAMES[m.slug] ?? m.slug
     for (const c of buildCandidates(m)) {
       if (c.suppressed) continue
       const odd = m.odds[c.key]
-      if (!odd || odd <= 1.05) continue
+      if (!odd || odd <= 1.10) continue  // slightly tighter floor than before
+      // Apply common-sense gate to combinada candidates too (no absurd underdogs)
+      if (!commonSensePass(c, m)) continue
       pool.push({
         matchId: m.id, match: matchName, league, slug: m.slug,
         market: c.market, selection: c.selection,
@@ -1254,8 +1277,10 @@ export function runPipeline(reason = "scheduled"): Promise<void> {
         addLog(`📝 ${records.length} picks registrados en Learning Engine`)
       }
 
-      const combinadaPool = buildCombinadaPool(data)
-      addLog(`🎲 Pool de combinadas: ${combinadaPool.length} selecciones candidatas`)
+      // Segregation: combinada pool excludes matches already used as value picks
+      const valuePickMatchIds = new Set<string>(picks.map((p: any) => p.id))
+      const combinadaPool = buildCombinadaPool(data, valuePickMatchIds)
+      addLog(`🎲 Pool de combinadas: ${combinadaPool.length} selecciones candidatas (${valuePickMatchIds.size} partidos excluidos por value picks)`)
 
       const { challenges, note: retosNote } = computeRetos(data)
       addLog(`🏆 ${challenges.length} retos con pick diario real`)

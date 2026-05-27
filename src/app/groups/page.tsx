@@ -148,7 +148,14 @@ function ChatView({ group, onBack }: { group: Group; onBack: () => void }) {
         <span className="text-2xl">{group.avatar_emoji}</span>
         <div className="flex-1 min-w-0">
           <p className="text-sm font-black text-white truncate">{group.name}</p>
-          <p className="text-[10px] text-zinc-600">{group.member_count} miembro{group.member_count !== 1 ? "s" : ""}</p>
+          <div className="flex items-center gap-2">
+            <p className="text-[10px] text-zinc-600">{group.member_count} miembro{group.member_count !== 1 ? "s" : ""}</p>
+            {group.role === "admin" && group.invite_code && (
+              <p className="text-[10px] text-zinc-600">
+                · Código: <span className="text-emerald-400 font-bold tracking-widest">{group.invite_code}</span>
+              </p>
+            )}
+          </div>
         </div>
         {group.role === "admin" && (
           <button className="tap p-1.5 rounded-lg hover:bg-zinc-800 text-zinc-500">
@@ -319,7 +326,7 @@ function CreateGroupModal({ onClose, onCreated }: { onClose: () => void; onCreat
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-sm mx-4 sm:mx-auto rounded-2xl border border-zinc-800 bg-zinc-950 p-5 space-y-4 mb-4 sm:mb-0">
+      <div className="relative w-full max-w-sm mx-4 sm:mx-auto rounded-2xl border border-zinc-800 bg-zinc-950 p-5 space-y-4 mb-20 sm:mb-0">
         <div className="flex items-center justify-between">
           <h3 className="text-base font-black text-white">Nuevo grupo</h3>
           <button onClick={onClose} className="tap p-1 text-zinc-500 hover:text-white">
@@ -369,7 +376,7 @@ function JoinGroupModal({ onClose, onJoined }: { onClose: () => void; onJoined: 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-sm mx-4 sm:mx-auto rounded-2xl border border-zinc-800 bg-zinc-950 p-5 space-y-4 mb-4 sm:mb-0">
+      <div className="relative w-full max-w-sm mx-4 sm:mx-auto rounded-2xl border border-zinc-800 bg-zinc-950 p-5 space-y-4 mb-20 sm:mb-0">
         <div className="flex items-center justify-between">
           <h3 className="text-base font-black text-white">Unirse a un grupo</h3>
           <button onClick={onClose} className="tap p-1 text-zinc-500 hover:text-white">

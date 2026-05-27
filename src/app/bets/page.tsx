@@ -23,6 +23,7 @@ const STATUS_LABEL: Record<string, string> = { pending: "Pendiente", won: "Ganad
 const emptyForm = () => ({
   title: "", stake: "", combined_odds: "", sport: "football",
   legs: [{ match: "", selection: "", odds: "" }],
+  imageUrl: "",
 })
 
 export default function BetsPage() {
@@ -34,6 +35,7 @@ export default function BetsPage() {
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState(emptyForm())
   const [saving, setSaving] = useState(false)
+  const [uploadingImage, setUploadingImage] = useState(false)
   const [expanded, setExpanded] = useState<string | null>(null)
   const [filter, setFilter] = useState<"all" | "pending" | "won" | "lost">("all")
 
@@ -67,6 +69,23 @@ export default function BetsPage() {
     return product === 1 ? "" : product.toFixed(2)
   }
 
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || uploadingImage) return
+    if (!file.type.startsWith("image/")) return
+    if (file.size > 5 * 1024 * 1024) { alert("La imagen no puede superar 5 MB"); return }
+    setUploadingImage(true)
+    try {
+      const fd = new FormData()
+      fd.append("file", file)
+      const res = await fetch("/api/bets/upload", { method: "POST", body: fd })
+      if (!res.ok) { const d = await res.json().catch(() => ({})); alert(d.error ?? "Error al subir"); return }
+      const { url } = await res.json()
+      setForm(f => ({ ...f, imageUrl: url }))
+    } catch { alert("Error de conexión al subir la imagen") }
+    finally { setUploadingImage(false); e.target.value = "" }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     setSaving(true)
@@ -83,6 +102,7 @@ export default function BetsPage() {
         combined_odds: combo,
         sport: form.sport,
         legs,
+        image_url: form.imageUrl || undefined,
       }),
     })
     setSaving(false)
@@ -202,6 +222,21 @@ export default function BetsPage() {
                 </div>
               ))}
               <button type="button" onClick={addLeg} className="text-xs text-green-400 hover:text-green-300">+ Añadir selección</button>
+            </div>
+
+            {/* Image upload */}
+            <div className="flex items-center gap-2 pt-1">
+              <label className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border border-zinc-700 bg-zinc-800 text-xs text-zinc-400 hover:text-zinc-200 hover:border-zinc-600 cursor-pointer transition ${uploadingImage ? "opacity-40 pointer-events-none" : ""}`}>
+                <input type="file" accept="image/*" className="sr-only" onChange={handleImageUpload} disabled={uploadingImage} />
+                {uploadingImage
+                  ? <span className="w-3 h-3 rounded-full border-2 border-zinc-500 border-t-transparent animate-spin" />
+                  : <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>
+                }
+                {form.imageUrl ? "Foto adjunta ✓" : "Adjuntar foto"}
+              </label>
+              {form.imageUrl && (
+                <button type="button" onClick={() => setForm(f => ({ ...f, imageUrl: "" }))} className="text-xs text-red-400 hover:text-red-300">✕ Quitar</button>
+              )}
             </div>
 
             <div className="flex gap-2 pt-1">

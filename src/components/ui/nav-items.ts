@@ -25,6 +25,9 @@ export const NAV_MORE: NavItem[] = [
   { href: "/about",   label: "Sobre nosotros",  short: "Info",    icon: "shield"      },
 ]
 
+/** Nav item shown only to VIP tipsters — rendered conditionally by Sidebar */
+export const TIPSTER_NAV_ITEM: NavItem = { href: "/tipster", label: "Creators", short: "Creators", icon: "star" }
+
 export function isActive(path: string | null, href: string): boolean {
   if (!path) return false
   return href === "/" ? path === "/" : path === href || path.startsWith(href + "/")

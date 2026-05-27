@@ -17,14 +17,6 @@ function GoogleIcon() {
   )
 }
 
-function AppleIcon() {
-  return (
-    <svg className="w-4.5 h-4.5 shrink-0" viewBox="0 0 814 1000" fill="white">
-      <path d="M788.1 340.9c-5.8 4.5-108.2 62.2-108.2 190.5 0 148.4 130.3 200.9 134.2 202.2-.6 3.2-20.7 71.9-68.7 141.9-42.8 61.6-87.5 123.1-155.5 123.1s-85.5-39.5-164-39.5c-76 0-103.7 40.8-165.9 40.8s-105-57.8-155.5-127.4C46.7 790.7 0 663 0 541.8c0-207.5 135.4-317.3 269-317.3 70.1 0 128.4 46.4 172.5 46.4 42.8 0 109.6-49 190.5-49 30.6 0 110.6 2.6 168.3 83.2zm-107.4-133.8c22.7-26.9 38.5-64.3 38.5-101.7 0-5.2-.5-10.4-1.5-15.5-36.4 1.4-79.4 24.3-105.5 54.3-20.1 22.7-38.5 60.2-38.5 98.2 0 5.8.9 11.5 1.4 13.3 2.3.4 6.1.9 9.9.9 32.5 0 73.1-21.8 95.7-49.5z"/>
-    </svg>
-  )
-}
-
 function Spinner() {
   return (
     <svg className="w-4 h-4 animate-spin shrink-0" viewBox="0 0 24 24" fill="none">
@@ -37,6 +29,15 @@ function Spinner() {
 export default function SignInPage() {
   const [providers, setProviders] = useState<Record<string, Provider> | null>(null)
   const [loading, setLoading] = useState<string | null>(null)
+  const [mode, setMode] = useState<"login" | "register">("login")
+
+  // Email/password form state
+  const [email, setEmail]       = useState("")
+  const [password, setPassword] = useState("")
+  const [name, setName]         = useState("")
+  const [tyc, setTyc]           = useState(false)
+  const [cookies, setCookies]   = useState(false)
+  const [formError, setFormError] = useState("")
 
   useEffect(() => { getProviders().then(setProviders) }, [])
 
@@ -46,24 +47,59 @@ export default function SignInPage() {
     setLoading(null)
   }
 
+  async function handleCredentials(e: React.FormEvent) {
+    e.preventDefault()
+    setFormError("")
+
+    if (mode === "register" && (!tyc || !cookies)) {
+      setFormError("Debes aceptar los Términos y la Política de Cookies para continuar.")
+      return
+    }
+    if (password.length < 8) {
+      setFormError("La contraseña debe tener al menos 8 caracteres.")
+      return
+    }
+
+    setLoading("credentials")
+    const result = await signIn("credentials", {
+      redirect: false,
+      email,
+      password,
+      name: mode === "register" ? name : "",
+      mode,
+    })
+    setLoading(null)
+
+    if (result?.error) {
+      if (result.error.includes("EMAIL_TAKEN")) {
+        setFormError("Este email ya está registrado. Inicia sesión.")
+      } else {
+        setFormError(mode === "login" ? "Email o contraseña incorrectos." : "Error al crear la cuenta. Inténtalo de nuevo.")
+      }
+    } else {
+      window.location.href = "/"
+    }
+  }
+
   const features = [
-    { icon: "value",   label: "Value Picks diarios con modelo Poisson" },
-    { icon: "bot",     label: "Bot IA que analiza tu boleto con fotos" },
+    { icon: "value",      label: "Value Picks diarios con modelo Poisson" },
+    { icon: "bot",        label: "Bot IA que analiza tu boleto con fotos" },
     { icon: "combinadas", label: "Combinadas generadas con cuotas reales" },
-    { icon: "stats",   label: "Estadísticas avanzadas de ESPN" },
+    { icon: "stats",      label: "Estadísticas avanzadas de ESPN" },
   ]
+
+  const canSubmitCredentials = mode === "login"
+    ? email && password
+    : email && password && name && tyc && cookies
 
   return (
     <div className="fixed inset-0 z-[100] flex">
       {/* ─── Left panel (decorative, desktop only) ──────────────────────── */}
       <div className="hidden lg:flex lg:w-[45%] xl:w-[48%] relative overflow-hidden bg-zinc-950 flex-col justify-between p-12">
-
-        {/* Ambient gradients */}
         <div className="pointer-events-none absolute inset-0">
           <div className="absolute -top-24 -left-24 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl" />
           <div className="absolute top-1/2 -right-32 w-80 h-80 bg-cyan-500/8 rounded-full blur-3xl" />
           <div className="absolute -bottom-24 left-1/4 w-72 h-72 bg-violet-500/8 rounded-full blur-3xl" />
-          {/* Subtle grid pattern */}
           <div className="absolute inset-0 opacity-[0.03]"
             style={{
               backgroundImage: "linear-gradient(rgba(255,255,255,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.5) 1px, transparent 1px)",
@@ -72,7 +108,6 @@ export default function SignInPage() {
           />
         </div>
 
-        {/* Brand */}
         <div className="relative">
           <div className="flex items-center gap-3 mb-16">
             <span className="grid place-items-center w-11 h-11 rounded-2xl bg-gradient-to-br from-emerald-500/30 to-cyan-500/20 border border-emerald-600/40 text-emerald-400 shadow-[0_0_20px_rgba(52,211,153,0.2)]">
@@ -83,7 +118,6 @@ export default function SignInPage() {
               <p className="text-[11px] text-emerald-400/80 font-bold tracking-wide">Analytics Engine</p>
             </div>
           </div>
-
           <h1 className="text-4xl xl:text-5xl font-black text-white tracking-tight leading-[1.08] mb-5">
             Análisis deportivo<br />
             <span className="gradient-text-static">cuantitativo</span>
@@ -93,7 +127,6 @@ export default function SignInPage() {
           </p>
         </div>
 
-        {/* Feature list */}
         <div className="relative space-y-3">
           <p className="text-[11px] font-black uppercase tracking-widest text-zinc-600 mb-4">Incluido en tu cuenta</p>
           {features.map((f) => (
@@ -106,12 +139,9 @@ export default function SignInPage() {
           ))}
         </div>
 
-        {/* Footer */}
         <div className="relative">
           <div className="h-px bg-zinc-800/80 mb-5" />
-          <p className="text-[11px] text-zinc-600">
-            +18 · Solo información. Juega con responsabilidad.
-          </p>
+          <p className="text-[11px] text-zinc-600">+18 · Solo información. Juega con responsabilidad.</p>
         </div>
       </div>
 
@@ -119,13 +149,12 @@ export default function SignInPage() {
       <div className="flex-1 flex items-center justify-center px-5 py-8 relative overflow-y-auto"
         style={{ background: "#09090b" }}>
 
-        {/* Ambient for mobile */}
         <div className="pointer-events-none absolute inset-0 lg:hidden">
           <div className="absolute -top-32 left-1/2 -translate-x-1/2 w-96 h-96 bg-emerald-500/8 rounded-full blur-3xl" />
           <div className="absolute bottom-0 right-0 w-64 h-64 bg-violet-500/6 rounded-full blur-3xl" />
         </div>
 
-        <div className="relative w-full max-w-[360px] animate-fade-in">
+        <div className="relative w-full max-w-[380px] animate-fade-in">
 
           {/* Mobile-only logo */}
           <div className="lg:hidden text-center mb-8">
@@ -145,20 +174,117 @@ export default function SignInPage() {
               boxShadow: "0 8px 40px -4px rgba(0,0,0,0.6), 0 4px 16px -4px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.04)",
             }}
           >
-            {/* Card header */}
-            <div className="px-6 pt-6 pb-5 border-b border-zinc-800/70">
-              <h2 className="text-lg font-black text-white">Accede a la plataforma</h2>
-              <p className="text-sm text-zinc-500 mt-1">Inicia sesión para continuar</p>
+            {/* Card header + mode toggle */}
+            <div className="px-6 pt-6 pb-4 border-b border-zinc-800/70">
+              <h2 className="text-lg font-black text-white">
+                {mode === "login" ? "Accede a la plataforma" : "Crear cuenta"}
+              </h2>
+              <p className="text-sm text-zinc-500 mt-0.5">
+                {mode === "login" ? "¿No tienes cuenta?" : "¿Ya tienes cuenta?"}
+                {" "}
+                <button
+                  type="button"
+                  onClick={() => { setMode(m => m === "login" ? "register" : "login"); setFormError("") }}
+                  className="text-emerald-400 hover:text-emerald-300 font-bold transition-colors"
+                >
+                  {mode === "login" ? "Regístrate" : "Inicia sesión"}
+                </button>
+              </p>
             </div>
 
-            {/* Providers */}
             <div className="px-6 py-5 space-y-3">
-              {/* Loading skeleton */}
-              {!providers && (
-                <>
-                  <div className="h-12 rounded-xl skeleton" />
-                  <div className="h-12 rounded-xl skeleton" style={{ animationDelay: "0.1s" }} />
-                </>
+              {/* Email/password form */}
+              <form onSubmit={handleCredentials} className="space-y-2.5">
+                {mode === "register" && (
+                  <input
+                    type="text"
+                    placeholder="Tu nombre"
+                    value={name}
+                    onChange={e => setName(e.target.value)}
+                    required
+                    className="w-full h-11 px-3.5 rounded-xl bg-zinc-900 border border-zinc-700/60 text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-emerald-600/60 transition-colors"
+                  />
+                )}
+                <input
+                  type="email"
+                  placeholder="Email"
+                  value={email}
+                  onChange={e => setEmail(e.target.value)}
+                  required
+                  autoComplete="email"
+                  className="w-full h-11 px-3.5 rounded-xl bg-zinc-900 border border-zinc-700/60 text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-emerald-600/60 transition-colors"
+                />
+                <input
+                  type="password"
+                  placeholder="Contraseña (mín. 8 caracteres)"
+                  value={password}
+                  onChange={e => setPassword(e.target.value)}
+                  required
+                  minLength={8}
+                  autoComplete={mode === "register" ? "new-password" : "current-password"}
+                  className="w-full h-11 px-3.5 rounded-xl bg-zinc-900 border border-zinc-700/60 text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-emerald-600/60 transition-colors"
+                />
+
+                {/* TyC + Cookies checkboxes (mandatory for register) */}
+                {mode === "register" && (
+                  <div className="space-y-2 pt-1">
+                    <label className="flex items-start gap-2.5 cursor-pointer group">
+                      <input
+                        type="checkbox"
+                        checked={tyc}
+                        onChange={e => setTyc(e.target.checked)}
+                        className="mt-0.5 w-4 h-4 rounded accent-emerald-500 shrink-0 cursor-pointer"
+                      />
+                      <span className="text-[11px] text-zinc-400 leading-relaxed">
+                        He leído y acepto los{" "}
+                        <a href="/legal/terms" target="_blank" className="text-emerald-400 hover:text-emerald-300 underline underline-offset-2">
+                          Términos y Condiciones
+                        </a>{" "}
+                        de uso de la plataforma. <span className="text-red-400">*</span>
+                      </span>
+                    </label>
+                    <label className="flex items-start gap-2.5 cursor-pointer group">
+                      <input
+                        type="checkbox"
+                        checked={cookies}
+                        onChange={e => setCookies(e.target.checked)}
+                        className="mt-0.5 w-4 h-4 rounded accent-emerald-500 shrink-0 cursor-pointer"
+                      />
+                      <span className="text-[11px] text-zinc-400 leading-relaxed">
+                        Acepto la{" "}
+                        <a href="/legal/privacy" target="_blank" className="text-emerald-400 hover:text-emerald-300 underline underline-offset-2">
+                          Política de Privacidad y Cookies
+                        </a>
+                        . <span className="text-red-400">*</span>
+                      </span>
+                    </label>
+                  </div>
+                )}
+
+                {formError && (
+                  <p className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
+                    {formError}
+                  </p>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={!canSubmitCredentials || !!loading}
+                  className="w-full h-11 rounded-xl text-sm font-bold bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white transition-all tap flex items-center justify-center gap-2"
+                >
+                  {loading === "credentials" ? <><Spinner /><span>Procesando…</span></> : (
+                    mode === "login" ? "Iniciar sesión" : "Crear cuenta"
+                  )}
+                </button>
+              </form>
+
+              {/* Divider */}
+              {providers?.google && (
+                <div className="flex items-center gap-3 py-1">
+                  <div className="flex-1 h-px bg-zinc-800" />
+                  <span className="text-[11px] text-zinc-600 font-medium">o continúa con</span>
+                  <div className="flex-1 h-px bg-zinc-800" />
+                </div>
               )}
 
               {/* Google */}
@@ -166,7 +292,7 @@ export default function SignInPage() {
                 <button
                   onClick={() => handleSignIn("google")}
                   disabled={!!loading}
-                  className="group w-full flex items-center justify-center gap-3 h-12 px-4 rounded-xl text-sm font-bold transition-all tap disabled:opacity-60 hover:scale-[1.01]"
+                  className="group w-full flex items-center justify-center gap-3 h-11 px-4 rounded-xl text-sm font-bold transition-all tap disabled:opacity-60 hover:scale-[1.01]"
                   style={{
                     background: loading === "google" ? "#e5e7eb" : "#ffffff",
                     color: "#111827",
@@ -177,46 +303,17 @@ export default function SignInPage() {
                   <span>{loading === "google" ? "Conectando…" : "Continuar con Google"}</span>
                 </button>
               )}
-
-              {/* Apple */}
-              {providers?.apple && (
-                <button
-                  onClick={() => handleSignIn("apple")}
-                  disabled={!!loading}
-                  className="group w-full flex items-center justify-center gap-3 h-12 px-4 rounded-xl border border-zinc-700/80 bg-black hover:bg-zinc-900 text-sm font-bold text-white transition-all tap disabled:opacity-60 hover:scale-[1.01]"
-                >
-                  {loading === "apple" ? <Spinner /> : <AppleIcon />}
-                  <span>{loading === "apple" ? "Conectando…" : "Continuar con Apple"}</span>
-                </button>
-              )}
             </div>
 
             {/* Footer */}
             <div className="px-6 pb-5">
-              {/* Trust signals */}
-              <div className="flex items-center justify-center gap-4 mb-4">
-                {[
-                  { icon: "🔒", label: "Sin contraseña" },
-                  { icon: "⚡", label: "Acceso inmediato" },
-                  { icon: "🛡️", label: "Privado" },
-                ].map((t) => (
-                  <div key={t.label} className="flex flex-col items-center gap-0.5">
-                    <span className="text-base">{t.icon}</span>
-                    <span className="text-[10px] text-zinc-600 font-medium">{t.label}</span>
-                  </div>
-                ))}
-              </div>
               <p className="text-[11px] text-zinc-600 text-center leading-relaxed">
-                Al acceder aceptas nuestros{" "}
-                <a href="/legal/terms" className="text-zinc-400 hover:text-white underline underline-offset-2 transition-colors">Términos</a>{" "}
-                y{" "}
-                <a href="/legal/privacy" className="text-zinc-400 hover:text-white underline underline-offset-2 transition-colors">Privacidad</a>.
-                <br />+18 · Análisis informativo, no asesoramiento financiero.
+                +18 · Análisis informativo, no asesoramiento financiero.
               </p>
             </div>
           </div>
 
-          {/* Social proof (mobile + desktop right panel) */}
+          {/* Social proof */}
           <div className="mt-6 flex items-center justify-center gap-1.5 text-xs text-zinc-600">
             <span className="flex -space-x-1.5">
               {["🟢","🔵","🟣"].map((c, i) => (

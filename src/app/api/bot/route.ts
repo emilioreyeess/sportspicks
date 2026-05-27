@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth-options"
 import { fetchStandings, classifyMotivation } from "@/lib/engine"
 import { consume, getClientIp, tooManyRequests } from "@/lib/rate-limit"
+import { getStore } from "@/lib/store"
 
 export const runtime = "nodejs"
 export const maxDuration = 60
@@ -404,6 +405,45 @@ async function executeTool(name: string, input: Record<string, string>): Promise
   }
 }
 
+function buildTodayContext(): string {
+  try {
+    const store = getStore()
+    if (!store.valuePicks?.length && !store.combinadaPool?.length) return ""
+
+    const today = new Date().toISOString().split("T")[0]
+    const lines: string[] = [`\n═══════════════════════════════════`, `PICKS DE HOY (${today}) — GENERADOS POR EL MOTOR POISSON`, `═══════════════════════════════════`]
+
+    const valuePicks = (store.valuePicks ?? []).slice(0, 8)
+    if (valuePicks.length) {
+      lines.push(`\nVALUE PICKS DEL DÍA (${valuePicks.length} picks):`)
+      for (const p of valuePicks) {
+        const match = `${p.homeName ?? "?"} vs ${p.awayName ?? "?"}`
+        const sel   = p.selection ?? p.market ?? "?"
+        const odds  = p.odds != null ? `@ ${p.odds}` : ""
+        const edge  = p.edge != null ? `edge +${p.edge.toFixed(1)}%` : ""
+        const tier  = p.tier ? `[${p.tier}]` : ""
+        lines.push(`• ${match} → ${sel} ${odds} ${edge} ${tier}`.trim())
+      }
+    }
+
+    const combinadas = (store.combinadaPool ?? []).slice(0, 3)
+    if (combinadas.length) {
+      lines.push(`\nCOMBINADAS SUGERIDAS (${combinadas.length}):`)
+      for (const c of combinadas) {
+        const legs  = (c.legs ?? []).map((l: any) => `${l.selection ?? l.market}`).join(" + ")
+        const odds  = c.combinedOdds != null ? `cuota total ${c.combinedOdds.toFixed(2)}` : ""
+        lines.push(`• ${legs} ${odds}`.trim())
+      }
+    }
+
+    lines.push(`\nInstrucción: Cuando el usuario pregunte sobre picks del día, partidos de hoy o recomendaciones, usa PRIMERO esta información como contexto. Si el usuario pregunta por un partido específico NO listado aquí, usa las herramientas ESPN para analizarlo.`)
+
+    return lines.join("\n")
+  } catch {
+    return ""
+  }
+}
+
 const SYSTEM_PROMPT = `Eres PicksBot, analista de fútbol global con acceso a datos REALES de ESPN para cualquier equipo del mundo.
 
 ═══════════════════════════════════
@@ -564,7 +604,7 @@ export async function POST(req: Request) {
             const response = await client.messages.create({
               model: "claude-opus-4-5",
               max_tokens: 2500,
-              system: SYSTEM_PROMPT,
+              system: SYSTEM_PROMPT + buildTodayContext(),
               tools: TOOLS,
               messages: currentMessages,
             })

@@ -21,6 +21,7 @@ interface PlanContextValue {
   setPlan: (p: PlanId) => void
   isPremium: boolean
   isPro: boolean
+  isVipTipster: boolean
   can: (feature: Feature) => boolean
   ready: boolean
 }
@@ -40,6 +41,7 @@ function writeStoredPlan(p: PlanId) {
 export function PlanProvider({ children }: { children: React.ReactNode }) {
   const { data: session, status } = useSession()
   const [plan, setPlanState] = useState<PlanId>("free")
+  const [isVipTipster, setIsVipTipster] = useState(false)
   const [ready, setReady] = useState(false)
 
   // ─── Paso 1: cargar localStorage inmediatamente (sin flash) ──────────────
@@ -63,10 +65,11 @@ export function PlanProvider({ children }: { children: React.ReactNode }) {
     fetch("/api/auth/plan", { credentials: "include" })
       .then(async (r) => {
         if (!r.ok) return
-        const data = await r.json() as { plan: PlanId; source: string }
+        const data = await r.json() as { plan: PlanId; source: string; is_vip_tipster?: boolean }
         const resolved = data.plan === "premium" || data.plan === "pro" ? data.plan : "free"
         setPlanState(resolved)
         writeStoredPlan(resolved)           // sincronizar localStorage como caché
+        setIsVipTipster(data.is_vip_tipster === true)
       })
       .catch(() => {
         // Error de red → usar localStorage como fallback
@@ -90,9 +93,10 @@ export function PlanProvider({ children }: { children: React.ReactNode }) {
     setPlan,
     isPremium: plan === "premium" || plan === "pro",
     isPro: plan === "pro",
+    isVipTipster,
     can: (feature: Feature) => planHas(plan, feature),
     ready,
-  }), [plan, setPlan, ready])
+  }), [plan, setPlan, isVipTipster, ready])
 
   return <PlanContext.Provider value={value}>{children}</PlanContext.Provider>
 }
@@ -102,7 +106,7 @@ export function usePlan(): PlanContextValue {
   if (!ctx) {
     return {
       plan: "free", setPlan: () => {}, isPremium: false, isPro: false,
-      can: () => false, ready: true,
+      isVipTipster: false, can: () => false, ready: true,
     }
   }
   return ctx

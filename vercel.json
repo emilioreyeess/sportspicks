@@ -12,6 +12,10 @@
     {
       "path": "/api/world-cup/sync",
       "schedule": "0 10 * * *"
+    },
+    {
+      "path": "/api/cron/refresh-picks",
+      "schedule": "30 6 * * *"
     }
   ]
 }

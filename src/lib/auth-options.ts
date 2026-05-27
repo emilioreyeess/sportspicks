@@ -1,6 +1,23 @@
 import type { NextAuthOptions } from "next-auth"
 import GoogleProvider from "next-auth/providers/google"
+import CredentialsProvider from "next-auth/providers/credentials"
+import { scryptSync, randomBytes, timingSafeEqual } from "crypto"
 import { getGrantedPlan } from "@/lib/plan-grants"
+
+function hashPassword(password: string): { hash: string; salt: string } {
+  const salt = randomBytes(16).toString("hex")
+  const hash = scryptSync(password, salt, 64).toString("hex")
+  return { hash, salt }
+}
+
+function verifyPassword(password: string, hash: string, salt: string): boolean {
+  try {
+    const derived = scryptSync(password, salt, 64)
+    return timingSafeEqual(derived, Buffer.from(hash, "hex"))
+  } catch {
+    return false
+  }
+}
 
 async function upsertUserToSupabase(user: {
   email: string | null | undefined
@@ -55,6 +72,67 @@ if (process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET) {
     })
   )
 }
+
+providers.push(
+  CredentialsProvider({
+    id: "credentials",
+    name: "Email y contraseña",
+    credentials: {
+      email:    { label: "Email",        type: "email"    },
+      password: { label: "Contraseña",   type: "password" },
+      name:     { label: "Nombre",       type: "text"     },
+      mode:     { label: "Modo",         type: "text"     }, // "login" | "register"
+    },
+    async authorize(credentials) {
+      if (!credentials?.email || !credentials?.password) return null
+
+      const email    = credentials.email.toLowerCase().trim()
+      const password = credentials.password
+      const mode     = credentials.mode ?? "login"
+
+      if (password.length < 8) return null
+
+      const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+      const key = process.env.SUPABASE_SERVICE_ROLE_KEY
+      if (!url || !key) return null
+
+      const { createClient } = await import("@supabase/supabase-js")
+      const sb = createClient(url, key, { auth: { persistSession: false } })
+
+      const { data: existing } = await sb
+        .from("users_log")
+        .select("email, name, avatar_url, password_hash, password_salt")
+        .eq("email", email)
+        .maybeSingle()
+
+      if (mode === "register") {
+        if (existing) throw new Error("EMAIL_TAKEN")
+        const { hash, salt } = hashPassword(password)
+        const displayName = credentials.name?.trim() || email.split("@")[0]
+        const { error } = await sb.from("users_log").insert({
+          email,
+          name:          displayName,
+          provider:      "credentials",
+          password_hash: hash,
+          password_salt: salt,
+          last_sign_in:  new Date().toISOString(),
+        })
+        if (error) return null
+        return { id: email, email, name: displayName, image: null }
+      }
+
+      // Login
+      if (!existing?.password_hash || !existing?.password_salt) return null
+      if (!verifyPassword(password, existing.password_hash, existing.password_salt)) return null
+
+      await sb.from("users_log")
+        .update({ last_sign_in: new Date().toISOString() })
+        .eq("email", email)
+
+      return { id: email, email, name: existing.name, image: existing.avatar_url }
+    },
+  })
+)
 
 export const authOptions: NextAuthOptions = {
   providers,
