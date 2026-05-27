@@ -215,25 +215,38 @@ function VipCodeGate({ onUnlock }: { onUnlock: () => void }) {
 }
 
 // ── Image Generator ───────────────────────────────────────────
-const DEFAULT_BET: BetData = {
-  title: "Combinada Premium",
-  legs: [
-    { match: "Real Madrid vs Barça",  selection: "Over 2.5",    odds: 1.72 },
-    { match: "PSG vs Bayern",         selection: "Ambos marcan", odds: 1.55 },
-    { match: "Man City vs Arsenal",   selection: "Local",        odds: 1.60 },
-  ],
-  combinedOdds: 4.26,
-  aiProb: 38.4,
-  edge: 12.3,
+const EMPTY_LEG: BetLeg = { match: "", selection: "", odds: 1.5 }
+
+function calcCombinedOdds(legs: BetLeg[]) {
+  return legs.reduce((acc, l) => acc * (l.odds || 1), 1)
 }
 
 function ImageGenerator() {
-  const [bet]        = useState<BetData>(DEFAULT_BET)
+  const [title, setTitle]         = useState("Mi Combinada")
+  const [legs, setLegs]           = useState<BetLeg[]>([
+    { match: "", selection: "", odds: 1.5 },
+    { match: "", selection: "", odds: 1.5 },
+  ])
+  const [aiProb, setAiProb]       = useState(35)
+  const [ventaja, setVentaja]     = useState(10)
   const [generating, setGenerating] = useState(false)
-  const [done, setDone]             = useState(false)
-  const previewRef   = useRef<HTMLDivElement>(null)
+  const [done, setDone]           = useState(false)
+  const [showForm, setShowForm]   = useState(true)
+
+  const combinedOdds = calcCombinedOdds(legs)
+
+  function updateLeg(i: number, field: keyof BetLeg, value: string | number) {
+    setLegs(prev => prev.map((l, idx) => idx === i ? { ...l, [field]: value } : l))
+    setDone(false)
+  }
+  function addLeg()    { if (legs.length < 8) setLegs(prev => [...prev, { ...EMPTY_LEG }]) }
+  function removeLeg(i: number) { if (legs.length > 1) setLegs(prev => prev.filter((_, idx) => idx !== i)) }
+
+  const bet: BetData = { title, legs, combinedOdds, aiProb, edge: ventaja }
+  const isValid = legs.every(l => l.match.trim() && l.selection.trim() && l.odds >= 1.01)
 
   async function handleGenerate() {
+    if (!isValid) return
     setGenerating(true); setDone(false)
     try {
       const blob = await generateBetImage(bet)
@@ -248,57 +261,117 @@ function ImageGenerator() {
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-2 mb-1">
-        <Icon name="image" className="w-4 h-4 text-violet-400" strokeWidth={2} />
-        <span className="text-xs font-black uppercase tracking-widest text-violet-400">Generador de imagen</span>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <Icon name="image" className="w-4 h-4 text-violet-400" strokeWidth={2} />
+          <span className="text-xs font-black uppercase tracking-widest text-violet-400">Generador de imagen</span>
+        </div>
+        <button onClick={() => setShowForm(v => !v)}
+          className="text-[11px] text-zinc-500 hover:text-zinc-300 tap font-bold">
+          {showForm ? "Ocultar formulario" : "Editar datos"}
+        </button>
       </div>
 
+      {/* Editable form */}
+      {showForm && (
+        <div className="rounded-xl border border-zinc-800/60 bg-zinc-900/40 p-4 space-y-3">
+          {/* Title */}
+          <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Nombre de la combinada"
+            className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-violet-600" />
+
+          {/* Legs */}
+          <div className="space-y-2">
+            <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Selecciones ({legs.length})</p>
+            {legs.map((leg, i) => (
+              <div key={i} className="rounded-lg border border-zinc-700/50 bg-zinc-800/50 p-2.5 space-y-2">
+                <div className="flex items-center justify-between gap-1">
+                  <span className="text-[10px] font-black text-zinc-500">#{i + 1}</span>
+                  {legs.length > 1 && (
+                    <button onClick={() => removeLeg(i)} className="tap text-zinc-600 hover:text-rose-400">
+                      <Icon name="trash" className="w-3.5 h-3.5" strokeWidth={2} />
+                    </button>
+                  )}
+                </div>
+                <input value={leg.match} onChange={e => updateLeg(i, "match", e.target.value)}
+                  placeholder="Partido (ej: Real Madrid vs Barça)"
+                  className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-violet-600" />
+                <div className="flex gap-2">
+                  <input value={leg.selection} onChange={e => updateLeg(i, "selection", e.target.value)}
+                    placeholder="Selección (ej: Over 2.5)"
+                    className="flex-1 bg-zinc-900 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-violet-600" />
+                  <input type="number" value={leg.odds} min={1.01} max={99} step={0.01}
+                    onChange={e => updateLeg(i, "odds", parseFloat(e.target.value) || 1.01)}
+                    className="w-20 bg-zinc-900 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs text-emerald-400 font-bold focus:outline-none focus:border-violet-600" />
+                </div>
+              </div>
+            ))}
+            {legs.length < 8 && (
+              <button onClick={addLeg}
+                className="w-full py-2 rounded-lg border border-dashed border-zinc-700 text-zinc-500 hover:text-zinc-300 hover:border-zinc-600 text-xs font-bold tap transition-colors">
+                + Añadir selección
+              </button>
+            )}
+          </div>
+
+          {/* Prob + Ventaja */}
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <p className="text-[10px] text-zinc-500 mb-1">Prob. IA (%)</p>
+              <input type="number" value={aiProb} min={1} max={99}
+                onChange={e => setAiProb(Number(e.target.value))}
+                className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs text-violet-400 font-bold focus:outline-none focus:border-violet-600" />
+            </div>
+            <div>
+              <p className="text-[10px] text-zinc-500 mb-1">Ventaja (%)</p>
+              <input type="number" value={ventaja} min={0} max={99}
+                onChange={e => setVentaja(Number(e.target.value))}
+                className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs text-emerald-400 font-bold focus:outline-none focus:border-violet-600" />
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Preview */}
-      <div ref={previewRef}
-        className="rounded-2xl border border-violet-700/50 bg-gradient-to-br from-violet-900/30 via-zinc-900 to-zinc-950 overflow-hidden">
+      <div className="rounded-2xl border border-violet-700/50 bg-gradient-to-br from-violet-900/30 via-zinc-900 to-zinc-950 overflow-hidden">
         <div className="px-5 pt-5 pb-4 border-b border-violet-800/30">
           <div className="flex items-center gap-2 mb-3">
             <span className="text-xs font-black text-zinc-400">⚡ SportsPicks Analytics</span>
             <span className="ml-auto text-[10px] font-black bg-violet-500/15 border border-violet-700/50 text-violet-400 px-2 py-0.5 rounded-full">TIPSTER VIP</span>
           </div>
-          <h3 className="text-lg font-black text-white">{bet.title}</h3>
+          <h3 className="text-lg font-black text-white">{title || "Mi Combinada"}</h3>
           <div className="flex items-center gap-3 mt-2">
-            <span className="text-2xl font-black text-emerald-400">@{bet.combinedOdds.toFixed(2)}</span>
+            <span className="text-2xl font-black text-emerald-400">@{combinedOdds.toFixed(2)}</span>
             <div className="text-xs text-zinc-500">
-              <p>Prob. IA: <span className="text-violet-400 font-bold">{bet.aiProb}%</span></p>
-              <p>Edge: <span className="text-emerald-400 font-bold">+{bet.edge}%</span></p>
+              <p>Prob. IA: <span className="text-violet-400 font-bold">{aiProb}%</span></p>
+              <p>Ventaja: <span className="text-emerald-400 font-bold">+{ventaja}%</span></p>
             </div>
           </div>
         </div>
-        <div className="px-5 py-3 space-y-2.5">
-          {bet.legs.map((leg, i) => (
-            <div key={i} className="flex items-center justify-between gap-2 py-1.5 border-b border-zinc-800/50 last:border-0">
+        <div className="px-5 py-3 space-y-2">
+          {legs.map((leg, i) => (
+            <div key={i} className="flex items-center justify-between gap-2 py-1 border-b border-zinc-800/50 last:border-0">
               <div className="min-w-0">
-                <p className="text-xs font-bold text-white truncate">{leg.match}</p>
-                <p className="text-[10px] text-zinc-500">{leg.selection}</p>
+                <p className="text-xs font-bold text-white truncate">{leg.match || `Partido ${i + 1}`}</p>
+                <p className="text-[10px] text-zinc-500">{leg.selection || "—"}</p>
               </div>
-              <span className="text-sm font-black text-emerald-400 shrink-0">@{leg.odds.toFixed(2)}</span>
+              <span className="text-sm font-black text-emerald-400 shrink-0">@{(leg.odds || 1.5).toFixed(2)}</span>
             </div>
           ))}
         </div>
         <div className="px-5 py-3 bg-zinc-900/60 border-t border-zinc-800/50">
-          <p className="text-[9px] text-zinc-600 leading-relaxed">
+          <p className="text-[9px] text-zinc-500 leading-relaxed">
             ⚠️ Apuesta con valor matemático detectado. No existen picks seguros, sujeto a varianza deportiva.
           </p>
         </div>
       </div>
 
-      <button onClick={handleGenerate} disabled={generating}
-        className="w-full py-3 rounded-xl bg-violet-600 hover:bg-violet-500 disabled:opacity-50 text-white font-bold text-sm tap transition-all flex items-center justify-center gap-2">
+      <button onClick={handleGenerate} disabled={generating || !isValid}
+        className="w-full py-3 rounded-xl bg-violet-600 hover:bg-violet-500 disabled:opacity-40 text-white font-bold text-sm tap transition-all flex items-center justify-center gap-2">
         <Icon name={done ? "check" : "download"} className="w-4 h-4" strokeWidth={2.2} />
-        {generating ? "Generando imagen..." : done ? "¡Descargada!" : "Guardar imagen en galería"}
+        {generating ? "Generando imagen..." : done ? "¡Guardada en galería!" : "Guardar imagen en galería"}
       </button>
-
-      {done && (
-        <p className="text-[11px] text-emerald-400 text-center font-bold">
-          ✓ Imagen guardada. Ahora compártela en Twitter/X y reclama tu bounty.
-        </p>
-      )}
+      {!isValid && <p className="text-[10px] text-zinc-600 text-center">Rellena todos los campos para generar la imagen.</p>}
+      {done && <p className="text-[11px] text-emerald-400 text-center font-bold">✓ Imagen guardada. Compártela en Twitter/X y reclama tu bounty.</p>}
     </div>
   )
 }
@@ -313,7 +386,26 @@ const BOUNTY_STATUS = {
 function BountyDashboard() {
   const [showSubmit, setShowSubmit] = useState(false)
   const [twitterUrl, setTwitterUrl] = useState("")
-  const bounties: any[] = [] // populated from API in Phase 3
+  const [sending, setSending]       = useState(false)
+  const [sent, setSent]             = useState(false)
+  const [submitError, setSubmitError] = useState("")
+  const bounties: any[] = []
+
+  async function handleClaim() {
+    if (!twitterUrl.trim()) return
+    setSending(true); setSubmitError("")
+    try {
+      // API wired in Phase 3 — optimistic success for now
+      await new Promise(r => setTimeout(r, 700))
+      setSent(true)
+      setShowSubmit(false)
+      setTwitterUrl("")
+    } catch {
+      setSubmitError("Error al enviar. Inténtalo de nuevo.")
+    } finally {
+      setSending(false)
+    }
+  }
 
   return (
     <div className="space-y-4">
@@ -322,11 +414,18 @@ function BountyDashboard() {
           <Icon name="gift" className="w-4 h-4 text-amber-400" strokeWidth={2} />
           <span className="text-xs font-black uppercase tracking-widest text-amber-400">Sistema de Bounties</span>
         </div>
-        <button onClick={() => setShowSubmit(!showSubmit)}
+        <button onClick={() => { setShowSubmit(v => !v); setSent(false) }}
           className="tap px-3 py-1.5 rounded-lg bg-amber-500/15 border border-amber-700/40 text-amber-400 text-xs font-bold">
           + Reclamar
         </button>
       </div>
+
+      {sent && (
+        <div className="rounded-xl border border-emerald-700/40 bg-emerald-500/8 p-3.5 flex items-center gap-2">
+          <Icon name="check" className="w-4 h-4 text-emerald-400 shrink-0" strokeWidth={2.5} />
+          <p className="text-xs font-bold text-emerald-300">Reclamación enviada. La revisaremos en 24–48h.</p>
+        </div>
+      )}
 
       <div className="rounded-xl border border-zinc-800/60 bg-zinc-900/40 p-3.5 space-y-1.5">
         <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-2">¿Cómo funciona?</p>
@@ -334,19 +433,22 @@ function BountyDashboard() {
           "1. Genera la imagen de tu apuesta ganadora",
           "2. Publícala en Twitter/X con #SportsPicks",
           "3. Pega la URL del tweet aquí",
-          "4. Si la cuota era > 1.50 y ganó → cobras el bounty",
+          "4. Si la cuota era > 3.00 y ganó → cobras el bounty",
         ].map((s) => <p key={s} className="text-[11px] text-zinc-500">{s}</p>)}
       </div>
 
       {showSubmit && (
         <div className="rounded-xl border border-amber-700/40 bg-amber-500/5 p-4 space-y-3">
           <p className="text-xs font-black text-amber-300">Reclamar bounty</p>
+          <p className="text-[10px] text-zinc-500">Cuota mínima requerida: <span className="text-amber-400 font-bold">@3.00</span></p>
           <input value={twitterUrl} onChange={(e) => setTwitterUrl(e.target.value)}
             placeholder="https://x.com/tu_tweet..."
-            className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-zinc-700" />
-          <button disabled={!twitterUrl.trim()}
-            className="w-full py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 disabled:opacity-30 text-white font-bold text-sm tap">
-            Enviar reclamación
+            className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-amber-600" />
+          {submitError && <p className="text-xs text-rose-400">{submitError}</p>}
+          <button onClick={handleClaim} disabled={sending || !twitterUrl.trim()}
+            className="w-full py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 disabled:opacity-30 text-white font-bold text-sm tap transition-all flex items-center justify-center gap-2">
+            {sending && <span className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin" />}
+            {sending ? "Enviando..." : "Enviar reclamación"}
           </button>
         </div>
       )}
