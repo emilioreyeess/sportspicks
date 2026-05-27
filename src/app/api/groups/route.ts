@@ -2,12 +2,11 @@ import { NextRequest } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth-options"
 import { createServiceClient } from "@/lib/supabase/client"
+// CN-013: Use cryptographically secure PRNG for invite codes
+import { randomBytes } from "crypto"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
-
-// CN-013: Use cryptographically secure PRNG for invite codes
-import { randomBytes } from "crypto"
 
 function randomCode(len = 8): string {
   return randomBytes(len).toString("base64url").slice(0, len).toUpperCase()
