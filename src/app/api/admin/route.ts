@@ -10,7 +10,8 @@ const ADMIN_TOKEN = process.env.ADMIN_TOKEN || ""
 
 function isAuthorized(req: NextRequest | Request): boolean {
   if (!ADMIN_TOKEN) return false // sin token configurado → endpoint cerrado
-  const t = req.headers.get("x-admin-token") || new URL(req.url).searchParams.get("token") || ""
+  // SECURITY: solo desde header — no query param (visible en logs, historial, referer)
+  const t = req.headers.get("x-admin-token") ?? ""
   // Comparación de tiempo constante para evitar timing attacks
   if (t.length !== ADMIN_TOKEN.length) return false
   let diff = 0

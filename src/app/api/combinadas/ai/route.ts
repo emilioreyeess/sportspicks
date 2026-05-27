@@ -1,5 +1,7 @@
 import { NextRequest } from "next/server"
 import Anthropic from "@anthropic-ai/sdk"
+import { getServerSession } from "next-auth"
+import { authOptions } from "@/lib/auth-options"
 import { getStore } from "@/lib/store"
 import { ensureWarm } from "@/lib/pipeline"
 import { consume, getClientIp, tooManyRequests } from "@/lib/rate-limit"
@@ -22,8 +24,14 @@ const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
  * PROHIBIDO: picks inventados o fuera del pool real.
  */
 export async function POST(req: NextRequest) {
+  // SECURITY FIX: require authenticated session — Claude Opus is expensive
+  const session = await getServerSession(authOptions)
+  if (!session?.user?.email) return Response.json({ error: "No autorizado" }, { status: 401 })
+
+  // Per-IP + per-user rate limit to prevent token abuse
   const ip = getClientIp(req)
   if (!consume(`ai-combi:${ip}`, 3, 0.4)) return tooManyRequests(180)
+  if (!consume(`ai-combi-user:${session.user.email}`, 5, 1)) return tooManyRequests(120)
 
   await ensureWarm()
 

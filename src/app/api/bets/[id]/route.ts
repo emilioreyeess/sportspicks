@@ -20,27 +20,39 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     return Response.json({ error: "Estado inválido" }, { status: 400 })
   }
 
-  const sb = createServiceClient()
-
-  // Ensure the bet belongs to the requesting user
-  const { data: existing } = await sb
-    .from("bets")
-    .select("id, user_email")
-    .eq("id", params.id)
-    .single()
-
-  if (!existing || existing.user_email !== session.user.email) {
-    return Response.json({ error: "No encontrado" }, { status: 404 })
+  // Validate UUID format for params.id
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(params.id)) {
+    return Response.json({ error: "ID inválido" }, { status: 400 })
   }
 
+  const sb = createServiceClient()
+
+  // SECURITY + RACE CONDITION FIX: atomic update with ownership + status check in one query
+  // Only update if user_email matches AND status is still "pending" (prevent double-settlement)
   const { data, error } = await sb
     .from("bets")
     .update({ status: body.status, settled_at: new Date().toISOString() })
     .eq("id", params.id)
+    .eq("user_email", session.user.email)
+    .eq("status", "pending")   // ← prevents re-settling already settled bets
     .select()
     .single()
 
-  if (error) return Response.json({ error: error.message }, { status: 500 })
+  if (error || !data) {
+    // Could be not found OR already settled — check which
+    const { data: existing } = await sb
+      .from("bets")
+      .select("id, user_email, status")
+      .eq("id", params.id)
+      .single()
+    if (!existing || existing.user_email !== session.user.email) {
+      return Response.json({ error: "No encontrado" }, { status: 404 })
+    }
+    if (existing.status !== "pending") {
+      return Response.json({ error: "Esta apuesta ya fue liquidada" }, { status: 409 })
+    }
+    return Response.json({ error: error?.message ?? "Error al actualizar" }, { status: 500 })
+  }
 
   // Also settle all legs with the same status
   await sb.from("bet_legs").update({ status: body.status }).eq("bet_id", params.id)

@@ -11,9 +11,14 @@ export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
 export async function GET(req: NextRequest) {
-  // Protect with a shared secret so only Vercel cron can trigger it
+  // SECURITY: require non-empty CRON_SECRET — reject if misconfigured or empty
+  const cronSecret = process.env.CRON_SECRET
+  if (!cronSecret || cronSecret.trim().length < 16) {
+    console.error("[cron] CRON_SECRET not configured or too short — rejecting")
+    return Response.json({ error: "Unauthorized" }, { status: 401 })
+  }
   const auth = req.headers.get("authorization")
-  if (auth !== `Bearer ${process.env.CRON_SECRET}`) {
+  if (auth !== `Bearer ${cronSecret}`) {
     return Response.json({ error: "Unauthorized" }, { status: 401 })
   }
 
