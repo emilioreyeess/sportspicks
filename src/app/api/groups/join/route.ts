@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth-options"
 import { createServiceClient } from "@/lib/supabase/client"
 
 export const runtime = "nodejs"
+export const dynamic = "force-dynamic"
 
 export async function POST(req: NextRequest) {
   const session = await getServerSession(authOptions)

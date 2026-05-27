@@ -602,4 +602,3 @@ export default function CreatorsPage() {
   return unlocked ? <CreatorsDashboard /> : <VipCodeGate onUnlock={handleUnlock} />
 }
 
-export { VIP_KEY }

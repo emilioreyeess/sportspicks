@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth-options"
 import { createServiceClient } from "@/lib/supabase/client"
 
 export const runtime = "nodejs"
+export const dynamic = "force-dynamic"
 
 async function assertMember(sb: ReturnType<typeof import("@/lib/supabase/client").createServiceClient>, groupId: string, email: string) {
   const { data } = await sb

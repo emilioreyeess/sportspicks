@@ -4,6 +4,7 @@ import { authOptions } from "@/lib/auth-options"
 import { createServiceClient } from "@/lib/supabase/client"
 
 export const runtime = "nodejs"
+export const dynamic = "force-dynamic"
 
 function randomCode(len = 6) {
   return Math.random().toString(36).toUpperCase().slice(2, 2 + len)
