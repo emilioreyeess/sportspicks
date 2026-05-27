@@ -11,7 +11,11 @@ async function upsertUserToSupabase(user: {
   if (!user.email) return
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY
-  if (!url || !key) return
+  if (!url || !key) {
+    console.error("[users_log] Missing env vars — SUPABASE_URL:", !!url, "SERVICE_ROLE_KEY:", !!key)
+    return
+  }
+  console.log("[users_log] Attempting upsert for:", user.email)
 
   try {
     const { createClient } = await import("@supabase/supabase-js")
