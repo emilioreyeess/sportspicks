@@ -21,6 +21,7 @@ interface Result {
 
 const LEAGUES = [
   { id: "", label: "Todas las ligas", flag: "🌍" },
+  { id: "wc", label: "Mundial 2026", flag: "🏆" },
   { id: "1", label: "LaLiga", flag: "🇪🇸" },
   { id: "2", label: "Premier League", flag: "🏴󠁧󠁢󠁥󠁮󠁧󠁿" },
   { id: "3", label: "Bundesliga", flag: "🇩🇪" },
@@ -103,11 +104,37 @@ export default function CombinadasPage() {
     if (freeAtLimit) { upgrade.show("combinadas_unlimited"); return }
     setLoading(true); setError(""); setResult(null)
     try {
-      const data = await getCombinada(mode, leagueId)
-      if (data?.error) setError(data.error)
-      else {
-        setResult(data)
+      if (leagueId === "wc") {
+        // Mundial 2026 — motor Poisson propio
+        const tierMap: Record<ModeKey, string> = { safe: "segura", balanced: "balanceada", dream: "soñadora" }
+        const res = await fetch(`/api/world-cup/combinadas?tier=${tierMap[mode]}`)
+        const wc = await res.json()
+        if (!wc || wc.error) { setError("No hay partidos del Mundial disponibles aún."); return }
+        // Mapear WCCombinada → Result
+        const mapped: Result = {
+          mode: wc.tierLabel ?? mode,
+          date: wc.generatedAt,
+          legs: (wc.legs ?? []).map((leg: any) => ({
+            match:     `${leg.homeCode} vs ${leg.awayCode}`,
+            league:    "Mundial 2026 🏆",
+            selection: leg.marketLabel,
+            odd:       leg.impliedOdds,
+            prob:      Math.round(leg.modelProb * 100),
+            market:    leg.market,
+            reasoning: leg.justification,
+          })),
+          combined_odd:  wc.combinedImpliedOdds,
+          combined_prob: Math.round(wc.combinedProb * 100),
+        }
+        setResult(mapped)
         if (!isPremium) { incrementTodayCount(); setTodayCount(getTodayCount()) }
+      } else {
+        const data = await getCombinada(mode, leagueId)
+        if (data?.error) setError(data.error)
+        else {
+          setResult(data)
+          if (!isPremium) { incrementTodayCount(); setTodayCount(getTodayCount()) }
+        }
       }
     } catch {
       setError("No hay suficientes selecciones. Prueba otro modo.")

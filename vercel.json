@@ -4,6 +4,10 @@
     {
       "path": "/api/cron/daily-learning",
       "schedule": "5 0 * * *"
+    },
+    {
+      "path": "/api/world-cup/sync",
+      "schedule": "0 */2 * * *"
     }
   ]
 }

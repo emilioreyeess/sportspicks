@@ -2,6 +2,32 @@ import type { NextAuthOptions } from "next-auth"
 import GoogleProvider from "next-auth/providers/google"
 import { getGrantedPlan } from "@/lib/plan-grants"
 
+async function upsertUserToSupabase(user: {
+  email: string | null | undefined
+  name: string | null | undefined
+  image: string | null | undefined
+  provider: string | undefined
+}) {
+  if (!user.email) return
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY
+  if (!url || !key) return
+
+  try {
+    const { createClient } = await import("@supabase/supabase-js")
+    const sb = createClient(url, key, { auth: { persistSession: false } })
+    await sb.from("users_log").upsert({
+      email:      user.email,
+      name:       user.name ?? null,
+      avatar_url: user.image ?? null,
+      provider:   user.provider ?? "google",
+      last_sign_in: new Date().toISOString(),
+    }, { onConflict: "email", ignoreDuplicates: false })
+  } catch {
+    // No bloquear el login si Supabase falla
+  }
+}
+
 /**
  * NextAuth config — centralizado aquí para no contaminar la Route con exports extra.
  * Next.js App Router solo permite GET/POST/etc. como exports en route files.
@@ -35,9 +61,16 @@ export const authOptions: NextAuthOptions = {
         token.provider = account?.provider
 
         // Inyectar plan en el JWT en el momento del login
-        // El cliente siempre puede re-verificar via /api/auth/plan
         const grant = user.email ? getGrantedPlan(user.email) : null
         token.plan = grant ?? "free"
+
+        // Guardar usuario en Supabase (fire & forget, no bloquea el login)
+        upsertUserToSupabase({
+          email:    user.email,
+          name:     user.name,
+          image:    user.image,
+          provider: account?.provider,
+        })
       }
       return token
     },

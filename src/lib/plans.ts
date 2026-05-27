@@ -37,7 +37,9 @@ export type Feature =
   // ── Funciones exclusivas PRO ──────────────────────────────────────────────
   | "watchlist"             // seguir equipos/ligas/mercados (pro)
   | "trader_mode"           // modo Trader con edge, probabilidades, filtros (pro)
-  | "ai_analyst"            // analista IA personal sin restricciones (pro)
+  | "ai_analyst"             // analista IA personal sin restricciones (pro)
+  // ── Mundial 2026 ──────────────────────────────────────────────────────────
+  | "wc_match_analysis"     // análisis estadístico por partido del Mundial (premium+)
 
 export interface PlanLimits {
   valuePicks: number          // -1 = ilimitado
