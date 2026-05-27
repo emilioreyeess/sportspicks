@@ -66,8 +66,8 @@ export const authOptions: NextAuthOptions = {
         const grant = user.email ? getGrantedPlan(user.email) : null
         token.plan = grant ?? "free"
 
-        // Guardar usuario en Supabase (fire & forget, no bloquea el login)
-        upsertUserToSupabase({
+        // Guardar usuario en Supabase (awaited — serverless kills fire-and-forget)
+        await upsertUserToSupabase({
           email:    user.email,
           name:     user.name,
           image:    user.image,
