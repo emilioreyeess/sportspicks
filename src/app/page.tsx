@@ -193,7 +193,12 @@ function useCountdown(targetISO: string) {
 
 function TipsterQuickAccess() {
   const [isVip, setIsVip] = useState(false)
-  useEffect(() => { setIsVip(localStorage.getItem("sp_vip_unlocked") === "1") }, [])
+  useEffect(() => {
+    fetch("/api/auth/plan", { credentials: "include" })
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { if (d?.is_vip_tipster) setIsVip(true) })
+      .catch(() => {})
+  }, [])
   if (!isVip) return null
   return (
     <section className="max-w-5xl mx-auto px-4 pb-4">

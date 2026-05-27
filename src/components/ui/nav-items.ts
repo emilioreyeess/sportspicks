@@ -18,7 +18,7 @@ export const NAV_MORE: NavItem[] = [
   { href: "/",        label: "Inicio",          short: "Inicio",  icon: "home"        },
   { href: "/groups",  label: "Grupos",          short: "Grupos",  icon: "groups"      },
   { href: "/bets",    label: "Mis Apuestas",    short: "Apuesta", icon: "ticket"      },
-  { href: "/value",   label: "Histórico",       short: "Histor.", icon: "star"        },
+  { href: "/historico", label: "Histórico",       short: "Histor.", icon: "star"        },
   { href: "/stats",   label: "Estadísticas",    short: "Stats",   icon: "stats"       },
   { href: "/pricing", label: "Planes premium",  short: "Planes",  icon: "crown"       },
   { href: "/account", label: "Mi cuenta",       short: "Cuenta",  icon: "user"        },

@@ -36,8 +36,8 @@ export function TopBar() {
         <div className="flex items-center justify-between h-14 px-4">
           {/* Brand */}
           <Link href="/" className="flex items-center gap-2.5 group">
-            <span className="grid place-items-center w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-500/25 to-cyan-500/15 border border-emerald-600/40 text-emerald-400 group-hover:border-emerald-500/60 group-hover:shadow-[0_0_10px_rgba(52,211,153,0.2)] transition-all duration-200">
-              <Icon name="value" className="w-[18px] h-[18px]" strokeWidth={2} />
+            <span className="grid place-items-center w-8 h-8 rounded-xl bg-gradient-to-br from-emerald-500/25 to-cyan-500/15 border border-emerald-600/40 group-hover:border-emerald-500/60 group-hover:shadow-[0_0_10px_rgba(52,211,153,0.2)] transition-all duration-200 overflow-hidden">
+              <img src="/icon.svg" className="w-[18px] h-[18px]" alt="" />
             </span>
             <span className="text-sm font-black tracking-tight text-white">SportsPicks</span>
           </Link>
@@ -90,8 +90,8 @@ export function TopBar() {
             {/* Drawer header */}
             <div className="relative flex items-center justify-between h-14 px-4 border-b border-zinc-800/60">
               <div className="flex items-center gap-2.5">
-                <span className="grid place-items-center w-7 h-7 rounded-lg bg-gradient-to-br from-emerald-500/20 to-cyan-500/10 border border-emerald-700/40 text-emerald-400">
-                  <Icon name="value" className="w-3.5 h-3.5" strokeWidth={2} />
+                <span className="grid place-items-center w-7 h-7 rounded-lg bg-gradient-to-br from-emerald-500/20 to-cyan-500/10 border border-emerald-700/40 overflow-hidden">
+                  <img src="/icon.svg" className="w-3.5 h-3.5" alt="" />
                 </span>
                 <span className="text-sm font-black text-white tracking-tight">SportsPicks</span>
               </div>

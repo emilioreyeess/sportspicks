@@ -968,6 +968,74 @@ function computeRetoCombi(
   return { picks: bestPair.map(buildRetoPick), combined_odd, combined_prob }
 }
 
+/**
+ * Greedy N-leg combo (for nLegs ≥ 3).
+ * Target per-leg odd = targetOdd^(1/nLegs).
+ * Picks the N best candidates (different matches) closest to the per-leg target,
+ * then validates the product is within [minFinalOdd, maxFinalOdd].
+ */
+function computeRetoCombiN(
+  data: DailyData,
+  spec: RetoSpec,
+  usedMatches: Set<string>,
+): RetoCombo | null {
+  const nLegs = spec.nLegs
+  const tol = 0.18
+
+  // Per-leg target and range
+  const legTarget = Math.pow(spec.targetOdd, 1 / nLegs)
+  const minLeg = legTarget * (1 - tol)
+  const maxLeg = legTarget * (1 + tol)
+
+  // Build full candidate pool
+  const cands: RawCand[] = []
+  for (const m of data.matches) {
+    const reliability = (Math.min(m.home.gamesPlayed, 10) + Math.min(m.away.gamesPlayed, 10)) / 20
+    for (const c of buildCandidates(m)) {
+      if (c.suppressed) continue
+      const odd = m.odds[c.key]
+      if (!odd || !isFinite(odd) || odd < 1.10 || odd > 7.0) continue
+      if (c.prob < 0.42) continue
+      if (!commonSensePass(c, m)) continue
+      const edge = Math.round((c.prob * 100 - impliedPct(odd)) * 10) / 10
+      if (edge < 0.8) continue
+      const edgeScore = 25 + clamp((edge - 0.8) / 12, 0, 1) * 75
+      const quality = Math.round(0.45 * edgeScore + 0.40 * c.contextScore + 0.15 * reliability * 100)
+      if (odd < minLeg || odd > maxLeg) continue
+      cands.push({ match: m, c, odd, edge, quality })
+    }
+  }
+
+  // Sort by proximity to per-leg target then quality
+  cands.sort((a, b) => {
+    const da = Math.abs(a.odd - legTarget)
+    const db = Math.abs(b.odd - legTarget)
+    return da - db + (b.quality - a.quality) * 0.003
+  })
+
+  // Greedily pick N candidates from distinct matches (not already used)
+  const selected: RawCand[] = []
+  const inCombo = new Set<string>()
+  for (const rc of cands) {
+    if (usedMatches.has(rc.match.id) || inCombo.has(rc.match.id)) continue
+    selected.push(rc)
+    inCombo.add(rc.match.id)
+    if (selected.length === nLegs) break
+  }
+
+  if (selected.length < nLegs) return null
+
+  const combined = selected.reduce((p, rc) => p * rc.odd, 1)
+  const minFinal = spec.targetOdd * (1 - tol - 0.05)
+  const maxFinal = spec.targetOdd * (1 + tol + 0.05)
+  if (combined < minFinal || combined > maxFinal) return null
+
+  selected.forEach((rc) => usedMatches.add(rc.match.id))
+  const combined_odd = Math.round(combined * 100) / 100
+  const combined_prob = Math.round(selected.reduce((p, rc) => p * rc.c.prob, 1) * 10000) / 100
+  return { picks: selected.map(buildRetoPick), combined_odd, combined_prob }
+}
+
 export function computeRetos(data: DailyData): { challenges: any[]; note?: string } {
   const usedMatches = new Set<string>()
 
@@ -1239,7 +1307,7 @@ export async function ensureWarm(): Promise<void> {
  */
 export function computeCustomRetoPick(
   targetOdd: number,
-  nLegs: 1 | 2,
+  nLegs: 1 | 2 | 3 | 4,
 ): { picks: any[]; combined_odd: number; combined_prob: number } | null {
   const store = getStore()
   if (!store.dailyData) return null
@@ -1252,10 +1320,12 @@ export function computeCustomRetoPick(
     minLegOdd = targetOdd * (1 - tol)
     maxLegOdd = targetOdd * (1 + tol)
   } else {
-    const legTarget = Math.sqrt(targetOdd)
-    minLegOdd = legTarget * (1 - tol - 0.04)   // algo más generoso en patas
+    const legTarget = Math.pow(targetOdd, 1 / nLegs)
+    minLegOdd = legTarget * (1 - tol - 0.04)
     maxLegOdd = legTarget * (1 + tol + 0.04)
   }
+
+  const legLabel = nLegs === 1 ? "pick simple" : `combinada ${nLegs} picks`
 
   const customSpec: RetoSpec = {
     id: "custom",
@@ -1269,12 +1339,16 @@ export function computeCustomRetoPick(
     minFinalOdd: Math.round(targetOdd * (1 - tol) * 100) / 100,
     maxFinalOdd: Math.round(targetOdd * (1 + tol) * 100) / 100,
     difficulty: "Custom",
-    description: `Cuota personalizada ~${targetOdd.toFixed(2)} · ${nLegs === 1 ? "pick simple" : "combinada 2 picks"}`,
+    description: `Cuota personalizada ~${targetOdd.toFixed(2)} · ${legLabel}`,
     stake: 10,
     simulResult: 0,
     color: "violet",
   }
 
+  // Use N-leg greedy algorithm for 3+ legs
+  if (nLegs >= 3) {
+    return computeRetoCombiN(data, customSpec, new Set<string>())
+  }
   return computeRetoCombi(data, customSpec, new Set<string>())
 }
 

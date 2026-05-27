@@ -38,12 +38,15 @@ export default function BetsPage() {
   const [filter, setFilter] = useState<"all" | "pending" | "won" | "lost">("all")
 
   const load = useCallback(async () => {
-    const res = await fetch("/api/bets")
-    if (!res.ok) return
-    const d = await res.json()
-    setBets(d.bets ?? [])
-    setStats(d.stats ?? null)
-    setLoading(false)
+    try {
+      const res = await fetch("/api/bets")
+      if (!res.ok) return
+      const d = await res.json()
+      setBets(d.bets ?? [])
+      setStats(d.stats ?? null)
+    } finally {
+      setLoading(false)
+    }
   }, [])
 
   useEffect(() => {

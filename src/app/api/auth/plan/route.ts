@@ -19,6 +19,7 @@ import { authOptions } from "@/lib/auth-options"
 import { getGrantedPlan } from "@/lib/plan-grants"
 import { getStripe, PRICE_IDS } from "@/lib/stripe"
 import { consume, getClientIp, tooManyRequests } from "@/lib/rate-limit"
+import { createServiceClient } from "@/lib/supabase/client"
 import type { NextRequest } from "next/server"
 
 export const runtime = "nodejs"
@@ -37,10 +38,22 @@ export async function GET(req: NextRequest) {
 
   const normalizedEmail = email.trim().toLowerCase()
 
+  // ─── 0. VIP tipster status (always from DB) ──────────────────────────────
+  let is_vip_tipster = false
+  try {
+    const sb = createServiceClient()
+    const { data: userLog } = await sb
+      .from("users_log")
+      .select("is_vip_tipster")
+      .eq("email", normalizedEmail)
+      .maybeSingle()
+    is_vip_tipster = !!userLog?.is_vip_tipster
+  } catch {}
+
   // ─── 1. Grant manual ────────────────────────────────────────────────────
   const grant = getGrantedPlan(normalizedEmail)
   if (grant) {
-    return NextResponse.json({ plan: grant, source: "grant" })
+    return NextResponse.json({ plan: grant, source: "grant", is_vip_tipster })
   }
 
   // ─── 2. Stripe ──────────────────────────────────────────────────────────
@@ -55,7 +68,7 @@ export async function GET(req: NextRequest) {
     })
 
     if (customers.data.length === 0) {
-      return NextResponse.json({ plan: "free", source: "free" })
+      return NextResponse.json({ plan: "free", source: "free", is_vip_tipster })
     }
 
     const customer = customers.data[0]
@@ -73,7 +86,7 @@ export async function GET(req: NextRequest) {
     })
 
     if (activeSubs.length === 0) {
-      return NextResponse.json({ plan: "free", source: "free" })
+      return NextResponse.json({ plan: "free", source: "free", is_vip_tipster })
     }
 
     const priceId = activeSubs[0].items?.data?.[0]?.price?.id ?? ""
@@ -85,9 +98,9 @@ export async function GET(req: NextRequest) {
     else if (priceId && premiumPrices.has(priceId)) plan = "premium"
     else if (priceId) plan = (activeSubs[0].metadata?.plan ?? "premium") as "premium" | "pro"
 
-    return NextResponse.json({ plan, source: "stripe" })
+    return NextResponse.json({ plan, source: "stripe", is_vip_tipster })
   } catch {
     // Error de Stripe → no bloquear al usuario, devolver free
-    return NextResponse.json({ plan: "free", source: "free" })
+    return NextResponse.json({ plan: "free", source: "free", is_vip_tipster })
   }
 }

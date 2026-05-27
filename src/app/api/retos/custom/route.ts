@@ -8,7 +8,7 @@ export const maxDuration = 60
 /**
  * POST /api/retos/custom
  * Genera un pick personalizado para el usuario PRO.
- * Body: { targetOdd: number, nLegs: 1 | 2 }
+ * Body: { targetOdd: number, nLegs: 1 | 2 | 3 | 4 }
  */
 export async function POST(req: NextRequest) {
   // Rate limit: 10 generaciones por IP cada 5 minutos
@@ -30,13 +30,13 @@ export async function POST(req: NextRequest) {
   if (!isFinite(rawOdd) || rawOdd < 1.10 || rawOdd > 5.50) {
     return Response.json({ error: "La cuota debe estar entre 1.10 y 5.50." }, { status: 400 })
   }
-  if (rawLegs !== 1 && rawLegs !== 2) {
-    return Response.json({ error: "nLegs debe ser 1 o 2." }, { status: 400 })
+  if (rawLegs < 1 || rawLegs > 4) {
+    return Response.json({ error: "nLegs debe ser entre 1 y 4." }, { status: 400 })
   }
 
   await ensureWarm()
 
-  const combo = computeCustomRetoPick(rawOdd, rawLegs as 1 | 2)
+  const combo = computeCustomRetoPick(rawOdd, rawLegs as 1 | 2 | 3 | 4)
 
   if (!combo) {
     return Response.json(

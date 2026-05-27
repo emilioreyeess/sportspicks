@@ -355,7 +355,7 @@ const ODD_PRESETS = [
 
 function CustomRetoCreator() {
   const [targetOdd, setTargetOdd] = useState(2.00)
-  const [nLegs, setNLegs] = useState<1 | 2>(2)
+  const [nLegs, setNLegs] = useState<1 | 2 | 3 | 4>(2)
   const [loading, setLoading] = useState(false)
   const [combo, setCombo] = useState<RetoCombo | null>(null)
   const [error, setError] = useState<string | null>(null)
@@ -437,9 +437,9 @@ function CustomRetoCreator() {
 
         {/* N legs */}
         <div>
-          <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-2.5 block">Tipo de pick</label>
+          <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-2.5 block">Número de picks</label>
           <div className="grid grid-cols-2 gap-2">
-            {([1, 2] as const).map((n) => (
+            {([1, 2, 3, 4] as const).map((n) => (
               <button key={n}
                 onClick={() => { setNLegs(n); setCombo(null) }}
                 className={`py-3 rounded-xl border text-sm font-black transition-all ${
@@ -447,9 +447,9 @@ function CustomRetoCreator() {
                     ? "border-violet-600/60 bg-violet-500/15 text-violet-300"
                     : "border-zinc-800/80 text-zinc-500 hover:border-zinc-700 hover:text-zinc-300"
                 }`}>
-                {n === 1 ? "Pick simple" : "Combinada 2 picks"}
+                {n === 1 ? "Simple" : `Combinada ×${n}`}
                 <p className="text-[10px] font-medium mt-0.5 opacity-60">
-                  {n === 1 ? "1 partido, cuota exacta" : "2 partidos, producto ~objetivo"}
+                  {n === 1 ? "1 partido, cuota exacta" : `${n} partidos, producto ~objetivo`}
                 </p>
               </button>
             ))}

@@ -64,6 +64,7 @@ function ChatView({ group, onBack }: { group: Group; onBack: () => void }) {
   const [input, setInput] = useState("")
   const [messages, setMessages] = useState<Message[]>([])
   const [sending, setSending] = useState(false)
+  const [uploadingImage, setUploadingImage] = useState(false)
   const [ranking, setRanking] = useState<RankingEntry[]>([])
   const [rankingLoading, setRankingLoading] = useState(false)
   const { data: session } = useSession()
@@ -93,6 +94,42 @@ function ChatView({ group, onBack }: { group: Group; onBack: () => void }) {
     })
     setSending(false)
     loadMessages()
+    // Refresh ranking in background so score updates after sharing a combinada
+    loadRanking()
+  }
+
+  const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file || uploadingImage) return
+    if (!file.type.startsWith("image/")) return
+    if (file.size > 5 * 1024 * 1024) { alert("La imagen no puede superar 5 MB"); return }
+
+    setUploadingImage(true)
+    try {
+      // Upload via server-side API to Supabase Storage
+      const form = new FormData()
+      form.append("file", file)
+      const uploadRes = await fetch("/api/groups/upload", { method: "POST", body: form })
+      if (!uploadRes.ok) {
+        const err = await uploadRes.json().catch(() => ({}))
+        alert(err.error ?? "Error al subir la imagen")
+        return
+      }
+      const { url } = await uploadRes.json()
+      // Send as message with the public URL
+      await fetch(`/api/groups/${group.id}/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: `[img]${url}[/img]` }),
+      })
+      loadMessages()
+    } catch {
+      alert("Error de conexión al subir la imagen")
+    } finally {
+      setUploadingImage(false)
+    }
+    // Reset input so the same file can be re-uploaded
+    e.target.value = ""
   }
 
   const TABS: { id: ChatTab; label: string; icon: string }[] = [
@@ -144,9 +181,18 @@ function ChatView({ group, onBack }: { group: Group; onBack: () => void }) {
                   </div>
                   <div className={`max-w-[75%] ${isMe ? "items-end" : "items-start"} flex flex-col gap-0.5`}>
                     {!isMe && <span className="text-[10px] text-zinc-500 px-1">{msg.sender_name}</span>}
-                    <div className={`px-3 py-2 rounded-2xl text-sm ${isMe ? "bg-emerald-600 text-white rounded-tr-sm" : "bg-zinc-800 text-zinc-100 rounded-tl-sm"}`}>
-                      {msg.content}
-                    </div>
+                    {msg.content?.startsWith("[img]") && msg.content?.endsWith("[/img]") ? (
+                      <img
+                        src={msg.content.slice(5, -6)}
+                        alt="imagen"
+                        className="max-w-[200px] rounded-xl border border-zinc-700/50 cursor-pointer"
+                        onClick={() => window.open(msg.content.slice(5, -6), "_blank")}
+                      />
+                    ) : (
+                      <div className={`px-3 py-2 rounded-2xl text-sm ${isMe ? "bg-emerald-600 text-white rounded-tr-sm" : "bg-zinc-800 text-zinc-100 rounded-tl-sm"}`}>
+                        {msg.content}
+                      </div>
+                    )}
                     <span className="text-[9px] text-zinc-700 px-1">
                       {new Date(msg.created_at).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })}
                     </span>
@@ -158,6 +204,15 @@ function ChatView({ group, onBack }: { group: Group; onBack: () => void }) {
           {/* Input */}
           <div className="shrink-0 px-4 py-3 border-t border-zinc-800/60 bg-zinc-950/80 backdrop-blur-sm">
             <div className="flex items-center gap-2">
+              {/* Image upload */}
+              <label className={`tap p-2.5 rounded-xl border border-zinc-800 hover:border-zinc-700 text-zinc-500 hover:text-zinc-300 transition-all cursor-pointer shrink-0 ${uploadingImage ? "opacity-40 pointer-events-none" : ""}`}>
+                <input type="file" accept="image/*" className="sr-only" onChange={handleImageUpload} disabled={uploadingImage} />
+                {uploadingImage ? (
+                  <span className="inline-block w-4 h-4 rounded-full border-2 border-zinc-500 border-t-transparent animate-spin" />
+                ) : (
+                  <Icon name="image" className="w-4 h-4" strokeWidth={2} />
+                )}
+              </label>
               <input
                 value={input}
                 onChange={(e) => setInput(e.target.value)}
@@ -381,7 +436,7 @@ export default function GroupsPage() {
   if (activeGroup) return <ChatView group={activeGroup} onBack={() => setActiveGroup(null)} />
 
   return (
-    <div className="safe-x">
+    <div className="safe-x pb-24">
       {/* Header */}
       <div className="px-4 pt-6 pb-4 flex items-center justify-between">
         <div>
