@@ -1,15 +1,24 @@
 /**
- * POST /api/picks/yesterday
- * Body: { date: "YYYY-MM-DD", picks: Pick[] }
+ * GET  /api/picks/yesterday — lee picks del día anterior desde store en memoria (o /tmp).
+ * POST /api/picks/yesterday — recibe picks del cliente y los enriquece con resultados ESPN.
  *
- * Recibe los picks guardados en el cliente (localStorage) y los enriquece
- * con los resultados reales del marcador de ESPN.
- * No depende de almacenamiento en servidor — funciona en Vercel serverless.
+ * El GET sirve directamente los picks con resultados verificados guardados por el pipeline.
+ * Si el store está frío se intenta cargar desde /tmp/sp-yesterday.json.
  */
 import { NextRequest, NextResponse } from "next/server"
+import { getYesterday } from "@/lib/store"
 
 export const runtime = "nodejs"
 export const revalidate = 0
+
+/** GET — devuelve los picks de ayer con resultados ya calculados */
+export async function GET() {
+  const yest = getYesterday()
+  if (!yest.date || !yest.picks.length) {
+    return NextResponse.json({ date: null, picks: [] })
+  }
+  return NextResponse.json({ date: yest.date, picks: yest.picks })
+}
 
 const ALL_SLUGS = ["esp.1", "eng.1", "ger.1", "ita.1", "fra.1", "usa.1", "mex.1", "por.1", "ned.1", "arg.1", "bra.1", "tur.1", "sau.1", "fra.2"]
 

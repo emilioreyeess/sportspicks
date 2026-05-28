@@ -159,16 +159,37 @@ async function generateBetImage(bet: BetData): Promise<Blob> {
   return new Promise((resolve) => canvas.toBlob((b) => resolve(b!), "image/png", 1))
 }
 
-async function shareOrDownload(blob: Blob, filename: string) {
+/** Returns "ios" | "android" | "desktop" */
+function getPlatform(): "ios" | "android" | "desktop" {
+  if (typeof navigator === "undefined") return "desktop"
+  const ua = navigator.userAgent
+  if (/iPad|iPhone|iPod/.test(ua) && !(window as any).MSStream) return "ios"
+  if (/Android/.test(ua)) return "android"
+  return "desktop"
+}
+
+async function shareOrDownload(blob: Blob, filename: string): Promise<"shared" | "downloaded"> {
   const file = new File([blob], filename, { type: "image/png" })
+  // Try Web Share API (iOS Safari → opens share sheet with "Save Image" option)
   if (navigator.canShare?.({ files: [file] })) {
-    await navigator.share({ files: [file], title: "SportsPicks — Boleto IA" })
-  } else {
-    const url = URL.createObjectURL(blob)
-    const a   = document.createElement("a")
-    a.href = url; a.download = filename; a.click()
-    URL.revokeObjectURL(url)
+    try {
+      await navigator.share({ files: [file], title: "SportsPicks — Boleto IA", text: "Mi boleto de SportsPicks 🎯" })
+      return "shared"
+    } catch (e: any) {
+      // User cancelled or share failed — fall through to download
+      if (e?.name === "AbortError") throw e // User cancelled — don't fall through
+    }
   }
+  // Fallback: trigger download (Android → Downloads folder; Desktop → browser download)
+  const url = URL.createObjectURL(blob)
+  const a   = document.createElement("a")
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  document.body.removeChild(a)
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
+  return "downloaded"
 }
 
 // ── VIP Gate ──────────────────────────────────────────────────
@@ -300,16 +321,19 @@ function ImageGenerator() {
 
   const bet: BetData = { title, legs, combinedOdds, aiProb, edge: ventaja }
   const isValid = legs.every(l => l.match.trim() && l.selection.trim() && l.odds >= 1.01)
+  const [saveMethod, setSaveMethod] = useState<"shared" | "downloaded" | null>(null)
 
   async function handleGenerate() {
     if (!isValid) return
-    setGenerating(true); setDone(false)
+    setGenerating(true); setDone(false); setSaveMethod(null)
     try {
       const blob = await generateBetImage(bet)
-      await shareOrDownload(blob, `sportspicks-boleto-${Date.now()}.png`)
+      const method = await shareOrDownload(blob, `sportspicks-boleto-${Date.now()}.png`)
+      setSaveMethod(method)
       setDone(true)
-    } catch (e) {
-      console.error(e)
+    } catch (e: any) {
+      // AbortError = user cancelled share sheet — that's fine, not an error
+      if (e?.name !== "AbortError") console.error(e)
     } finally {
       setGenerating(false)
     }
@@ -440,10 +464,19 @@ function ImageGenerator() {
       <button onClick={handleGenerate} disabled={generating || !isValid}
         className="w-full py-3 rounded-xl bg-violet-600 hover:bg-violet-500 disabled:opacity-40 text-white font-bold text-sm tap transition-all flex items-center justify-center gap-2">
         <Icon name={done ? "check" : "download"} className="w-4 h-4" strokeWidth={2.2} />
-        {generating ? "Generando imagen..." : done ? "¡Guardada en galería!" : "Guardar imagen en galería"}
+        {generating ? "Generando imagen…" : done ? "¡Imagen lista!" : "Guardar imagen"}
       </button>
       {!isValid && <p className="text-[10px] text-zinc-600 text-center">Rellena todos los campos para generar la imagen.</p>}
-      {done && <p className="text-[11px] text-emerald-400 text-center font-bold">✓ Imagen guardada. Compártela en Twitter/X y reclama tu bounty.</p>}
+      {done && saveMethod === "shared" && (
+        <p className="text-[11px] text-emerald-400 text-center font-bold">
+          ✓ Abre la hoja de compartir → toca "Guardar imagen" para añadirla a tu galería.
+        </p>
+      )}
+      {done && saveMethod === "downloaded" && (
+        <p className="text-[11px] text-emerald-400 text-center font-bold">
+          ✓ Imagen descargada a tu carpeta Descargas. ¡Compártela en Twitter/X para reclamar tu bounty!
+        </p>
+      )}
     </div>
   )
 }

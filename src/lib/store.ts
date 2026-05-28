@@ -121,13 +121,34 @@ export function setNextRun(iso: string): void {
   store.meta.nextRunAt = iso
 }
 
-export function getYesterday() {
+const YESTERDAY_TMP = "/tmp/sp-yesterday.json"
+
+/** Lee los picks de ayer del store en memoria; en cold start carga desde /tmp */
+export function getYesterday(): { date: string | null; picks: any[] } {
+  if (store.yesterday.picks.length > 0) return store.yesterday
+  // Cold start — intentar cargar desde /tmp
+  try {
+    const { readFileSync } = require("fs")
+    const raw = readFileSync(YESTERDAY_TMP, "utf8")
+    const parsed = JSON.parse(raw)
+    if (parsed?.date && Array.isArray(parsed?.picks)) {
+      store.yesterday = parsed
+      return parsed
+    }
+  } catch { /* /tmp vacío o inexistente en cold start → normal */ }
   return store.yesterday
 }
 
 export function setYesterdayResults(date: string, picks: any[]): void {
   store.yesterday = { date, picks }
   addLog(`📋 Ayer guardado: ${picks.length} picks · ${date} · ${picks.filter(p => p.result === "WIN").length}W ${picks.filter(p => p.result === "LOSS").length}L`)
+  // Persistir en /tmp para sobrevivir cold restarts de la instancia serverless
+  try {
+    const { writeFileSync } = require("fs")
+    writeFileSync(YESTERDAY_TMP, JSON.stringify({ date, picks }), "utf8")
+  } catch (e: any) {
+    addLog(`⚠️ No se pudo escribir /tmp: ${e?.message}`)
+  }
 }
 
 export function setDailyResults(r: DailyResults): void {

@@ -9,6 +9,14 @@ import { useSession } from "next-auth/react"
 
 type ResultType = "WIN" | "LOSS" | "VOID" | "PENDING"
 
+interface MonthStats {
+  won: number
+  lost: number
+  profit: number
+  winrate: number
+  topSport: string | null
+}
+
 interface HistoricalPick {
   id?: string
   home_team: string
@@ -64,7 +72,7 @@ function yesterday() {
   return d.toISOString().split("T")[0]
 }
 
-// ── Yesterday picks from localStorage + ESPN ──────────────────────────────────
+// ── Yesterday picks — server store (most reliable) + localStorage fallback ────
 
 function useYesterdayPicks() {
   const [picks, setPicks] = useState<HistoricalPick[]>([])
@@ -72,40 +80,45 @@ function useYesterdayPicks() {
 
   useEffect(() => {
     const dateKey = yesterday()
-    // Try to load cached picks from localStorage (saved by value picks page)
-    const stored = (() => {
-      try {
-        const raw = localStorage.getItem(`sp_picks_${dateKey}`)
-        return raw ? JSON.parse(raw) : null
-      } catch { return null }
-    })()
 
-    if (!stored || !Array.isArray(stored) || stored.length === 0) {
-      // Fallback: load from the static `/api/picks/yesterday` GET endpoint
-      fetch("/api/picks/yesterday")
-        .then(r => r.ok ? r.json() : null)
-        .then(d => {
-          if (d?.picks?.length) {
-            setPicks(d.picks.map((p: any) => ({ ...p, date: dateKey })))
-          }
-        })
-        .catch(() => {})
-        .finally(() => setLoading(false))
-      return
-    }
-
-    // Enrich stored picks with results from ESPN
-    fetch("/api/picks/yesterday", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ date: dateKey, picks: stored }),
-    })
+    // 1️⃣ Try server store first (pipeline-verified results survive cold restarts via /tmp)
+    fetch("/api/picks/yesterday")
       .then(r => r.ok ? r.json() : null)
       .then(d => {
-        if (d?.picks) setPicks(d.picks.map((p: any) => ({ ...p, date: dateKey })))
+        if (d?.picks?.length) {
+          setPicks(d.picks.map((p: any) => ({ ...p, date: d.date ?? dateKey })))
+          setLoading(false)
+          return
+        }
+
+        // 2️⃣ Fallback: localStorage picks enriched via ESPN
+        const stored = (() => {
+          try {
+            const raw = localStorage.getItem(`sp_picks_${dateKey}`)
+            return raw ? JSON.parse(raw) : null
+          } catch { return null }
+        })()
+
+        if (!stored || !Array.isArray(stored) || stored.length === 0) {
+          setLoading(false)
+          return
+        }
+
+        // Enrich stored picks with ESPN results
+        fetch("/api/picks/yesterday", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ date: dateKey, picks: stored }),
+        })
+          .then(r => r.ok ? r.json() : null)
+          .then(d2 => {
+            if (d2?.picks) setPicks(d2.picks.map((p: any) => ({ ...p, date: dateKey })))
+            else setPicks(stored.map((p: any) => ({ ...p, result: "PENDING", date: dateKey })))
+          })
+          .catch(() => setPicks(stored.map((p: any) => ({ ...p, result: "PENDING", date: dateKey }))))
+          .finally(() => setLoading(false))
       })
-      .catch(() => setPicks(stored.map((p: any) => ({ ...p, result: "PENDING", date: dateKey }))))
-      .finally(() => setLoading(false))
+      .catch(() => setLoading(false))
   }, [])
 
   return { picks, loading }
@@ -165,11 +178,16 @@ function BetRow({ bet }: { bet: PersonalBet }) {
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
+const SPORT_EMOJI: Record<string, string> = {
+  football: "⚽", basketball: "🏀", tennis: "🎾", baseball: "⚾", hockey: "🏒", other: "🏅",
+}
+
 export default function HistoricoPage() {
   const { status } = useSession()
   const { picks, loading: picksLoading } = useYesterdayPicks()
   const [bets, setBets] = useState<PersonalBet[]>([])
   const [betsLoading, setBetsLoading] = useState(true)
+  const [monthStats, setMonthStats] = useState<MonthStats | null>(null)
 
   useEffect(() => {
     if (status !== "authenticated") { setBetsLoading(false); return }
@@ -177,11 +195,36 @@ export default function HistoricoPage() {
       .then(r => r.ok ? r.json() : null)
       .then(d => {
         if (d?.bets) {
+          const allBets = d.bets as PersonalBet[]
           // Show last 10 settled bets
-          const settled = (d.bets as PersonalBet[])
+          const settled = allBets
             .filter(b => b.status === "won" || b.status === "lost")
             .slice(0, 10)
           setBets(settled)
+
+          // Monthly stats: current month
+          const thisMonth = new Date().toISOString().slice(0, 7) // YYYY-MM
+          const monthBets = allBets.filter(b =>
+            (b.status === "won" || b.status === "lost") &&
+            b.created_at?.startsWith(thisMonth)
+          )
+          if (monthBets.length > 0) {
+            const won = monthBets.filter(b => b.status === "won")
+            const staked = monthBets.reduce((s, b) => s + Number(b.stake || 0), 0)
+            const returned = won.reduce((s, b) => s + Number(b.stake || 0) * Number(b.combined_odds || 1), 0)
+            const sportCounts: Record<string, number> = {}
+            for (const b of monthBets) {
+              if (b.sport) sportCounts[b.sport] = (sportCounts[b.sport] ?? 0) + 1
+            }
+            const topSport = Object.entries(sportCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null
+            setMonthStats({
+              won: won.length,
+              lost: monthBets.length - won.length,
+              profit: Math.round((returned - staked) * 100) / 100,
+              winrate: Math.round((won.length / monthBets.length) * 1000) / 10,
+              topSport,
+            })
+          }
         }
       })
       .catch(() => {})
@@ -218,6 +261,45 @@ export default function HistoricoPage() {
             ))}
           </div>
         </div>
+      )}
+
+      {/* Monthly performance */}
+      {monthStats && (
+        <section className="mx-4 mb-5 rounded-2xl border border-zinc-800 bg-zinc-900/50 overflow-hidden">
+          <div className="px-5 pt-4 pb-3 border-b border-zinc-800/60 flex items-center justify-between">
+            <p className="text-sm font-black text-white">Este mes</p>
+            <p className="text-[10px] text-zinc-500">{new Date().toLocaleDateString("es-ES", { month: "long", year: "numeric" })}</p>
+          </div>
+          <div className="p-4 grid grid-cols-4 gap-2 text-center">
+            <div className="rounded-xl bg-zinc-800/60 p-2.5 border border-zinc-700/40">
+              <p className={`text-lg font-black ${monthStats.profit >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                {monthStats.profit >= 0 ? "+" : ""}{monthStats.profit}€
+              </p>
+              <p className="text-[9px] text-zinc-500 mt-0.5 uppercase">Profit</p>
+            </div>
+            <div className="rounded-xl bg-zinc-800/60 p-2.5 border border-zinc-700/40">
+              <p className={`text-lg font-black ${monthStats.winrate >= 50 ? "text-emerald-400" : "text-rose-400"}`}>
+                {monthStats.winrate}%
+              </p>
+              <p className="text-[9px] text-zinc-500 mt-0.5 uppercase">Winrate</p>
+            </div>
+            <div className="rounded-xl bg-zinc-800/60 p-2.5 border border-zinc-700/40">
+              <p className="text-lg font-black text-emerald-400">{monthStats.won}</p>
+              <p className="text-[9px] text-zinc-500 mt-0.5 uppercase">Ganadas</p>
+            </div>
+            <div className="rounded-xl bg-zinc-800/60 p-2.5 border border-zinc-700/40">
+              <p className="text-lg font-black text-rose-400">{monthStats.lost}</p>
+              <p className="text-[9px] text-zinc-500 mt-0.5 uppercase">Perdidas</p>
+            </div>
+          </div>
+          {monthStats.topSport && (
+            <div className="px-4 pb-3">
+              <p className="text-[10px] text-zinc-600 text-center">
+                Deporte favorito: {SPORT_EMOJI[monthStats.topSport] ?? "🏅"} {monthStats.topSport}
+              </p>
+            </div>
+          )}
+        </section>
       )}
 
       {/* Yesterday picks */}
