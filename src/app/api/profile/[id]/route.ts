@@ -11,6 +11,7 @@
  */
 import { NextRequest } from "next/server"
 import { createServiceClient } from "@/lib/supabase/client"
+import { getGrantedPlan } from "@/lib/plan-grants"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -69,11 +70,14 @@ export async function GET(
   }
   const favoriteSport = Object.entries(sportCount).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null
 
+  // Resolve plan: grant first (not stored in DB), then DB, then free
+  const resolvedPlan = getGrantedPlan(user.email) ?? user.plan ?? "free"
+
   return Response.json({
     id: user.id,
     name: user.name ?? "Anónimo",
     avatar_url: user.avatar_url ?? null,
-    plan: user.plan ?? "free",
+    plan: resolvedPlan,
     is_vip_tipster: user.is_vip_tipster ?? false,
     member_since: user.first_sign_in ?? null,
     days_member: daysMember,

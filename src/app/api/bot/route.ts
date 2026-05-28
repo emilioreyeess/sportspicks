@@ -525,22 +525,23 @@ El pipeline de picks aún no ha generado resultados para hoy (${today}).
     if (valuePicks.length) {
       lines.push(`\nVALUE PICKS DEL DÍA (${valuePicks.length} picks):`)
       for (const p of valuePicks) {
-        const match = `${p.homeName ?? "?"} vs ${p.awayName ?? "?"}`
+        // store.valuePicks fields: home_team, away_team, selection, best_odd, value_edge, confidence_tier
+        const match = `${p.home_team ?? p.homeName ?? "?"} vs ${p.away_team ?? p.awayName ?? "?"}`
         const sel   = p.selection ?? p.market ?? "?"
-        const odds  = p.odds != null ? `@ ${p.odds}` : ""
-        const edge  = p.edge != null ? `edge +${p.edge.toFixed(1)}%` : ""
-        const tier  = p.tier ? `[${p.tier}]` : ""
-        lines.push(`• ${match} → ${sel} ${odds} ${edge} ${tier}`.trim())
+        const odds  = p.best_odd != null ? `@ ${p.best_odd}` : ""
+        const edge  = p.value_edge != null ? `edge +${Number(p.value_edge).toFixed(1)}%` : ""
+        const tier  = p.confidence_tier ?? p.tier ?? ""
+        lines.push(`• ${match} → ${sel} ${odds} ${edge}${tier ? ` [${tier}]` : ""}`.trim())
       }
     }
 
-    const combinadas = (store.combinadaPool ?? []).slice(0, 3)
-    if (combinadas.length) {
-      lines.push(`\nCOMBINADAS SUGERIDAS (${combinadas.length}):`)
-      for (const c of combinadas) {
-        const legs  = (c.legs ?? []).map((l: any) => `${l.selection ?? l.market}`).join(" + ")
-        const odds  = c.combinedOdds != null ? `cuota total ${c.combinedOdds.toFixed(2)}` : ""
-        lines.push(`• ${legs} ${odds}`.trim())
+    // combinadaPool is a flat array of PoolEntry (individual selections, not full combinadas)
+    const poolSample = (store.combinadaPool ?? []).slice(0, 6)
+    if (poolSample.length) {
+      lines.push(`\nSELECCIONES EN POOL DE COMBINADAS (${store.combinadaPool.length} total):`)
+      for (const c of poolSample) {
+        const odds = c.odd != null ? `@ ${c.odd}` : ""
+        lines.push(`• ${c.match ?? "?"} → ${c.selection ?? "?"} ${odds} [${c.league ?? ""}]`.trim())
       }
     }
 

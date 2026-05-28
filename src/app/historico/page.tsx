@@ -138,7 +138,7 @@ function PickRow({ pick }: { pick: HistoricalPick }) {
             <span className="text-[11px] font-black text-emerald-400">@{pick.best_odd.toFixed(2)}</span>
           )}
           {pick.model_prob !== undefined && (
-            <span className="text-[10px] text-zinc-600">IA {Math.round(pick.model_prob * 100)}%</span>
+            <span className="text-[10px] text-zinc-600">IA {Math.round(pick.model_prob)}%</span>
           )}
           {pick.home_score !== undefined && (
             <span className="text-[10px] text-zinc-600">{pick.home_score}–{pick.away_score}</span>

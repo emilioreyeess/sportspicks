@@ -140,7 +140,7 @@ function HallOfFame() {
                 <div className="flex items-center gap-2 mt-0.5">
                   <span className="text-[11px] text-zinc-500">{p.selection}</span>
                   <span className="text-[11px] font-black text-emerald-400">@{p.best_odd?.toFixed(2) ?? "—"}</span>
-                  <span className="text-[10px] text-zinc-600">IA {Math.round(p.model_prob * 100)}%</span>
+                  <span className="text-[10px] text-zinc-600">IA {Math.round(p.model_prob)}%</span>
                 </div>
               </div>
               <span className={`text-[9px] font-black px-2 py-1 rounded-lg border shrink-0 ${RESULT_STYLE[p.result] ?? RESULT_STYLE.VOID}`}>

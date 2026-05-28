@@ -13,6 +13,7 @@
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth-options"
 import { createServiceClient } from "@/lib/supabase/client"
+import { getGrantedPlan } from "@/lib/plan-grants"
 import Anthropic from "@anthropic-ai/sdk"
 import { consume, getClientIp, tooManyRequests } from "@/lib/rate-limit"
 
@@ -34,14 +35,22 @@ export async function POST(req: Request) {
 
   const sb = createServiceClient()
 
-  // Verificar plan (debe ser premium o pro)
-  const { data: userLog } = await sb
-    .from("users_log")
-    .select("plan")
-    .eq("email", session.user.email)
-    .single()
+  // Verificar plan: grants manuales primero, luego DB, luego fallback free
+  // Nota: el plan NO se persiste en users_log para usuarios de grant — se resuelve aquí.
+  const email = session.user.email
+  const grant = getGrantedPlan(email)
+  let plan: string = grant ?? "free"
 
-  const plan = userLog?.plan ?? "free"
+  if (!grant) {
+    // Sin grant manual → consultar DB (usuarios de Stripe)
+    const { data: userLog } = await sb
+      .from("users_log")
+      .select("plan")
+      .eq("email", email)
+      .single()
+    plan = userLog?.plan ?? "free"
+  }
+
   if (plan !== "premium" && plan !== "pro") {
     return Response.json(
       { error: "Esta función requiere plan Premium o PRO." },
