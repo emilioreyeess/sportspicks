@@ -7,7 +7,7 @@ export interface NavItem { href: string; label: string; short: string; icon: str
  */
 export const NAV_MAIN: NavItem[] = [
   { href: "/value",          label: "Value Picks",  short: "Value",   icon: "value"    },
-  { href: "/combinadas",     label: "Combinadas",   short: "Combis",  icon: "combinadas" },
+  { href: "/combinadas",     label: "Combinadas",   short: "Combinadas",  icon: "combinadas" },
   { href: "/bot",            label: "Bot IA",       short: "Bot IA",  icon: "bot"      },
   { href: "/retos",          label: "Retos",        short: "Retos",   icon: "trophy"   },
   { href: "/world-cup-2026", label: "Mundial 2026", short: "Mundial", icon: "wc2026"   },
@@ -17,6 +17,7 @@ export const NAV_MAIN: NavItem[] = [
 export const NAV_MORE: NavItem[] = [
   { href: "/",        label: "Inicio",          short: "Inicio",  icon: "home"        },
   { href: "/groups",  label: "Grupos",          short: "Grupos",  icon: "groups"      },
+  { href: "/forum",   label: "Foro",            short: "Foro",    icon: "groups"      },
   { href: "/bets",    label: "Mis Apuestas",    short: "Apuesta", icon: "ticket"      },
   { href: "/historico", label: "Histórico",       short: "Histor.", icon: "star"        },
   { href: "/stats",   label: "Estadísticas",    short: "Stats",   icon: "stats"       },

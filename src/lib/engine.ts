@@ -13,27 +13,48 @@ export const SHRINK_K = 8          // regresión a la media (muestra pequeña)
 export const MIN_GAMES = 5         // datos insuficientes por debajo de esto
 
 export const LEAGUE_NAMES: Record<string, string> = {
-  "esp.1":          "LaLiga",
-  "eng.1":          "Premier League",
-  "ger.1":          "Bundesliga",
-  "ita.1":          "Serie A",
-  "fra.1":          "Ligue 1",
-  "usa.1":          "MLS",
-  "arg.1":          "Liga Argentina",
-  "bra.1":          "Brasileirão",
-  "por.1":          "Primeira Liga",
-  "uefa.champions": "Champions League",
-  "mex.1":          "Liga MX",
-  "ned.1":          "Eredivisie",
-  "tur.1":          "Süper Lig",
-  "sau.1":          "Saudi Pro League",
-  "sco.1":          "Scottish Premiership",
+  "esp.1":            "LaLiga",
+  "eng.1":            "Premier League",
+  "ger.1":            "Bundesliga",
+  "ita.1":            "Serie A",
+  "fra.1":            "Ligue 1",
+  "usa.1":            "MLS",
+  "arg.1":            "Liga Argentina",
+  "bra.1":            "Brasileirão",
+  "por.1":            "Primeira Liga",
+  "uefa.champions":   "Champions League",
+  "uefa.europa":      "Europa League",
+  "UEFA.NL":          "UEFA Nations League",
+  "mex.1":            "Liga MX",
+  "ned.1":            "Eredivisie",
+  "tur.1":            "Süper Lig",
+  "sau.1":            "Saudi Pro League",
+  "sco.1":            "Scottish Premiership",
+  "bel.1":            "Pro League Bélgica",
+  "col.1":            "Liga BetPlay",
+  "chi.1":            "Primera División Chile",
+  "jpn.1":            "J1 League",
+  "FIFA.WC":          "Mundial 2026 (Clasificación)",
+  "CONCACAF.WC":      "Clasificación CONCACAF",
+  "CONMEBOL.WC":      "Clasificación CONMEBOL",
+  "UEFA.EURO":        "UEFA Euro",
+  "CONCACAF.NATIONS": "Nations League CONCACAF",
 }
 
 export const ALL_SLUGS = [
+  // Top 5 Europa
   "esp.1", "eng.1", "ger.1", "ita.1", "fra.1",
-  "usa.1", "arg.1", "bra.1", "por.1", "uefa.champions",
-  "mex.1", "ned.1", "tur.1", "sau.1",
+  // Competiciones europeas
+  "uefa.champions", "uefa.europa", "UEFA.NL",
+  // Otras europeas
+  "por.1", "ned.1", "tur.1", "sco.1", "bel.1",
+  // América
+  "usa.1", "arg.1", "bra.1", "mex.1", "col.1", "chi.1",
+  // Oriente Medio & Asia
+  "sau.1", "jpn.1",
+  // Mundial & Selecciones
+  "FIFA.WC", "CONCACAF.WC", "CONMEBOL.WC", "UEFA.EURO",
+  "CONCACAF.NATIONS",
 ]
 
 /** Perfil cualitativo por competición — el motor lo usa como contexto, no genera picks. */

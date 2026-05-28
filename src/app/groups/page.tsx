@@ -57,6 +57,7 @@ function EmptyRanking() {
 
 interface Message { id: string; content: string; user_email: string; sender_name: string; sender_avatar?: string; created_at: string }
 interface RankingEntry { email: string; name: string; avatar_url?: string; role: string; picks: number; won: number; winrate: number; yield: number; profit: number }
+interface Member { email: string; name: string; avatar_url?: string; role: string; joined_at: string }
 
 // ── Chat view ─────────────────────────────────────────────────
 function ChatView({ group, onBack }: { group: Group; onBack: () => void }) {
@@ -67,6 +68,9 @@ function ChatView({ group, onBack }: { group: Group; onBack: () => void }) {
   const [uploadingImage, setUploadingImage] = useState(false)
   const [ranking, setRanking] = useState<RankingEntry[]>([])
   const [rankingLoading, setRankingLoading] = useState(false)
+  const [members, setMembers] = useState<Member[]>([])
+  const [membersLoading, setMembersLoading] = useState(false)
+  const [linkCopied, setLinkCopied] = useState(false)
   const { data: session } = useSession()
 
   const loadMessages = useCallback(async () => {
@@ -82,6 +86,25 @@ function ChatView({ group, onBack }: { group: Group; onBack: () => void }) {
     if (res.ok) { const d = await res.json(); setRanking(d.ranking ?? []) }
     setRankingLoading(false)
   }, [group.id])
+
+  const loadMembers = useCallback(async () => {
+    setMembersLoading(true)
+    const res = await fetch(`/api/groups/${group.id}/members`)
+    if (res.ok) { const d = await res.json(); setMembers(d.members ?? []) }
+    setMembersLoading(false)
+  }, [group.id])
+
+  function copyInviteLink() {
+    if (!group.invite_code) return
+    const msg = `¡Únete a mi grupo "${group.name}" en SportsPicks! Usa el código: ${group.invite_code}\nhttps://sportspicks.vercel.app/groups?code=${group.invite_code}`
+    navigator.clipboard.writeText(msg).then(() => {
+      setLinkCopied(true)
+      setTimeout(() => setLinkCopied(false), 2500)
+    }).catch(() => {
+      // Fallback for browsers that don't support clipboard API
+      alert(msg)
+    })
+  }
 
   const sendMessage = async () => {
     const text = input.trim()
@@ -157,9 +180,16 @@ function ChatView({ group, onBack }: { group: Group; onBack: () => void }) {
             )}
           </div>
         </div>
-        {group.role === "admin" && (
-          <button className="tap p-1.5 rounded-lg hover:bg-zinc-800 text-zinc-500">
-            <Icon name="settings" className="w-4 h-4" strokeWidth={2} />
+        {group.invite_code && (
+          <button
+            onClick={copyInviteLink}
+            className={`tap p-1.5 rounded-lg transition-all ${linkCopied ? "bg-emerald-500/20 text-emerald-400" : "hover:bg-zinc-800 text-zinc-500"}`}
+            title="Copiar enlace de invitación"
+          >
+            {linkCopied
+              ? <Icon name="check" className="w-4 h-4" strokeWidth={2.4} />
+              : <Icon name="copy" className="w-4 h-4" strokeWidth={2} />
+            }
           </button>
         )}
       </div>
@@ -167,7 +197,11 @@ function ChatView({ group, onBack }: { group: Group; onBack: () => void }) {
       {/* Tab bar */}
       <div className="shrink-0 flex border-b border-zinc-800/60 bg-zinc-950/60">
         {TABS.map((t) => (
-          <button key={t.id} onClick={() => { setTab(t.id); if (t.id === "ranking" && !ranking.length) loadRanking() }}
+          <button key={t.id} onClick={() => {
+            setTab(t.id)
+            if (t.id === "ranking" && !ranking.length) loadRanking()
+            if (t.id === "members" && !members.length) loadMembers()
+          }}
             className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-bold tap transition-all border-b-2 ${tab === t.id ? "border-emerald-500 text-white" : "border-transparent text-zinc-600 hover:text-zinc-400"}`}>
             <Icon name={t.icon} className="w-3.5 h-3.5" strokeWidth={2} />
             {t.label}
@@ -238,7 +272,47 @@ function ChatView({ group, onBack }: { group: Group; onBack: () => void }) {
 
       {tab === "members" && (
         <div className="flex-1 overflow-y-auto">
-          <EmptyMembers />
+          {membersLoading ? (
+            <div className="flex items-center justify-center py-16">
+              <div className="w-7 h-7 rounded-full border-2 border-emerald-500 border-t-transparent animate-spin" />
+            </div>
+          ) : members.length === 0 ? (
+            <EmptyMembers />
+          ) : (
+            <div className="px-4 pt-4 pb-6 space-y-2">
+              {/* Invite link banner for admins */}
+              {group.role === "admin" && group.invite_code && (
+                <button
+                  onClick={copyInviteLink}
+                  className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all ${linkCopied ? "border-emerald-700/60 bg-emerald-500/10" : "border-zinc-700/50 bg-zinc-900/50 hover:bg-zinc-800/60"}`}
+                >
+                  <Icon name={linkCopied ? "check" : "share"} className={`w-4 h-4 shrink-0 ${linkCopied ? "text-emerald-400" : "text-zinc-400"}`} strokeWidth={2} />
+                  <div className="text-left">
+                    <p className={`text-xs font-bold ${linkCopied ? "text-emerald-400" : "text-zinc-300"}`}>
+                      {linkCopied ? "¡Enlace copiado!" : "Generar enlace de invitación"}
+                    </p>
+                    {!linkCopied && <p className="text-[10px] text-zinc-600">Código: <span className="text-emerald-400 font-black tracking-widest">{group.invite_code}</span></p>}
+                  </div>
+                </button>
+              )}
+              {members.map((m) => (
+                <div key={m.email} className="flex items-center gap-3 p-3 rounded-xl border border-zinc-800/60 bg-zinc-900/40">
+                  <div className="w-9 h-9 rounded-full bg-zinc-700 grid place-items-center text-sm font-bold shrink-0 overflow-hidden">
+                    {m.avatar_url ? <img src={m.avatar_url} className="w-full h-full object-cover" alt="" /> : m.name?.[0]?.toUpperCase()}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-bold text-white truncate">{m.name}</p>
+                    <p className="text-[10px] text-zinc-500">
+                      {m.role === "admin" ? "👑 Admin" : "Miembro"} · desde {new Date(m.joined_at).toLocaleDateString("es-ES", { month: "short", year: "numeric" })}
+                    </p>
+                  </div>
+                  {m.email === session?.user?.email && (
+                    <span className="text-[10px] bg-emerald-500/15 text-emerald-400 border border-emerald-700/40 px-2 py-0.5 rounded-full font-bold">Tú</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 

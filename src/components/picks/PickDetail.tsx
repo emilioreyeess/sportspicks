@@ -64,8 +64,20 @@ export function PickDetail({ pick, onClose }: Props) {
         // Marcar selección actual como rechazada y consumir cuota
         addRejectedSelection(pick.id, currentPick.selection)
         incrementSecondOpinion(pick.id)
-        setCurrentPick(data.pick)
-        setLastChange(data.changes)
+        // Server returns `alternative` — merge it into the current pick shape
+        const alt = data.alternative ?? data.pick
+        if (alt) {
+          setCurrentPick({
+            ...currentPick,
+            market: alt.market ?? currentPick.market,
+            selection: alt.selection ?? currentPick.selection,
+            best_odd: alt.odd ?? alt.best_odd ?? currentPick.best_odd,
+            quality_score: alt.qualityScore ?? alt.quality_score ?? currentPick.quality_score,
+            is_second_opinion: true,
+          } as any)
+        }
+        // changeLog can be at data.changeLog or data.changes
+        setLastChange(data.changeLog ?? data.changes ?? null)
       }
     } catch (e: any) {
       setErrorMsg("Error de red: " + (e?.message ?? "desconocido"))

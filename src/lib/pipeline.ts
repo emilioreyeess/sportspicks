@@ -82,10 +82,15 @@ async function fetchDailyData(): Promise<DailyData> {
       if (!home?.team?.id || !away?.team?.id) continue
       // Validación: fecha de inicio válida
       if (!ev.date || isNaN(new Date(ev.date).getTime())) continue
-      // Descartar partidos cuyo kickoff ya pasó (son de otro día)
+      // Solo partidos de HOY — descartar pasados Y futuros (días siguientes)
       const kickoffDate = ev.date?.slice(0, 10)
-      const today = new Date().toISOString().split("T")[0]
-      if (kickoffDate && kickoffDate < today) continue
+      const now = new Date()
+      const todayUTC = now.toISOString().split("T")[0]
+      // Allow today in UTC and also today-1 in case of timezone offset (UTC vs local)
+      const yesterdayUTC = new Date(Date.now() - 86400000).toISOString().split("T")[0]
+      const tomorrowUTC = new Date(Date.now() + 86400000).toISOString().split("T")[0]
+      // Only accept TODAY (strict)
+      if (!kickoffDate || kickoffDate === yesterdayUTC || kickoffDate >= tomorrowUTC) continue
       const odds = extractOdds(comp)
       if (!odds) continue
       raw.push({

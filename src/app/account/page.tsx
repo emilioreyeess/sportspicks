@@ -39,10 +39,20 @@ export default function AccountPage() {
   const planDef = PLANS[plan]
 
   const [name, setName] = useState("")
+  const [nameSaving, setNameSaving] = useState(false)
+  const [nameMsg, setNameMsg] = useState<{ ok: boolean; text: string } | null>(null)
   const [prefs, setPrefs] = useState({ valueAlerts: true, dailyDigest: false, product: true })
   const [picksTotal, setPicksTotal] = useState<number | null>(null)
   const [sub, setSub] = useState<StoredSub | null>(null)
   const [signingOut, setSigningOut] = useState(false)
+
+  // Change password
+  const [showPwdForm, setShowPwdForm] = useState(false)
+  const [currentPwd, setCurrentPwd] = useState("")
+  const [newPwd, setNewPwd] = useState("")
+  const [confirmPwd, setConfirmPwd] = useState("")
+  const [pwdSaving, setPwdSaving] = useState(false)
+  const [pwdMsg, setPwdMsg] = useState<{ ok: boolean; text: string } | null>(null)
 
   const [portalLoading, setPortalLoading] = useState(false)
   const [verifying, setVerifying] = useState(false)
@@ -51,11 +61,26 @@ export default function AccountPage() {
 
   useEffect(() => {
     try {
-      setName(localStorage.getItem("sp_name") ?? "")
       const p = localStorage.getItem("sp_prefs")
       if (p) setPrefs(JSON.parse(p))
       setSub(readStoredSub())
     } catch {}
+
+    // Load name from DB (source of truth)
+    fetch("/api/account/profile")
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        if (d?.name) {
+          setName(d.name)
+          try { localStorage.setItem("sp_name", d.name) } catch {}
+        } else {
+          // Fallback to localStorage
+          try { setName(localStorage.getItem("sp_name") ?? "") } catch {}
+        }
+      })
+      .catch(() => {
+        try { setName(localStorage.getItem("sp_name") ?? "") } catch {}
+      })
 
     fetch("/api/picks")
       .then(r => r.json())
@@ -71,10 +96,57 @@ export default function AccountPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  function saveName(v: string) {
+  async function saveName(v: string) {
     setName(v)
     try { localStorage.setItem("sp_name", v) } catch {}
   }
+
+  async function persistName() {
+    if (!name.trim()) return
+    setNameSaving(true); setNameMsg(null)
+    try {
+      const res = await fetch("/api/account/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ name: name.trim() }),
+      })
+      const d = await res.json()
+      if (res.ok) {
+        setNameMsg({ ok: true, text: "Nombre guardado correctamente." })
+        try { localStorage.setItem("sp_name", name.trim()) } catch {}
+      } else {
+        setNameMsg({ ok: false, text: d.error ?? "Error al guardar" })
+      }
+    } catch {
+      setNameMsg({ ok: false, text: "Error de conexión" })
+    } finally { setNameSaving(false) }
+  }
+
+  async function handleChangePassword(e: React.FormEvent) {
+    e.preventDefault()
+    setPwdMsg(null)
+    if (newPwd !== confirmPwd) { setPwdMsg({ ok: false, text: "Las contraseñas no coinciden." }); return }
+    if (newPwd.length < 8) { setPwdMsg({ ok: false, text: "La nueva contraseña debe tener al menos 8 caracteres." }); return }
+    setPwdSaving(true)
+    try {
+      const res = await fetch("/api/account/profile", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ currentPassword: currentPwd, newPassword: newPwd }),
+      })
+      const d = await res.json()
+      if (res.ok) {
+        setPwdMsg({ ok: true, text: "Contraseña actualizada correctamente." })
+        setCurrentPwd(""); setNewPwd(""); setConfirmPwd("")
+        setShowPwdForm(false)
+      } else {
+        setPwdMsg({ ok: false, text: d.error ?? "Error al cambiar la contraseña" })
+      }
+    } catch {
+      setPwdMsg({ ok: false, text: "Error de conexión" })
+    } finally { setPwdSaving(false) }
+  }
+
   function toggle(key: keyof typeof prefs) {
     const next = { ...prefs, [key]: !prefs[key] }
     setPrefs(next)
@@ -176,11 +248,26 @@ export default function AccountPage() {
           <p className="text-lg font-black text-white">{displayName}</p>
           {displayEmail && <p className="text-xs text-zinc-500 mt-0.5">{displayEmail}</p>}
 
-          <label className="block mt-4">
+          <div className="mt-4">
             <span className="section-label block mb-1.5">Nombre para mostrar</span>
-            <input value={name} onChange={(e) => saveName(e.target.value)} placeholder="Tu nombre"
-              className="input-base" />
-          </label>
+            <div className="flex gap-2">
+              <input value={name} onChange={(e) => saveName(e.target.value)} placeholder="Tu nombre"
+                className="input-base flex-1"
+                onKeyDown={(e) => e.key === "Enter" && persistName()}
+              />
+              <button
+                type="button"
+                onClick={persistName}
+                disabled={nameSaving || !name.trim()}
+                className="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white text-xs font-bold transition-colors"
+              >
+                {nameSaving ? "…" : "Guardar"}
+              </button>
+            </div>
+            {nameMsg && (
+              <p className={`text-xs mt-1.5 ${nameMsg.ok ? "text-emerald-400" : "text-red-400"}`}>{nameMsg.text}</p>
+            )}
+          </div>
         </div>
       </Card>
 
@@ -307,6 +394,63 @@ export default function AccountPage() {
           ))}
         </div>
       </Card>
+
+      {/* ── Cambiar contraseña ───────────────────────────────────────────── */}
+      {isLoggedIn && (
+        <Card className="p-5">
+          <SectionTitle icon="shield" title="Seguridad" />
+          {!showPwdForm ? (
+            <button
+              onClick={() => { setShowPwdForm(true); setPwdMsg(null) }}
+              className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-zinc-700 bg-zinc-900/60 hover:bg-zinc-800 text-zinc-300 font-semibold text-sm tap transition-all"
+            >
+              <Icon name="shield" className="w-4 h-4" strokeWidth={2} />
+              Cambiar contraseña
+            </button>
+          ) : (
+            <form onSubmit={handleChangePassword} className="space-y-3">
+              <input
+                type="password"
+                placeholder="Contraseña actual"
+                value={currentPwd}
+                onChange={e => setCurrentPwd(e.target.value)}
+                required
+                className="w-full h-11 px-3.5 rounded-xl bg-zinc-900 border border-zinc-700/60 text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-emerald-600/60 transition-colors"
+              />
+              <input
+                type="password"
+                placeholder="Nueva contraseña (mín. 8 caracteres)"
+                value={newPwd}
+                onChange={e => setNewPwd(e.target.value)}
+                required
+                minLength={8}
+                className="w-full h-11 px-3.5 rounded-xl bg-zinc-900 border border-zinc-700/60 text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-emerald-600/60 transition-colors"
+              />
+              <input
+                type="password"
+                placeholder="Repetir nueva contraseña"
+                value={confirmPwd}
+                onChange={e => setConfirmPwd(e.target.value)}
+                required
+                className="w-full h-11 px-3.5 rounded-xl bg-zinc-900 border border-zinc-700/60 text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-emerald-600/60 transition-colors"
+              />
+              {pwdMsg && (
+                <p className={`text-xs ${pwdMsg.ok ? "text-emerald-400" : "text-red-400"}`}>{pwdMsg.text}</p>
+              )}
+              <div className="flex gap-2">
+                <button type="button" onClick={() => { setShowPwdForm(false); setPwdMsg(null) }}
+                  className="flex-1 py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-sm text-zinc-300 transition-colors">
+                  Cancelar
+                </button>
+                <button type="submit" disabled={pwdSaving}
+                  className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white font-bold text-sm transition-colors">
+                  {pwdSaving ? "Guardando…" : "Actualizar"}
+                </button>
+              </div>
+            </form>
+          )}
+        </Card>
+      )}
 
       {/* ── Sesión ───────────────────────────────────────────────────────── */}
       {isLoggedIn && (

@@ -35,6 +35,7 @@ export default function BetsPage() {
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState(emptyForm())
   const [saving, setSaving] = useState(false)
+  const [saveError, setSaveError] = useState<string | null>(null)
   const [uploadingImage, setUploadingImage] = useState(false)
   const [expanded, setExpanded] = useState<string | null>(null)
   const [filter, setFilter] = useState<"all" | "pending" | "won" | "lost">("all")
@@ -88,25 +89,36 @@ export default function BetsPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    setSaving(true)
+    setSaving(true); setSaveError(null)
     const combo = parseFloat(form.combined_odds || calcCombo() || "1")
     const legs = form.legs
       .filter(l => l.match && l.selection)
       .map(l => ({ match: l.match, selection: l.selection, odds: parseFloat(l.odds) || 1 }))
-    const res = await fetch("/api/bets", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        title: form.title || legs.map(l => l.selection).join(" + "),
-        stake: parseFloat(form.stake) || 0,
-        combined_odds: combo,
-        sport: form.sport,
-        legs,
-        image_url: form.imageUrl || undefined,
-      }),
-    })
-    setSaving(false)
-    if (res.ok) { setShowForm(false); setForm(emptyForm()); load() }
+    if (!legs.length) { setSaveError("Añade al menos una selección."); setSaving(false); return }
+    const title = form.title || legs.map(l => l.selection).join(" + ")
+    try {
+      const res = await fetch("/api/bets", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title,
+          stake: parseFloat(form.stake) || 0,
+          combined_odds: isNaN(combo) || combo < 1 ? 1 : combo,
+          sport: form.sport,
+          legs,
+          image_url: form.imageUrl || undefined,
+        }),
+      })
+      if (res.ok) { setShowForm(false); setForm(emptyForm()); load() }
+      else {
+        const d = await res.json().catch(() => ({}))
+        setSaveError(d.error ?? "Error al guardar la apuesta")
+      }
+    } catch (err: any) {
+      setSaveError("Error de conexión: " + err.message)
+    } finally {
+      setSaving(false)
+    }
   }
 
   const settle = async (id: string, status: "won" | "lost" | "void") => {
@@ -119,6 +131,14 @@ export default function BetsPage() {
   }
 
   const filtered = bets.filter(b => filter === "all" || b.status === filter)
+
+  // Bets created yesterday or before that are still pending — prompt user to settle them
+  const yesterday = new Date(Date.now() - 86400000).toISOString().split("T")[0]
+  const pendingToSettle = bets.filter(b => {
+    if (b.status !== "pending") return false
+    const betDate = b.created_at?.slice(0, 10)
+    return betDate && betDate <= yesterday
+  })
 
   if (status === "loading" || loading) {
     return (
@@ -156,6 +176,41 @@ export default function BetsPage() {
               <div key={s.label} className="bg-zinc-900 rounded-xl p-3 text-center border border-white/5">
                 <div className={`text-xl font-bold ${s.color}`}>{s.value}</div>
                 <div className="text-xs text-zinc-500 mt-0.5">{s.label}</div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Pending bets to settle prompt */}
+        {pendingToSettle.length > 0 && (
+          <div className="rounded-2xl border border-amber-700/40 bg-amber-500/8 p-4 space-y-3">
+            <div className="flex items-center gap-2">
+              <span className="text-xl">⏰</span>
+              <div>
+                <p className="text-sm font-black text-amber-300">¿Cómo fue?</p>
+                <p className="text-xs text-zinc-500">{pendingToSettle.length} apuesta{pendingToSettle.length > 1 ? "s" : ""} de ayer sin resultado</p>
+              </div>
+            </div>
+            {pendingToSettle.slice(0, 3).map(b => (
+              <div key={b.id} className="bg-zinc-900/80 rounded-xl p-3 space-y-2">
+                <p className="text-xs font-bold text-white truncate">{b.title}</p>
+                <p className="text-[11px] text-zinc-500">
+                  {b.stake}€ @ {b.combined_odds} · {new Date(b.created_at).toLocaleDateString("es-ES", { day: "numeric", month: "short" })}
+                </p>
+                <div className="flex gap-2">
+                  <button onClick={() => settle(b.id, "won")}
+                    className="flex-1 py-2 rounded-xl bg-green-600/20 hover:bg-green-600/30 text-green-400 text-xs font-bold border border-green-700/40 transition-all">
+                    ✓ Ganada
+                  </button>
+                  <button onClick={() => settle(b.id, "lost")}
+                    className="flex-1 py-2 rounded-xl bg-red-600/20 hover:bg-red-600/30 text-red-400 text-xs font-bold border border-red-700/40 transition-all">
+                    ✗ Perdida
+                  </button>
+                  <button onClick={() => settle(b.id, "void")}
+                    className="w-16 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-500 text-xs font-bold transition-all">
+                    Anulada
+                  </button>
+                </div>
               </div>
             ))}
           </div>
@@ -239,8 +294,11 @@ export default function BetsPage() {
               )}
             </div>
 
+            {saveError && (
+              <p className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">{saveError}</p>
+            )}
             <div className="flex gap-2 pt-1">
-              <button type="button" onClick={() => setShowForm(false)} className="flex-1 bg-zinc-800 hover:bg-zinc-700 rounded-xl py-2 text-sm transition">Cancelar</button>
+              <button type="button" onClick={() => { setShowForm(false); setSaveError(null) }} className="flex-1 bg-zinc-800 hover:bg-zinc-700 rounded-xl py-2 text-sm transition">Cancelar</button>
               <button type="submit" disabled={saving} className="flex-1 bg-green-600 hover:bg-green-500 disabled:opacity-50 rounded-xl py-2 text-sm font-semibold transition">
                 {saving ? "Guardando…" : "Guardar"}
               </button>
