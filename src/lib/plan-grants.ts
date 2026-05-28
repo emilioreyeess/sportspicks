@@ -21,6 +21,7 @@ const GRANTS: Record<string, GrantedPlan> = {
   "alejandrofleitasbjj@gmail.com":        "pro",
   "pablo.alborss@gmail.com":              "pro",
   "samuha158@gmail.com":                  "pro",
+  "cabreraalemana@gmail.com":             "pro",
 }
 
 /**
