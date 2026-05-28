@@ -4,18 +4,36 @@
  */
 import { NextRequest } from "next/server"
 import Anthropic from "@anthropic-ai/sdk"
+import { consume, getClientIp, tooManyRequests } from "@/lib/rate-limit"
 
 export const runtime = "nodejs"
 
+// Max base64 payload size: ~7MB (5MB image after base64 expansion ≈ 6.7MB)
+const MAX_BODY_BYTES = 7 * 1024 * 1024
+
 export async function POST(req: NextRequest) {
+  // Rate limit: 5 extractions per IP per minute
+  const ip = getClientIp(req)
+  if (!consume(`extract-bet:${ip}`, 5, 1)) return tooManyRequests(60)
+
   const apiKey = process.env.ANTHROPIC_API_KEY
   if (!apiKey) return Response.json({ error: "ANTHROPIC_API_KEY not set" }, { status: 500 })
+
+  // Reject oversized requests before parsing
+  const contentLength = req.headers.get("content-length")
+  if (contentLength && parseInt(contentLength, 10) > MAX_BODY_BYTES) {
+    return Response.json({ error: "Imagen demasiado grande (máx. 5 MB)" }, { status: 413 })
+  }
 
   let body: { imageBase64: string; mimeType?: string }
   try { body = await req.json() } catch {
     return Response.json({ error: "Invalid JSON" }, { status: 400 })
   }
   if (!body.imageBase64) return Response.json({ error: "imageBase64 required" }, { status: 400 })
+  // Validate base64 string size
+  if (body.imageBase64.length > MAX_BODY_BYTES) {
+    return Response.json({ error: "Imagen demasiado grande (máx. 5 MB)" }, { status: 413 })
+  }
 
   const client = new Anthropic({ apiKey })
 
