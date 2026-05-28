@@ -19,6 +19,8 @@ const GRANTS: Record<string, GrantedPlan> = {
   // ─── Beta testers / acceso cortesía ──────────────────────────────────────
   "alejandrorodriguezfleitas@gmail.com":  "pro",
   "alejandrofleitasbjj@gmail.com":        "pro",
+  "pablo.alborss@gmail.com":              "pro",
+  "samuha158@gmail.com":                  "pro",
 }
 
 /**
