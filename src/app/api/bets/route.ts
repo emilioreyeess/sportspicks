@@ -63,6 +63,7 @@ export async function POST(req: NextRequest) {
     legs: { match: string; selection: string; odds: number }[]
     sport?: string
     notes?: string
+    image_url?: string
   }
   try { body = await req.json() } catch {
     return Response.json({ error: "JSON inválido" }, { status: 400 })
@@ -112,6 +113,11 @@ export async function POST(req: NextRequest) {
   const sb = createServiceClient()
   const email = session.user.email
 
+  // Validate image_url if provided
+  const imageUrl = typeof body.image_url === "string" && body.image_url.startsWith("https://")
+    ? body.image_url
+    : null
+
   const { data: bet, error: betErr } = await sb
     .from("bets")
     .insert({
@@ -121,6 +127,7 @@ export async function POST(req: NextRequest) {
       combined_odds: combinedOdds,
       sport: body.sport ?? "football",
       notes: body.notes?.trim() ?? null,
+      image_url: imageUrl,
       status: "pending",
     })
     .select()
