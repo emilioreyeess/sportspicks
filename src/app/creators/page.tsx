@@ -250,19 +250,21 @@ function calcCombinedOdds(legs: BetLeg[]) {
 }
 
 function ImageGenerator() {
-  const [title, setTitle]         = useState("Mi Combinada")
-  const [legs, setLegs]           = useState<BetLeg[]>([
+  const [title, setTitle]           = useState("Mi Combinada")
+  const [legs, setLegs]             = useState<BetLeg[]>([
     { match: "", selection: "", odds: 1.5 },
     { match: "", selection: "", odds: 1.5 },
   ])
-  const [aiProb, setAiProb]       = useState(35)
-  const [ventaja, setVentaja]     = useState(10)
+  const [aiProb, setAiProb]         = useState<number | null>(null)
+  const [ventaja, setVentaja]       = useState<number | null>(null)
+  const [calcLoading, setCalcLoading] = useState(false)
+  const [calcError, setCalcError]   = useState("")
   const [generating, setGenerating] = useState(false)
-  const [done, setDone]           = useState(false)
-  const [showForm, setShowForm]   = useState(true)
-  const [scanning, setScanning]   = useState(false)
-  const [scanError, setScanError] = useState("")
-  const fileRef                   = useRef<HTMLInputElement>(null)
+  const [done, setDone]             = useState(false)
+  const [showForm, setShowForm]     = useState(true)
+  const [scanning, setScanning]     = useState(false)
+  const [scanError, setScanError]   = useState("")
+  const fileRef                     = useRef<HTMLInputElement>(null)
 
   async function compressToBase64(file: File, maxPx = 1200, quality = 0.82): Promise<string> {
     return new Promise((resolve, reject) => {
@@ -283,6 +285,28 @@ function ImageGenerator() {
     })
   }
 
+  /** Calculates AI probability and edge via /api/tipster/calc-edge */
+  async function calcEdge(legsToCalc: BetLeg[]) {
+    const valid = legsToCalc.filter(l => l.match && l.selection && l.odds >= 1.01)
+    if (valid.length === 0) return
+    setCalcLoading(true); setCalcError(""); setAiProb(null); setVentaja(null)
+    try {
+      const res = await fetch("/api/tipster/calc-edge", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ legs: valid }),
+      })
+      const data = await res.json()
+      if (!res.ok || !data.ok) throw new Error(data.error ?? "Error")
+      setAiProb(data.combined_prob)
+      setVentaja(Math.round(data.edge * 10) / 10)
+    } catch (err: any) {
+      setCalcError("No se pudo calcular. Inténtalo de nuevo.")
+    } finally {
+      setCalcLoading(false)
+    }
+  }
+
   async function handleScan(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
@@ -297,11 +321,14 @@ function ImageGenerator() {
       const data = await res.json()
       if (!res.ok || !data.bet) throw new Error(data.error ?? "Error")
       const bet = data.bet
-      if (bet.title)       setTitle(bet.title)
-      if (bet.legs?.length) setLegs(bet.legs.map((l: any) => ({
-        match: l.match ?? "", selection: l.selection ?? "", odds: parseFloat(l.odds) || 1.5,
-      })))
+      if (bet.title) setTitle(bet.title)
+      const newLegs: BetLeg[] = bet.legs?.length
+        ? bet.legs.map((l: any) => ({ match: l.match ?? "", selection: l.selection ?? "", odds: parseFloat(l.odds) || 1.5 }))
+        : legs
+      if (bet.legs?.length) setLegs(newLegs)
       setShowForm(true)
+      // Auto-calculate edge after scan
+      await calcEdge(newLegs)
     } catch {
       setScanError("No se pudo leer el boleto. Intenta con una captura más clara.")
     } finally {
@@ -315,12 +342,19 @@ function ImageGenerator() {
   function updateLeg(i: number, field: keyof BetLeg, value: string | number) {
     setLegs(prev => prev.map((l, idx) => idx === i ? { ...l, [field]: value } : l))
     setDone(false)
+    // Reset calculated values when legs change — user must recalculate
+    setAiProb(null); setVentaja(null); setCalcError("")
   }
-  function addLeg()    { if (legs.length < 8) setLegs(prev => [...prev, { ...EMPTY_LEG }]) }
-  function removeLeg(i: number) { if (legs.length > 1) setLegs(prev => prev.filter((_, idx) => idx !== i)) }
+  function addLeg() {
+    if (legs.length < 8) { setLegs(prev => [...prev, { ...EMPTY_LEG }]); setAiProb(null); setVentaja(null) }
+  }
+  function removeLeg(i: number) {
+    if (legs.length > 1) { setLegs(prev => prev.filter((_, idx) => idx !== i)); setAiProb(null); setVentaja(null) }
+  }
 
-  const bet: BetData = { title, legs, combinedOdds, aiProb, edge: ventaja }
-  const isValid = legs.every(l => l.match.trim() && l.selection.trim() && l.odds >= 1.01)
+  const bet: BetData = { title, legs, combinedOdds, aiProb: aiProb ?? 0, edge: ventaja ?? 0 }
+  const legsValid = legs.every(l => l.match.trim() && l.selection.trim() && l.odds >= 1.01)
+  const isValid = legsValid && aiProb !== null && ventaja !== null
   const [saveMethod, setSaveMethod] = useState<"shared" | "downloaded" | null>(null)
 
   async function handleGenerate() {
@@ -409,20 +443,42 @@ function ImageGenerator() {
             )}
           </div>
 
-          {/* Prob + Ventaja */}
-          <div className="grid grid-cols-2 gap-2">
-            <div>
-              <p className="text-[10px] text-zinc-500 mb-1">Prob. IA (%)</p>
-              <input type="number" value={aiProb} min={1} max={99}
-                onChange={e => setAiProb(Number(e.target.value))}
-                className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs text-violet-400 font-bold focus:outline-none focus:border-violet-600" />
+          {/* Probabilidad IA + Edge — calculados automáticamente */}
+          <div className="rounded-xl border border-zinc-700/50 bg-zinc-900/60 p-3 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Probabilidad IA · Edge</p>
+              <button
+                type="button"
+                onClick={() => calcEdge(legs)}
+                disabled={!legsValid || calcLoading}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-violet-600/20 hover:bg-violet-600/30 border border-violet-700/50 text-violet-400 text-[10px] font-bold disabled:opacity-40 transition-all tap"
+              >
+                {calcLoading
+                  ? <><span className="w-3 h-3 rounded-full border-2 border-violet-400/40 border-t-violet-400 animate-spin shrink-0" />Calculando…</>
+                  : <>🧠 Calcular con IA</>
+                }
+              </button>
             </div>
-            <div>
-              <p className="text-[10px] text-zinc-500 mb-1">Ventaja (%)</p>
-              <input type="number" value={ventaja} min={0} max={99}
-                onChange={e => setVentaja(Number(e.target.value))}
-                className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs text-emerald-400 font-bold focus:outline-none focus:border-violet-600" />
+
+            {calcError && <p className="text-[11px] text-rose-400">{calcError}</p>}
+
+            <div className="grid grid-cols-2 gap-2">
+              <div className={`rounded-lg border px-3 py-2 text-center transition-all ${aiProb !== null ? "border-violet-700/50 bg-violet-500/10" : "border-zinc-800 bg-zinc-800/30"}`}>
+                <p className={`text-lg font-black ${aiProb !== null ? "text-violet-300" : "text-zinc-600"}`}>
+                  {aiProb !== null ? `${aiProb}%` : "—"}
+                </p>
+                <p className="text-[9px] text-zinc-500 font-bold">Prob. IA</p>
+              </div>
+              <div className={`rounded-lg border px-3 py-2 text-center transition-all ${ventaja !== null ? (ventaja >= 0 ? "border-emerald-700/50 bg-emerald-500/10" : "border-rose-700/50 bg-rose-500/10") : "border-zinc-800 bg-zinc-800/30"}`}>
+                <p className={`text-lg font-black ${ventaja !== null ? (ventaja >= 0 ? "text-emerald-300" : "text-rose-300") : "text-zinc-600"}`}>
+                  {ventaja !== null ? `${ventaja >= 0 ? "+" : ""}${ventaja}%` : "—"}
+                </p>
+                <p className="text-[9px] text-zinc-500 font-bold">Edge</p>
+              </div>
             </div>
+            <p className="text-[9px] text-zinc-600 leading-relaxed">
+              Calculado por IA a partir de las cuotas de mercado. No es un pronóstico de resultado.
+            </p>
           </div>
         </div>
       )}
@@ -438,8 +494,10 @@ function ImageGenerator() {
           <div className="flex items-center gap-3 mt-2">
             <span className="text-2xl font-black text-emerald-400">@{combinedOdds.toFixed(2)}</span>
             <div className="text-xs text-zinc-500">
-              <p>Prob. IA: <span className="text-violet-400 font-bold">{aiProb}%</span></p>
-              <p>Ventaja: <span className="text-emerald-400 font-bold">+{ventaja}%</span></p>
+              <p>Prob. IA: <span className="text-violet-400 font-bold">{aiProb !== null ? `${aiProb}%` : "—"}</span></p>
+              <p>Ventaja: <span className={`font-bold ${ventaja !== null ? (ventaja >= 0 ? "text-emerald-400" : "text-rose-400") : "text-zinc-500"}`}>
+                {ventaja !== null ? `${ventaja >= 0 ? "+" : ""}${ventaja}%` : "—"}
+              </span></p>
             </div>
           </div>
         </div>
@@ -466,7 +524,10 @@ function ImageGenerator() {
         <Icon name={done ? "check" : "download"} className="w-4 h-4" strokeWidth={2.2} />
         {generating ? "Generando imagen…" : done ? "¡Imagen lista!" : "Guardar imagen"}
       </button>
-      {!isValid && <p className="text-[10px] text-zinc-600 text-center">Rellena todos los campos para generar la imagen.</p>}
+      {!legsValid && <p className="text-[10px] text-zinc-600 text-center">Rellena todos los campos de las selecciones.</p>}
+      {legsValid && aiProb === null && !calcLoading && (
+        <p className="text-[10px] text-amber-500/80 text-center">Pulsa "Calcular con IA" para obtener la probabilidad y el edge.</p>
+      )}
       {done && saveMethod === "shared" && (
         <p className="text-[11px] text-emerald-400 text-center font-bold">
           ✓ Abre la hoja de compartir → toca "Guardar imagen" para añadirla a tu galería.
