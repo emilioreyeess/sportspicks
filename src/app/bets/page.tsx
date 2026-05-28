@@ -1,8 +1,9 @@
 "use client"
 
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
+import { usePlan } from "@/lib/plan"
 
 interface BetLeg { id: string; match: string; selection: string; odds: number; status: string }
 interface Bet {
@@ -39,6 +40,12 @@ export default function BetsPage() {
   const [uploadingImage, setUploadingImage] = useState(false)
   const [expanded, setExpanded] = useState<string | null>(null)
   const [filter, setFilter] = useState<"all" | "pending" | "won" | "lost">("all")
+  const [showAnalysis, setShowAnalysis] = useState(false)
+  const [analysisText, setAnalysisText] = useState("")
+  const [analysisLoading, setAnalysisLoading] = useState(false)
+  const [analysisError, setAnalysisError] = useState<string | null>(null)
+  const analysisRef = useRef<HTMLDivElement>(null)
+  const { plan } = usePlan()
 
   const load = useCallback(async () => {
     try {
@@ -121,6 +128,45 @@ export default function BetsPage() {
     }
   }
 
+  const runAnalysis = async () => {
+    if (analysisLoading) return
+    setAnalysisLoading(true)
+    setAnalysisText("")
+    setAnalysisError(null)
+    setShowAnalysis(true)
+    setTimeout(() => analysisRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 100)
+    try {
+      const res = await fetch("/api/bets/analysis", { method: "POST" })
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}))
+        setAnalysisError(d.error ?? "Error al generar análisis")
+        setAnalysisLoading(false)
+        return
+      }
+      const reader = res.body?.getReader()
+      if (!reader) { setAnalysisError("Sin respuesta"); setAnalysisLoading(false); return }
+      const dec = new TextDecoder()
+      let buf = ""
+      while (true) {
+        const { done, value } = await reader.read()
+        if (done) break
+        buf += dec.decode(value, { stream: true })
+        const lines = buf.split("\n")
+        buf = lines.pop() ?? ""
+        for (const line of lines) {
+          if (!line.startsWith("data: ")) continue
+          const raw = line.slice(6)
+          if (raw === "[DONE]") break
+          try { const { text } = JSON.parse(raw); if (text) setAnalysisText(t => t + text) } catch { }
+        }
+      }
+    } catch (e: any) {
+      setAnalysisError("Error de conexión: " + (e?.message ?? "desconocido"))
+    } finally {
+      setAnalysisLoading(false)
+    }
+  }
+
   const settle = async (id: string, status: "won" | "lost" | "void") => {
     await fetch(`/api/bets/${id}`, {
       method: "PATCH",
@@ -178,6 +224,38 @@ export default function BetsPage() {
                 <div className="text-xs text-zinc-500 mt-0.5">{s.label}</div>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* PRO/PREMIUM AI Analysis */}
+        {(plan === "premium" || plan === "pro") && stats && stats.settled >= 3 && (
+          <div>
+            <button
+              onClick={runAnalysis}
+              disabled={analysisLoading}
+              className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl border border-purple-700/40 bg-purple-500/8 hover:bg-purple-500/15 text-purple-300 text-sm font-bold transition-all tap"
+            >
+              {analysisLoading
+                ? <><span className="w-3.5 h-3.5 rounded-full border-2 border-purple-500 border-t-transparent animate-spin" />Analizando historial…</>
+                : <>🧠 Analizar mi historial con IA</>
+              }
+            </button>
+
+            {showAnalysis && (
+              <div ref={analysisRef} className="mt-3 rounded-2xl border border-purple-800/40 bg-zinc-900/70 p-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-purple-400">🧠 Análisis personalizado · {plan.toUpperCase()}</p>
+                  <button onClick={() => setShowAnalysis(false)} className="text-zinc-600 hover:text-zinc-400 text-lg leading-none">×</button>
+                </div>
+                {analysisError ? (
+                  <p className="text-sm text-amber-400">{analysisError}</p>
+                ) : (
+                  <div className="text-sm text-zinc-200 leading-relaxed whitespace-pre-wrap">
+                    {analysisText || <span className="text-zinc-500 animate-pulse">Generando análisis…</span>}
+                  </div>
+                )}
+              </div>
+            )}
           </div>
         )}
 

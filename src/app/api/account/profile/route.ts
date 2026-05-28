@@ -28,11 +28,18 @@ export async function GET() {
   const sb = createServiceClient()
   const { data } = await sb
     .from("users_log")
-    .select("name, avatar_url, created_at")
+    .select("id, name, avatar_url, created_at, plan, is_vip_tipster")
     .eq("email", session.user.email)
     .single()
 
-  return Response.json({ name: data?.name ?? null, avatar_url: data?.avatar_url ?? null, created_at: data?.created_at ?? null })
+  return Response.json({
+    id: data?.id ?? null,
+    name: data?.name ?? null,
+    avatar_url: data?.avatar_url ?? null,
+    created_at: data?.created_at ?? null,
+    plan: data?.plan ?? "free",
+    is_vip_tipster: data?.is_vip_tipster ?? false,
+  })
 }
 
 /** PATCH /api/account/profile — update display name */

@@ -21,15 +21,26 @@ const LEAGUE_SLUGS: Record<string, string> = {
   "eredivisie": "ned.1", "holanda": "ned.1", "paises bajos": "ned.1",
   "super lig": "tur.1", "superlig": "tur.1", "turquia": "tur.1", "süper lig": "tur.1",
   "scottish premiership": "sco.1", "escocia": "sco.1",
+  "jupiler pro league": "bel.1", "belgica": "bel.1", "pro league": "bel.1",
   // Europa competiciones
   "champions league": "uefa.champions", "ucl": "uefa.champions", "champions": "uefa.champions",
   "europa league": "uefa.europa", "uel": "uefa.europa",
+  "nations league": "UEFA.NL", "nations": "UEFA.NL", "liga de naciones": "UEFA.NL",
+  "euro 2024": "UEFA.EURO", "eurocopa": "UEFA.EURO", "euro": "UEFA.EURO",
+  "clasificacion mundial": "FIFA.WC", "eliminatorias mundial": "FIFA.WC",
+  "world cup qualifiers": "FIFA.WC", "mundial qualifying": "FIFA.WC",
+  "copa america": "CONMEBOL.WC", "eliminatorias conmebol": "CONMEBOL.WC",
+  "concacaf nations league": "CONCACAF.NATIONS",
   // Américas
   "mls": "usa.1", "major league soccer": "usa.1", "estados unidos": "usa.1",
   "liga argentina": "arg.1", "primera division": "arg.1", "liga profesional": "arg.1", "argentina": "arg.1",
   "brasileirao": "bra.1", "serie a brasil": "bra.1", "campeonato brasileiro": "bra.1", "brasil": "bra.1",
   "liga mx": "mex.1", "mexico": "mex.1", "liga bbva": "mex.1",
   "liga betplay": "col.1", "colombia": "col.1",
+  "primera division chile": "chi.1", "chile": "chi.1",
+  "torneo uruguayo": "uru.1", "uruguay": "uru.1",
+  // Asia/Oceania
+  "j1 league": "jpn.1", "japon": "jpn.1", "japan": "jpn.1",
   // Oriente Medio
   "saudi pro league": "sau.1", "arabia saudi": "sau.1", "saudi": "sau.1",
 }
@@ -39,6 +50,18 @@ const ALL_BOT_SLUGS = [
   "esp.1", "eng.1", "ger.1", "ita.1", "fra.1",
   "usa.1", "arg.1", "bra.1", "por.1", "uefa.champions",
   "mex.1", "ned.1", "tur.1", "sau.1", "sco.1",
+  "col.1", "chi.1", "jpn.1", "bel.1", "uru.1",
+  "uefa.europa", "UEFA.NL", "FIFA.WC", "CONCACAF.WC", "CONMEBOL.WC",
+]
+
+// Slugs para get_today_matches
+const TODAY_SLUGS = [
+  "esp.1", "eng.1", "ger.1", "ita.1", "fra.1",
+  "usa.1", "arg.1", "bra.1", "por.1", "ned.1",
+  "mex.1", "tur.1", "sau.1", "sco.1", "bel.1",
+  "col.1", "chi.1", "jpn.1",
+  "uefa.champions", "uefa.europa",
+  "UEFA.NL", "FIFA.WC", "CONCACAF.WC", "CONMEBOL.WC",
 ]
 
 // Nombres legibles por slug
@@ -49,6 +72,11 @@ const SLUG_NAMES: Record<string, string> = {
   "uefa.champions": "Champions League", "mex.1": "Liga MX", "ned.1": "Eredivisie",
   "tur.1": "Süper Lig", "sau.1": "Saudi Pro League", "sco.1": "Scottish Premiership",
   "col.1": "Liga BetPlay", "uefa.europa": "Europa League",
+  "bel.1": "Jupiler Pro League", "chi.1": "Primera División Chile",
+  "jpn.1": "J1 League", "uru.1": "Torneo Uruguayo",
+  "UEFA.NL": "UEFA Nations League", "FIFA.WC": "Clasificación Mundial FIFA",
+  "CONCACAF.WC": "Clasificación CONCACAF", "CONMEBOL.WC": "Eliminatorias CONMEBOL",
+  "UEFA.EURO": "UEFA Euro", "CONCACAF.NATIONS": "CONCACAF Nations League",
 }
 
 // Aliases para apodos y nombres cortos comunes
@@ -329,6 +357,70 @@ ${list}
   }
 }
 
+/** Devuelve TODOS los partidos de hoy en todas las ligas configuradas — real-time ESPN */
+async function getTodayMatches(): Promise<string> {
+  const today = new Date()
+  const yyyy = today.getUTCFullYear()
+  const mm = String(today.getUTCMonth() + 1).padStart(2, "0")
+  const dd = String(today.getUTCDate()).padStart(2, "0")
+  const yyyymmdd = `${yyyy}${mm}${dd}`
+  const todayISO = `${yyyy}-${mm}-${dd}`
+
+  const allMatches: { league: string; home: string; away: string; time: string; status: string; score?: string }[] = []
+
+  await Promise.all(
+    TODAY_SLUGS.map(async (slug) => {
+      try {
+        const res = await fetchESPN(`${slug}/scoreboard?dates=${yyyymmdd}&limit=50`)
+        const events: any[] = res?.events ?? []
+        for (const ev of events) {
+          const comp = ev.competitions?.[0]
+          const home = comp?.competitors?.find((c: any) => c.homeAway === "home")
+          const away = comp?.competitors?.find((c: any) => c.homeAway === "away")
+          if (!home || !away) continue
+          const statusType = comp?.status?.type
+          const completed = statusType?.completed
+          const inProgress = statusType?.state === "in"
+          const statusLabel = completed
+            ? `✅ Final ${home.score ?? "?"}-${away.score ?? "?"}`
+            : inProgress
+              ? `🔴 En juego ${home.score ?? "0"}-${away.score ?? "0"} (${comp?.status?.displayClock ?? ""})`
+              : `⏰ ${new Date(ev.date).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit", timeZone: "UTC" })} UTC`
+          allMatches.push({
+            league: SLUG_NAMES[slug] ?? slug,
+            home: home.team?.displayName ?? "?",
+            away: away.team?.displayName ?? "?",
+            time: ev.date,
+            status: statusLabel,
+          })
+        }
+      } catch { /* ignorar ligas sin datos hoy */ }
+    })
+  )
+
+  if (!allMatches.length) return `No encontré partidos para hoy (${todayISO}) en ESPN. El servicio puede estar temporalmente caído o no hay partidos programados.`
+
+  // Ordenar por hora
+  allMatches.sort((a, b) => a.time.localeCompare(b.time))
+
+  // Agrupar por liga
+  const byLeague: Record<string, typeof allMatches> = {}
+  for (const m of allMatches) {
+    if (!byLeague[m.league]) byLeague[m.league] = []
+    byLeague[m.league].push(m)
+  }
+
+  const lines = [`📅 Partidos de HOY — ${todayISO} (${allMatches.length} en total, datos en vivo de ESPN):\n`]
+  for (const [league, matches] of Object.entries(byLeague)) {
+    lines.push(`\n🏆 ${league}`)
+    for (const m of matches) {
+      lines.push(`  • ${m.home} vs ${m.away} — ${m.status}`)
+    }
+  }
+  lines.push(`\nUsa get_recent_form() y get_h2h() para analizar cualquiera de estos partidos en profundidad.`)
+  return lines.join("\n")
+}
+
 async function getMatchInfo(team1: string, team2: string, league: string): Promise<string> {
   const slug = slugOf(league)
   const data = await fetchESPN(`${slug}/scoreboard?limit=50`)
@@ -359,6 +451,11 @@ Estadio: ${venue}`
 // ─── Definición de herramientas ────────────────────────────────────────────────
 
 const TOOLS: Anthropic.Tool[] = [
+  {
+    name: "get_today_matches",
+    description: "Obtiene TODOS los partidos de HOY en tiempo real de ESPN (más de 20 ligas). Úsala SIEMPRE cuando el usuario pregunte '¿qué partidos hay hoy?', '¿hay algún partido de X hoy?', o para verificar qué partidos existen antes de analizar. Devuelve liga, equipos, hora y estado actual (programado/en juego/finalizado).",
+    input_schema: { type: "object" as const, properties: {}, required: [] },
+  },
   {
     name: "search_team",
     description: "Busca un equipo en TODAS las ligas disponibles (LaLiga, Premier, Bundesliga, Serie A, Ligue 1, MLS, Liga Argentina, Brasileirão, Primeira Liga, Liga MX, Eredivisie, Süper Lig, Saudi Pro League, Champions League y más). Úsala SIEMPRE cuando el usuario mencione un equipo sin especificar la liga, o cuando la liga no sea de las 5 grandes europeas.",
@@ -393,6 +490,7 @@ const TOOLS: Anthropic.Tool[] = [
 
 async function executeTool(name: string, input: Record<string, string>): Promise<string> {
   try {
+    if (name === "get_today_matches") return await getTodayMatches()
     if (name === "search_team")      return await searchTeam(input.team_name)
     if (name === "get_standings")    return await getStandings(input.league)
     if (name === "get_recent_form")  return await getRecentForm(input.team_name, input.league)
@@ -408,9 +506,19 @@ async function executeTool(name: string, input: Record<string, string>): Promise
 function buildTodayContext(): string {
   try {
     const store = getStore()
-    if (!store.valuePicks?.length && !store.combinadaPool?.length) return ""
-
     const today = new Date().toISOString().split("T")[0]
+
+    if (!store.valuePicks?.length && !store.combinadaPool?.length) {
+      // Store frío — indícarle al bot que debe usar get_today_matches()
+      return `\n═══════════════════════════════════
+AVISO — MOTOR EN FRÍO
+═══════════════════════════════════
+El pipeline de picks aún no ha generado resultados para hoy (${today}).
+→ USA get_today_matches() para obtener los partidos de hoy en tiempo real desde ESPN.
+→ USA get_recent_form() y get_h2h() para analizar cualquier partido que el usuario pida.
+→ NO INVENTES picks del día — usa las herramientas para obtener datos reales.`
+    }
+
     const lines: string[] = [`\n═══════════════════════════════════`, `PICKS DE HOY (${today}) — GENERADOS POR EL MOTOR POISSON`, `═══════════════════════════════════`]
 
     const valuePicks = (store.valuePicks ?? []).slice(0, 8)
@@ -458,9 +566,12 @@ COBERTURA GLOBAL
 ═══════════════════════════════════
 Puedes analizar equipos de CUALQUIER liga disponible en ESPN:
 • Europa: LaLiga, Premier League, Bundesliga, Serie A, Ligue 1, Primeira Liga, Eredivisie, Süper Lig, Scottish Premiership
-• Competiciones: Champions League, Europa League
-• Américas: MLS, Liga Argentina, Brasileirão, Liga MX
+• Competiciones: Champions League, Europa League, UEFA Nations League
+• Internacional: Clasificación Mundial FIFA, Copa América, Eliminatorias CONMEBOL/CONCACAF
+• Américas: MLS, Liga Argentina, Brasileirão, Liga MX, Liga Colombia, Chile
+• Asia: J1 League (Japón)
 • Oriente Medio: Saudi Pro League (Al Nassr, Al Hilal, Al Ittihad…)
+• Selecciones nacionales: España, Argentina, Brasil, Francia, Alemania, Inglaterra, Uruguay y más
 
 SI el usuario menciona un equipo sin especificar la liga, o la liga no es de las 5 grandes europeas:
 → USA search_team PRIMERO para encontrar en qué liga juega ese equipo.
@@ -471,6 +582,12 @@ SI el usuario menciona un equipo sin especificar la liga, o la liga no es de las
 PROTOCOLO OBLIGATORIO (ANTES DE RESPONDER)
 ═══════════════════════════════════
 Cuando el usuario mencione un partido o equipo:
+
+PASO 0 — VERIFICAR QUE EL PARTIDO EXISTE HOY:
+→ Si preguntan por picks del día, partidos de hoy, o no hay contexto de cuándo es el partido:
+   get_today_matches() → lista en tiempo real de todos los partidos de hoy en ESPN.
+   Úsala para CONFIRMAR si el partido existe antes de analizarlo.
+   NUNCA analices un partido que no aparezca en ESPN — significaría que no se juega hoy.
 
 SI NO CONOCES LA LIGA:
 0. search_team(nombre_equipo) → descubre liga y slug
@@ -484,6 +601,7 @@ SIEMPRE (con la liga ya conocida):
 6. get_referee_info(e1, e2, liga) → árbitro (si ESPN lo ha publicado)
 
 Nunca des estadísticas sin ejecutar las herramientas primero.
+Si el partido no aparece en ESPN, dilo claramente: "No encuentro ese partido para hoy en ESPN. ¿Es posible que se juegue en otra fecha?"
 
 ═══════════════════════════════════
 MOTOR MULTI-MERCADO — SOLO CON EVIDENCIA REAL

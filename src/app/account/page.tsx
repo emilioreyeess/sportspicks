@@ -45,6 +45,8 @@ export default function AccountPage() {
   const [picksTotal, setPicksTotal] = useState<number | null>(null)
   const [sub, setSub] = useState<StoredSub | null>(null)
   const [signingOut, setSigningOut] = useState(false)
+  const [profileId, setProfileId] = useState<number | null>(null)
+  const [profileLinkCopied, setProfileLinkCopied] = useState(false)
 
   // Change password
   const [showPwdForm, setShowPwdForm] = useState(false)
@@ -77,6 +79,7 @@ export default function AccountPage() {
           // Fallback to localStorage
           try { setName(localStorage.getItem("sp_name") ?? "") } catch {}
         }
+        if (d?.id) setProfileId(d.id)
       })
       .catch(() => {
         try { setName(localStorage.getItem("sp_name") ?? "") } catch {}
@@ -268,6 +271,34 @@ export default function AccountPage() {
               <p className={`text-xs mt-1.5 ${nameMsg.ok ? "text-emerald-400" : "text-red-400"}`}>{nameMsg.text}</p>
             )}
           </div>
+
+          {/* Public profile link */}
+          {profileId && (
+            <div className="mt-4 pt-4 border-t border-zinc-800/60">
+              <span className="section-label block mb-1.5">Tu perfil público</span>
+              <div className="flex items-center gap-2">
+                <Link
+                  href={`/profile/${profileId}`}
+                  className="flex-1 truncate text-xs text-zinc-400 hover:text-white bg-zinc-800 rounded-xl px-3 py-2 transition"
+                >
+                  sportspicks.app/profile/{profileId}
+                </Link>
+                <button
+                  onClick={() => {
+                    const url = `${window.location.origin}/profile/${profileId}`
+                    navigator.clipboard.writeText(url).then(() => {
+                      setProfileLinkCopied(true)
+                      setTimeout(() => setProfileLinkCopied(false), 2000)
+                    })
+                  }}
+                  className="shrink-0 px-3 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 border border-zinc-700/40 text-xs font-bold text-zinc-300 tap transition"
+                >
+                  {profileLinkCopied ? "✓ Copiado" : "Copiar"}
+                </button>
+              </div>
+              <p className="text-[10px] text-zinc-600 mt-1.5">Comparte tu historial y estadísticas. No muestra tu email.</p>
+            </div>
+          )}
         </div>
       </Card>
 
