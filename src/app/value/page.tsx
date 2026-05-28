@@ -227,39 +227,55 @@ export default function ValuePage() {
       .finally(() => setLoading(false))
   }, [])
 
-  // Carga los picks de ayer desde localStorage y resuelve resultados vía ESPN
+  // Carga los picks de ayer desde el store del servidor (+ fallback localStorage + ESPN)
   useEffect(() => {
     if (tab !== "ayer" || yesterdayPicks.length > 0 || loadingYesterday) return
     setLoadingYesterday(true)
 
     const yesterday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10)
 
-    try {
-      const raw = localStorage.getItem("sp_picks_today")
-      if (!raw) { setLoadingYesterday(false); return }
-      const saved: { date: string; picks: any[] } = JSON.parse(raw)
-      if (saved.date !== yesterday || !saved.picks?.length) { setLoadingYesterday(false); return }
+    // 1️⃣ Intentar store del servidor primero (sobrevive cold starts vía /tmp)
+    fetch("/api/picks/yesterday")
+      .then(r => r.ok ? r.json() : null)
+      .then(d => {
+        if (d?.picks?.length) {
+          setYesterdayPicks(d.picks.map((p: any) => ({ ...p, date: d.date ?? yesterday })))
+          setYesterdayDate(d.date ?? yesterday)
+          setLoadingYesterday(false)
+          return
+        }
 
-      setYesterdayDate(saved.date)
-      // Pedir al servidor que resuelva WIN/LOSS consultando ESPN
-      fetch("/api/picks/yesterday", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ date: saved.date, picks: saved.picks }),
+        // 2️⃣ Fallback: localStorage picks enriquecidos vía ESPN
+        try {
+          const raw = localStorage.getItem("sp_picks_today")
+          if (!raw) { setLoadingYesterday(false); return }
+          const saved: { date: string; picks: any[] } = JSON.parse(raw)
+          if (saved.date !== yesterday || !saved.picks?.length) { setLoadingYesterday(false); return }
+
+          setYesterdayDate(saved.date)
+          // Pedir al servidor que resuelva WIN/LOSS consultando ESPN
+          fetch("/api/picks/yesterday", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ date: saved.date, picks: saved.picks }),
+          })
+            .then((r) => r.json())
+            .then((data) => {
+              setYesterdayPicks(data.picks ?? [])
+              setYesterdayDate(data.date ?? saved.date)
+            })
+            .catch(() => {
+              // Si falla el servidor, mostrar los picks sin resultado
+              setYesterdayPicks(saved.picks.map((p: any) => ({ ...p, result: "PENDING" })))
+            })
+            .finally(() => setLoadingYesterday(false))
+        } catch {
+          setLoadingYesterday(false)
+        }
       })
-        .then((r) => r.json())
-        .then((data) => {
-          setYesterdayPicks(data.picks ?? [])
-          setYesterdayDate(data.date ?? saved.date)
-        })
-        .catch(() => {
-          // Si falla el servidor, mostrar los picks sin resultado
-          setYesterdayPicks(saved.picks.map((p: any) => ({ ...p, result: "PENDING" })))
-        })
-        .finally(() => setLoadingYesterday(false))
-    } catch {
-      setLoadingYesterday(false)
-    }
+      .catch(() => {
+        setLoadingYesterday(false)
+      })
   }, [tab])
 
   useEffect(() => {
