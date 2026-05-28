@@ -15,19 +15,20 @@ export const NAV_MAIN: NavItem[] = [
 
 /** Navegación secundaria — sidebar y menú móvil drawer */
 export const NAV_MORE: NavItem[] = [
-  { href: "/",        label: "Inicio",          short: "Inicio",  icon: "home"        },
-  { href: "/groups",  label: "Grupos",          short: "Grupos",  icon: "groups"      },
-  { href: "/forum",   label: "Foro",            short: "Foro",    icon: "groups"      },
-  { href: "/bets",    label: "Mis Apuestas",    short: "Apuesta", icon: "ticket"      },
-  { href: "/historico", label: "Histórico",       short: "Histor.", icon: "star"        },
-  { href: "/stats",   label: "Estadísticas",    short: "Stats",   icon: "stats"       },
-  { href: "/pricing", label: "Planes premium",  short: "Planes",  icon: "crown"       },
-  { href: "/account", label: "Mi cuenta",       short: "Cuenta",  icon: "user"        },
-  { href: "/about",   label: "Sobre nosotros",  short: "Info",    icon: "shield"      },
+  { href: "/",          label: "Inicio",          short: "Inicio",   icon: "home"    },
+  { href: "/groups",    label: "Grupos",           short: "Grupos",   icon: "groups"  },
+  { href: "/forum",     label: "Foro",             short: "Foro",     icon: "groups"  },
+  { href: "/bets",      label: "Mis Apuestas",     short: "Apuesta",  icon: "ticket"  },
+  { href: "/historico", label: "Histórico",        short: "Histor.",  icon: "star"    },
+  { href: "/stats",     label: "Estadísticas",     short: "Stats",    icon: "stats"   },
+  { href: "/creators",  label: "Tipsters",         short: "Tipsters", icon: "trophy"  },
+  { href: "/pricing",   label: "Planes premium",   short: "Planes",   icon: "crown"   },
+  { href: "/account",   label: "Mi cuenta",        short: "Cuenta",   icon: "user"    },
+  { href: "/about",     label: "Sobre nosotros",   short: "Info",     icon: "shield"  },
 ]
 
-/** Nav item shown only to VIP tipsters — rendered conditionally by Sidebar */
-export const TIPSTER_NAV_ITEM: NavItem = { href: "/creators", label: "Creators", short: "Creators", icon: "star" }
+/** Nav item shown only to VIP tipsters — rendered conditionally by Sidebar (extra visibility) */
+export const TIPSTER_NAV_ITEM: NavItem = { href: "/creators", label: "Tipsters", short: "Tipsters", icon: "trophy" }
 
 export function isActive(path: string | null, href: string): boolean {
   if (!path) return false

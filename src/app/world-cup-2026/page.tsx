@@ -1,26 +1,30 @@
 "use client"
 
 import { useEffect, useState, useCallback } from "react"
-import { useSession } from "next-auth/react"
 import { usePlan } from "@/lib/plan"
-import { useUpgradeModal, PremiumBadge } from "@/components/premium"
+import { useUpgradeModal } from "@/components/premium"
 import { Icon } from "@/components/ui/icons"
 import { DisclaimerBanner } from "@/components/legal/DisclaimerBanner"
-import type { WCFixture, WCTeam, MatchCenter } from "@/lib/world-cup/types"
+import type { WCFixture, WCTeam, MatchCenter, WCGroup } from "@/lib/world-cup/types"
 import type { MatchOdds } from "@/lib/world-cup/odds-service"
 import Link from "next/link"
 
 const WC_KICKOFF_ISO = "2026-06-11T20:00:00-04:00"
+const WC_GROUP_ORDER: WCGroup[] = ["A","B","C","D","E","F","G","H","I","J","K","L"]
 
 // ─── Main page ────────────────────────────────────────────────────────────────
+
+type PageTab = "grupos" | "partidos"
 
 export default function WorldCupPage() {
   const { isPremium } = usePlan()
   const upgrade = useUpgradeModal()
   const [fixtures, setFixtures] = useState<WCFixture[]>([])
   const [teams, setTeams] = useState<Map<string, WCTeam>>(new Map())
+  const [byGroup, setByGroup] = useState<Partial<Record<WCGroup, WCTeam[]>>>({})
   const [loading, setLoading] = useState(true)
   const [analysisId, setAnalysisId] = useState<string | null>(null)
+  const [tab, setTab] = useState<PageTab>("grupos")
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -29,18 +33,12 @@ export default function WorldCupPage() {
         fetch("/api/world-cup/bracket").then((r) => r.json()),
         fetch("/api/world-cup/teams").then((r) => r.json()),
       ])
-      const allFixtures: WCFixture[] = [
-        ...(bracketRes.groups?.flatMap((g: any) => []) ?? []),
-      ]
-      // Use bracket knockouts + get upcoming from fixtures endpoint
-      const upcomingRes = await fetch("/api/world-cup/bracket").then((r) => r.json())
       const teamMap = new Map<string, WCTeam>()
       for (const t of teamsRes.teams ?? []) teamMap.set(t.code, t)
       setTeams(teamMap)
+      setByGroup(teamsRes.byGroup ?? {})
 
-      // Combine: bracket gives us groups (standings) but not fixture list directly
-      // Use all fixtures from bracket knockouts + ESPN
-      const fixList: WCFixture[] = upcomingRes.knockoutFixtures ?? []
+      const fixList: WCFixture[] = bracketRes.knockoutFixtures ?? []
       setFixtures(fixList.slice(0, 20))
     } catch {
       // non-critical
@@ -63,61 +61,98 @@ export default function WorldCupPage() {
 
       <DisclaimerBanner variant="retos" />
 
-      {/* Próximos partidos */}
-      <section>
-        <div className="flex items-center justify-between mb-4">
-          <div>
-            <span className="section-label">Próximos partidos</span>
-            <h2 className="text-lg font-black text-white mt-0.5">Calendario Mundial 2026</h2>
+      {/* Tab picker */}
+      <div className="flex gap-1 p-1 rounded-xl bg-zinc-900 border border-zinc-800">
+        {([
+          ["grupos",   "trophy",  "Grupos"],
+          ["partidos", "value",   "Partidos"],
+        ] as const).map(([id, icon, label]) => (
+          <button key={id} onClick={() => setTab(id)}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-xs font-bold tap transition-all ${
+              tab === id ? "bg-zinc-800 text-white shadow-sm" : "text-zinc-500 hover:text-zinc-300"
+            }`}>
+            <Icon name={icon} className="w-3.5 h-3.5" strokeWidth={tab === id ? 2.2 : 1.8} />
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Grupos tab ─────────────────────────────────────────── */}
+      {tab === "grupos" && (
+        <section>
+          <div className="mb-4">
+            <span className="section-label">Fase de grupos</span>
+            <h2 className="text-lg font-black text-white mt-0.5">12 Grupos · 48 Equipos</h2>
           </div>
-          {isPremium && (
-            <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-amber-400 border border-amber-700/50 bg-amber-500/10 rounded-full px-2.5 py-1">
-              <Icon name="spark" className="w-3 h-3" strokeWidth={2.5} />
-              Análisis disponible
-            </span>
+          {loading ? (
+            <div className="space-y-2.5">
+              {[...Array(6)].map((_, i) => (
+                <div key={i} className="h-36 rounded-2xl bg-zinc-900/60 animate-pulse" />
+              ))}
+            </div>
+          ) : (
+            <GroupsGrid byGroup={byGroup} teams={teams} />
           )}
-        </div>
+        </section>
+      )}
 
-        {loading ? (
-          <div className="space-y-2.5">
-            {[...Array(5)].map((_, i) => (
-              <div key={i} className="h-24 rounded-2xl bg-zinc-900/60 animate-pulse" />
-            ))}
+      {/* ── Partidos tab ───────────────────────────────────────── */}
+      {tab === "partidos" && (
+        <section>
+          <div className="flex items-center justify-between mb-4">
+            <div>
+              <span className="section-label">Próximos partidos</span>
+              <h2 className="text-lg font-black text-white mt-0.5">Calendario Mundial 2026</h2>
+            </div>
+            {isPremium && (
+              <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-amber-400 border border-amber-700/50 bg-amber-500/10 rounded-full px-2.5 py-1">
+                <Icon name="spark" className="w-3 h-3" strokeWidth={2.5} />
+                Análisis disponible
+              </span>
+            )}
           </div>
-        ) : fixtures.length === 0 ? (
-          <PreTournamentFixtures teams={teams} onAnalyze={handleAnalyze} analysisId={analysisId} isPremium={isPremium} />
-        ) : (
-          <div className="space-y-2.5">
-            {fixtures.map((fix) => (
-              <FixtureCard
-                key={fix.matchId}
-                fixture={fix}
-                homeTeam={teams.get(fix.homeCode)}
-                awayTeam={teams.get(fix.awayCode)}
-                onAnalyze={handleAnalyze}
-                analysisId={analysisId}
-                isPremium={isPremium}
-              />
-            ))}
-          </div>
-        )}
-      </section>
 
-      {/* Premium CTA si no es premium */}
-      {!isPremium && (
-        <div className="rounded-2xl border border-amber-700/40 bg-gradient-to-br from-amber-600/10 via-zinc-900/60 to-zinc-950 p-5 text-center">
-          <span className="grid place-items-center w-12 h-12 rounded-2xl bg-amber-500/15 mx-auto mb-3">
-            <Icon name="spark" className="w-6 h-6 text-amber-400" strokeWidth={2} />
-          </span>
-          <p className="text-sm font-black text-white mb-1">Análisis estadístico por partido</p>
-          <p className="text-xs text-zinc-400 leading-relaxed mb-4 max-w-xs mx-auto">
-            Usuarios Premium pueden solicitar un análisis completo de cualquier partido: forma, xG, árbitro, contexto. Sin predicciones de resultado.
-          </p>
-          <Link href="/pricing"
-            className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-500 text-zinc-950 font-black text-sm tap">
-            <Icon name="crown" className="w-4 h-4" strokeWidth={2.2} /> Ver Premium
-          </Link>
-        </div>
+          {loading ? (
+            <div className="space-y-2.5">
+              {[...Array(5)].map((_, i) => (
+                <div key={i} className="h-24 rounded-2xl bg-zinc-900/60 animate-pulse" />
+              ))}
+            </div>
+          ) : fixtures.length === 0 ? (
+            <PreTournamentFixtures teams={teams} onAnalyze={handleAnalyze} analysisId={analysisId} isPremium={isPremium} />
+          ) : (
+            <div className="space-y-2.5">
+              {fixtures.map((fix) => (
+                <FixtureCard
+                  key={fix.matchId}
+                  fixture={fix}
+                  homeTeam={teams.get(fix.homeCode)}
+                  awayTeam={teams.get(fix.awayCode)}
+                  onAnalyze={handleAnalyze}
+                  analysisId={analysisId}
+                  isPremium={isPremium}
+                />
+              ))}
+            </div>
+          )}
+
+          {/* Premium CTA si no es premium */}
+          {!isPremium && (
+            <div className="mt-5 rounded-2xl border border-amber-700/40 bg-gradient-to-br from-amber-600/10 via-zinc-900/60 to-zinc-950 p-5 text-center">
+              <span className="grid place-items-center w-12 h-12 rounded-2xl bg-amber-500/15 mx-auto mb-3">
+                <Icon name="spark" className="w-6 h-6 text-amber-400" strokeWidth={2} />
+              </span>
+              <p className="text-sm font-black text-white mb-1">Análisis estadístico por partido</p>
+              <p className="text-xs text-zinc-400 leading-relaxed mb-4 max-w-xs mx-auto">
+                Usuarios Premium pueden solicitar un análisis completo de cualquier partido: forma, xG, árbitro, contexto. Sin predicciones de resultado.
+              </p>
+              <Link href="/pricing"
+                className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-500 text-zinc-950 font-black text-sm tap">
+                <Icon name="crown" className="w-4 h-4" strokeWidth={2.2} /> Ver Premium
+              </Link>
+            </div>
+          )}
+        </section>
       )}
 
       {/* Combinadas WC */}
@@ -127,9 +162,6 @@ export default function WorldCupPage() {
           <p className="text-xs text-zinc-500 mt-0.5">Motor Poisson · 3 perfiles de riesgo</p>
         </div>
         <Link href="/combinadas"
-          onClick={() => {
-            // Pre-select Mundial tab via query param if needed
-          }}
           className="shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-500/15 border border-amber-700/40 text-amber-300 font-black text-xs tap hover:bg-amber-500/25 transition-colors">
           Ir a Combinadas
           <Icon name="arrowRight" className="w-3.5 h-3.5" strokeWidth={2.2} />
@@ -137,6 +169,71 @@ export default function WorldCupPage() {
       </div>
 
       <upgrade.Modal />
+    </div>
+  )
+}
+
+// ─── Groups grid ──────────────────────────────────────────────────────────────
+
+function GroupsGrid({
+  byGroup,
+  teams,
+}: {
+  byGroup: Partial<Record<WCGroup, WCTeam[]>>
+  teams: Map<string, WCTeam>
+}) {
+  // If byGroup is empty (API miss), build it from teams map
+  const resolvedByGroup: Partial<Record<WCGroup, WCTeam[]>> = Object.keys(byGroup).length > 0
+    ? byGroup
+    : (() => {
+        const built: Partial<Record<WCGroup, WCTeam[]>> = {}
+        teams.forEach((t) => {
+          if (t.group) {
+            if (!built[t.group]) built[t.group] = []
+            built[t.group]!.push(t)
+          }
+        })
+        return built
+      })()
+
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      {WC_GROUP_ORDER.map((group) => {
+        const groupTeams = resolvedByGroup[group] ?? []
+        return (
+          <div key={group} className="rounded-2xl border border-zinc-800/60 bg-zinc-900/40 overflow-hidden">
+            {/* Group header */}
+            <div className="flex items-center justify-between px-4 py-2.5 border-b border-zinc-800/40 bg-zinc-900/60">
+              <span className="text-xs font-black uppercase tracking-widest text-white">
+                Grupo {group}
+              </span>
+              <span className="text-[10px] text-zinc-600 font-bold">
+                {groupTeams[0]?.confederation ?? ""}
+                {groupTeams.length > 1 && groupTeams[1]?.confederation !== groupTeams[0]?.confederation
+                  ? ` · ${groupTeams[1]?.confederation}`
+                  : ""}
+              </span>
+            </div>
+            {/* Teams */}
+            <div className="divide-y divide-zinc-800/30">
+              {groupTeams.length > 0 ? groupTeams.map((team, i) => (
+                <div key={team.code} className="flex items-center gap-3 px-4 py-2.5">
+                  <span className="text-[11px] text-zinc-600 w-3.5 shrink-0 font-bold">{i + 1}</span>
+                  <span className="text-xl shrink-0">{team.flagEmoji}</span>
+                  <span className="text-sm font-bold text-white flex-1 truncate">{team.name}</span>
+                  <span className="text-[10px] text-zinc-500 shrink-0">
+                    {team.fifaRanking != null ? `#${team.fifaRanking}` : "—"}
+                  </span>
+                </div>
+              )) : (
+                <div className="px-4 py-4">
+                  <p className="text-xs text-zinc-600">Sin datos</p>
+                </div>
+              )}
+            </div>
+          </div>
+        )
+      })}
     </div>
   )
 }
