@@ -27,7 +27,7 @@ export const NAV_MORE: NavItem[] = [
 ]
 
 /** Nav item shown only to VIP tipsters — rendered conditionally by Sidebar */
-export const TIPSTER_NAV_ITEM: NavItem = { href: "/tipster", label: "Creators", short: "Creators", icon: "star" }
+export const TIPSTER_NAV_ITEM: NavItem = { href: "/creators", label: "Creators", short: "Creators", icon: "star" }
 
 export function isActive(path: string | null, href: string): boolean {
   if (!path) return false
