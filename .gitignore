@@ -28,3 +28,7 @@ service-account*.json
 # Cache local de Claude
 .claude/
 .vercel
+
+# Herramienta de auditoría de seguridad cyber-neo (local, no es código de la app;
+# contiene patrones de ejemplo que disparan falsos positivos en escáneres de secretos)
+cyber-neo/
