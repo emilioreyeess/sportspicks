@@ -9,6 +9,8 @@ const VALID_SLUGS = new Set([
   "esp.1", "eng.1", "ger.1", "ita.1", "fra.1", "usa.1", "mex.1", "por.1",
   "ned.1", "arg.1", "bra.1", "tur.1", "sau.1", "sco.1", "col.1", "chi.1",
   "jpn.1", "uefa.champions", "uefa.europa",
+  // Selecciones nacionales (deben coincidir con los slugs de stats/search)
+  "fifa.world", "UEFA.EURO", "conmebol.america", "fifa.friendly",
 ])
 
 const LEAGUE_NAMES: Record<string, string> = {
@@ -18,6 +20,8 @@ const LEAGUE_NAMES: Record<string, string> = {
   "uefa.champions": "Champions League", "mex.1": "Liga MX", "ned.1": "Eredivisie",
   "tur.1": "Süper Lig", "sau.1": "Saudi Pro League", "sco.1": "Scottish Premiership",
   "col.1": "Liga BetPlay", "uefa.europa": "Europa League", "jpn.1": "J1 League",
+  "fifa.world": "Copa del Mundo", "UEFA.EURO": "Eurocopa",
+  "conmebol.america": "Copa América", "fifa.friendly": "Selección",
 }
 
 function parseScore(s: any): number {

@@ -23,19 +23,16 @@ const LEAGUES = [
   { slug: "uefa.champions", name: "Champions League",     flag: "🏆", country: "Europa" },
   { slug: "uefa.europa",    name: "Europa League",        flag: "🏅", country: "Europa" },
   { slug: "uefa.conference",name: "Conference League",    flag: "🥈", country: "Europa" },
-  { slug: "UEFA.EQ",        name: "Clasificación Euro",   flag: "🇪🇺", country: "Europa" },
-  { slug: "UEFA.NL",        name: "UEFA Nations League",  flag: "🌍", country: "Europa" },
-  // Mundial & Selecciones
-  { slug: "FIFA.WC",        name: "FIFA World Cup",       flag: "🌍", country: "Internacional" },
-  { slug: "FIFA.WWC",       name: "FIFA Women's WC",      flag: "🌍", country: "Internacional" },
-  { slug: "FIFA.SB",        name: "Amistosos FIFA",       flag: "🌍", country: "Internacional" },
-  { slug: "CONCACAF.WC",    name: "Clasificación CONCACAF",flag: "🌎",country: "CONCACAF" },
-  { slug: "CONCACAF.NATIONS",name: "Nations League CONCACAF",flag:"🌎",country: "CONCACAF" },
-  { slug: "CONMEBOL.WC",    name: "Clasificación CONMEBOL",flag: "🌎", country: "Sudamérica" },
-  { slug: "CONMEBOL.COPA",  name: "Copa América",         flag: "🏆", country: "Sudamérica" },
-  { slug: "CAF.WC",         name: "Clasificación África", flag: "🌍", country: "África" },
-  { slug: "AFC.WC",         name: "Clasificación Asia",   flag: "🌏", country: "Asia" },
-  { slug: "UEFA.EURO",      name: "UEFA Euro",            flag: "🇪🇺", country: "Europa" },
+  // ── Selecciones nacionales ──────────────────────────────────────────────
+  // Slugs ESPN verificados que SÍ devuelven equipos. Los antiguos (FIFA.WC,
+  // CONMEBOL.COPA, FIFA.SB, CONCACAF.WC, …) devolvían 0 equipos, por eso solo
+  // se encontraban selecciones europeas. Orden = prioridad de dedup: el Mundial
+  // primero (foco de la app, se llena en jun-2026); amistosos al final como
+  // cobertura amplia (≈175 selecciones de todas las confederaciones).
+  { slug: "fifa.world",       name: "Copa del Mundo", flag: "🌍", country: "Internacional" },
+  { slug: "UEFA.EURO",        name: "Eurocopa",       flag: "🇪🇺", country: "Europa" },
+  { slug: "conmebol.america", name: "Copa América",   flag: "🏆", country: "Sudamérica" },
+  { slug: "fifa.friendly",    name: "Selección",      flag: "🤝", country: "Internacional" },
   // Américas
   { slug: "usa.1",          name: "MLS",                  flag: "🇺🇸", country: "EE.UU." },
   { slug: "arg.1",          name: "Liga Argentina",       flag: "🇦🇷", country: "Argentina" },
@@ -161,5 +158,16 @@ export async function GET(req: NextRequest) {
 
   scored.sort((a, b) => b.score - a.score)
 
-  return Response.json({ teams: scored.slice(0, 10) })
+  // Dedup por nombre normalizado: una selección aparece en varias competiciones
+  // (Mundial, Copa América, amistosos). El sort estable + el orden del array
+  // conservan la fuente de mayor prioridad (p.ej. fifa.world sobre fifa.friendly).
+  const seen = new Set<string>()
+  const deduped = scored.filter((t) => {
+    const key = norm(t.name)
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+
+  return Response.json({ teams: deduped.slice(0, 10) })
 }
