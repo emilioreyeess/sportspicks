@@ -1,6 +1,6 @@
 "use client"
 
-import { useRef, useState, useEffect } from "react"
+import { useRef, useState, useEffect, useCallback } from "react"
 import { Icon } from "@/components/ui/icons"
 import { useSession } from "next-auth/react"
 
@@ -217,7 +217,7 @@ function VipCodeGate({ onUnlock }: { onUnlock: () => void }) {
 
   return (
     <div className="safe-x flex flex-col items-center justify-center min-h-[70vh] text-center px-4">
-      <div className="w-16 h-16 rounded-2xl bg-zinc-900 border border-zinc-800 grid place-items-center mb-5">
+      <div className="w-16 h-16 rounded-2xl bg-zinc-900/60 border border-white/[0.07] grid place-items-center mb-5">
         <Icon name="lock" className="w-8 h-8 text-zinc-500" strokeWidth={1.5} />
       </div>
       <h1 className="text-xl font-black text-white mb-1">Área de Tipsters VIP</h1>
@@ -228,7 +228,7 @@ function VipCodeGate({ onUnlock }: { onUnlock: () => void }) {
         <input value={code} onChange={(e) => { setCode(e.target.value.toUpperCase()); setError("") }}
           onKeyDown={(e) => e.key === "Enter" && handleSubmit()}
           placeholder="Código VIP" maxLength={12}
-          className="w-full text-center text-xl font-black tracking-[0.25em] bg-zinc-900 border border-zinc-800 rounded-xl px-3.5 py-3.5 text-white placeholder:text-zinc-700 focus:outline-none focus:border-zinc-700 uppercase" />
+          className="w-full text-center text-xl font-black tracking-[0.25em] bg-zinc-800/40 border border-white/[0.08] rounded-xl px-3.5 py-3.5 text-white placeholder:text-zinc-700 focus:outline-none focus:border-white/[0.16] uppercase" />
         {error && <p className="text-xs text-rose-400 font-bold">{error}</p>}
         <button onClick={handleSubmit} disabled={loading || !code.trim()}
           className="w-full py-3.5 rounded-xl bg-violet-600 hover:bg-violet-500 disabled:opacity-30 text-white font-bold text-sm tap transition-all">
@@ -286,7 +286,7 @@ function ImageGenerator() {
   }
 
   /** Calculates AI probability and edge via /api/tipster/calc-edge */
-  async function calcEdge(legsToCalc: BetLeg[]) {
+  const calcEdge = useCallback(async (legsToCalc: BetLeg[]) => {
     const valid = legsToCalc.filter(l => l.match && l.selection && l.odds >= 1.01)
     if (valid.length === 0) return
     setCalcLoading(true); setCalcError(""); setAiProb(null); setVentaja(null)
@@ -300,12 +300,23 @@ function ImageGenerator() {
       if (!res.ok || !data.ok) throw new Error(data.error ?? "Error")
       setAiProb(data.combined_prob)
       setVentaja(Math.round(data.edge * 10) / 10)
-    } catch (err: any) {
+    } catch {
       setCalcError("No se pudo calcular. Inténtalo de nuevo.")
     } finally {
       setCalcLoading(false)
     }
-  }
+  }, [])
+
+  // Auto-calculate edge whenever all legs are filled (debounced 1.2s)
+  const legsKey = legs.map(l => `${l.match}|${l.selection}|${l.odds}`).join("~")
+  useEffect(() => {
+    const allValid = legs.every(l => l.match.trim() && l.selection.trim() && l.odds >= 1.01)
+    if (!allValid) return
+    const snapshot = legs.map(l => ({ ...l }))
+    const timer = setTimeout(() => calcEdge(snapshot), 1200)
+    return () => clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [legsKey, calcEdge])
 
   async function handleScan(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
@@ -404,16 +415,16 @@ function ImageGenerator() {
 
       {/* Editable form */}
       {showForm && (
-        <div className="rounded-xl border border-zinc-800/60 bg-zinc-900/40 p-4 space-y-3">
+        <div className="rounded-xl border border-white/[0.07] bg-zinc-900/60 p-4 space-y-3">
           {/* Title */}
           <input value={title} onChange={e => setTitle(e.target.value)} placeholder="Nombre de la combinada"
-            className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-violet-600" />
+            className="w-full bg-zinc-800/40 border border-white/[0.08] rounded-lg px-3 py-2 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-violet-600" />
 
           {/* Legs */}
           <div className="space-y-2">
             <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Selecciones ({legs.length})</p>
             {legs.map((leg, i) => (
-              <div key={i} className="rounded-lg border border-zinc-700/50 bg-zinc-800/50 p-2.5 space-y-2">
+              <div key={i} className="rounded-lg border border-white/[0.07] bg-zinc-800/50 p-2.5 space-y-2">
                 <div className="flex items-center justify-between gap-1">
                   <span className="text-[10px] font-black text-zinc-500">#{i + 1}</span>
                   {legs.length > 1 && (
@@ -424,60 +435,63 @@ function ImageGenerator() {
                 </div>
                 <input value={leg.match} onChange={e => updateLeg(i, "match", e.target.value)}
                   placeholder="Partido (ej: Real Madrid vs Barça)"
-                  className="w-full bg-zinc-900 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-violet-600" />
+                  className="w-full bg-zinc-800/40 border border-white/[0.08] rounded-lg px-2.5 py-1.5 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-violet-600" />
                 <div className="flex gap-2">
                   <input value={leg.selection} onChange={e => updateLeg(i, "selection", e.target.value)}
                     placeholder="Selección (ej: Over 2.5)"
-                    className="flex-1 bg-zinc-900 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-violet-600" />
+                    className="flex-1 bg-zinc-800/40 border border-white/[0.08] rounded-lg px-2.5 py-1.5 text-xs text-white placeholder:text-zinc-600 focus:outline-none focus:border-violet-600" />
                   <input type="number" value={leg.odds} min={1.01} max={99} step={0.01}
                     onChange={e => updateLeg(i, "odds", parseFloat(e.target.value) || 1.01)}
-                    className="w-20 bg-zinc-900 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-xs text-emerald-400 font-bold focus:outline-none focus:border-violet-600" />
+                    className="w-20 bg-zinc-800/40 border border-white/[0.08] rounded-lg px-2.5 py-1.5 text-xs text-emerald-400 font-bold focus:outline-none focus:border-violet-600" />
                 </div>
               </div>
             ))}
             {legs.length < 8 && (
               <button onClick={addLeg}
-                className="w-full py-2 rounded-lg border border-dashed border-zinc-700 text-zinc-500 hover:text-zinc-300 hover:border-zinc-600 text-xs font-bold tap transition-colors">
+                className="w-full py-2 rounded-lg border border-dashed border-white/[0.12] text-zinc-500 hover:text-zinc-300 hover:border-white/[0.20] text-xs font-bold tap transition-colors">
                 + Añadir selección
               </button>
             )}
           </div>
 
-          {/* Probabilidad IA + Edge — calculados automáticamente */}
-          <div className="rounded-xl border border-zinc-700/50 bg-zinc-900/60 p-3 space-y-2.5">
-            <div className="flex items-center justify-between">
+          {/* Probabilidad IA + Edge — auto-calculados, bloqueados */}
+          <div className="rounded-xl border border-white/[0.07] bg-zinc-900/60 p-3 space-y-2.5">
+            <div className="flex items-center gap-2">
               <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Probabilidad IA · Edge</p>
-              <button
-                type="button"
-                onClick={() => calcEdge(legs)}
-                disabled={!legsValid || calcLoading}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-violet-600/20 hover:bg-violet-600/30 border border-violet-700/50 text-violet-400 text-[10px] font-bold disabled:opacity-40 transition-all tap"
-              >
-                {calcLoading
-                  ? <><span className="w-3 h-3 rounded-full border-2 border-violet-400/40 border-t-violet-400 animate-spin shrink-0" />Calculando…</>
-                  : <>🧠 Calcular con IA</>
-                }
-              </button>
+              <span className="ml-auto flex items-center gap-1.5 text-[9px] font-bold text-zinc-600">
+                {calcLoading ? (
+                  <>
+                    <span className="w-3 h-3 rounded-full border-2 border-violet-400/40 border-t-violet-400 animate-spin shrink-0" />
+                    Calculando…
+                  </>
+                ) : aiProb !== null ? (
+                  <span className="text-emerald-500">🔒 Auto · bloqueado</span>
+                ) : (
+                  <span>🔒 Auto · IA</span>
+                )}
+              </span>
             </div>
 
-            {calcError && <p className="text-[11px] text-rose-400">{calcError}</p>}
+            {calcError && (
+              <p className="text-[11px] text-rose-400">{calcError}</p>
+            )}
 
             <div className="grid grid-cols-2 gap-2">
-              <div className={`rounded-lg border px-3 py-2 text-center transition-all ${aiProb !== null ? "border-violet-700/50 bg-violet-500/10" : "border-zinc-800 bg-zinc-800/30"}`}>
-                <p className={`text-lg font-black ${aiProb !== null ? "text-violet-300" : "text-zinc-600"}`}>
-                  {aiProb !== null ? `${aiProb}%` : "—"}
+              <div className={`rounded-lg border px-3 py-2 text-center transition-all ${aiProb !== null ? "border-violet-700/50 bg-violet-500/10" : "border-white/[0.07] bg-zinc-800/30"}`}>
+                <p className={`text-lg font-black ${aiProb !== null ? "text-violet-300" : calcLoading ? "text-zinc-600 animate-pulse" : "text-zinc-600"}`}>
+                  {calcLoading ? "…" : aiProb !== null ? `${aiProb}%` : "—"}
                 </p>
                 <p className="text-[9px] text-zinc-500 font-bold">Prob. IA</p>
               </div>
-              <div className={`rounded-lg border px-3 py-2 text-center transition-all ${ventaja !== null ? (ventaja >= 0 ? "border-emerald-700/50 bg-emerald-500/10" : "border-rose-700/50 bg-rose-500/10") : "border-zinc-800 bg-zinc-800/30"}`}>
-                <p className={`text-lg font-black ${ventaja !== null ? (ventaja >= 0 ? "text-emerald-300" : "text-rose-300") : "text-zinc-600"}`}>
-                  {ventaja !== null ? `${ventaja >= 0 ? "+" : ""}${ventaja}%` : "—"}
+              <div className={`rounded-lg border px-3 py-2 text-center transition-all ${ventaja !== null ? (ventaja >= 0 ? "border-emerald-700/50 bg-emerald-500/10" : "border-rose-700/50 bg-rose-500/10") : "border-white/[0.07] bg-zinc-800/30"}`}>
+                <p className={`text-lg font-black ${ventaja !== null ? (ventaja >= 0 ? "text-emerald-300" : "text-rose-300") : calcLoading ? "text-zinc-600 animate-pulse" : "text-zinc-600"}`}>
+                  {calcLoading ? "…" : ventaja !== null ? `${ventaja >= 0 ? "+" : ""}${ventaja}%` : "—"}
                 </p>
                 <p className="text-[9px] text-zinc-500 font-bold">Edge</p>
               </div>
             </div>
             <p className="text-[9px] text-zinc-600 leading-relaxed">
-              Calculado por IA a partir de las cuotas de mercado. No es un pronóstico de resultado.
+              Calculado automáticamente por IA. Valores bloqueados — no editables — para garantizar autenticidad.
             </p>
           </div>
         </div>
@@ -503,7 +517,7 @@ function ImageGenerator() {
         </div>
         <div className="px-5 py-3 space-y-2">
           {legs.map((leg, i) => (
-            <div key={i} className="flex items-center justify-between gap-2 py-1 border-b border-zinc-800/50 last:border-0">
+            <div key={i} className="flex items-center justify-between gap-2 py-1 border-b border-white/[0.07] last:border-0">
               <div className="min-w-0">
                 <p className="text-xs font-bold text-white truncate">{leg.match || `Partido ${i + 1}`}</p>
                 <p className="text-[10px] text-zinc-500">{leg.selection || "—"}</p>
@@ -512,7 +526,7 @@ function ImageGenerator() {
             </div>
           ))}
         </div>
-        <div className="px-5 py-3 bg-zinc-900/60 border-t border-zinc-800/50">
+        <div className="px-5 py-3 bg-zinc-900/60 border-t border-white/[0.07]">
           <p className="text-[9px] text-zinc-500 leading-relaxed">
             ⚠️ Apuesta con valor matemático detectado. No existen picks seguros, sujeto a varianza deportiva.
           </p>
@@ -526,7 +540,7 @@ function ImageGenerator() {
       </button>
       {!legsValid && <p className="text-[10px] text-zinc-600 text-center">Rellena todos los campos de las selecciones.</p>}
       {legsValid && aiProb === null && !calcLoading && (
-        <p className="text-[10px] text-amber-500/80 text-center">Pulsa "Calcular con IA" para obtener la probabilidad y el edge.</p>
+        <p className="text-[10px] text-zinc-600 text-center">Calculando probabilidad y edge automáticamente…</p>
       )}
       {done && saveMethod === "shared" && (
         <p className="text-[11px] text-emerald-400 text-center font-bold">
@@ -600,13 +614,13 @@ function BountyDashboard() {
       </div>
 
       {sent && (
-        <div className="rounded-xl border border-emerald-700/40 bg-emerald-500/8 p-3.5 flex items-center gap-2">
+        <div className="rounded-xl border border-emerald-700/40 bg-emerald-500/[0.08] p-3.5 flex items-center gap-2">
           <Icon name="check" className="w-4 h-4 text-emerald-400 shrink-0" strokeWidth={2.5} />
           <p className="text-xs font-bold text-emerald-300">Reclamación enviada. La revisaremos en 24–48h.</p>
         </div>
       )}
 
-      <div className="rounded-xl border border-zinc-800/60 bg-zinc-900/40 p-3.5 space-y-1.5">
+      <div className="rounded-xl border border-white/[0.07] bg-zinc-900/60 p-3.5 space-y-1.5">
         <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-2">¿Cómo funciona?</p>
         {[
           "1. Genera la imagen de tu apuesta ganadora",
@@ -622,7 +636,7 @@ function BountyDashboard() {
           <p className="text-[10px] text-zinc-500">Cuota mínima requerida: <span className="text-amber-400 font-bold">@3.00</span></p>
           <input value={twitterUrl} onChange={(e) => setTwitterUrl(e.target.value)}
             placeholder="https://x.com/tu_tweet..."
-            className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-amber-600" />
+            className="w-full bg-zinc-800/40 border border-white/[0.08] rounded-xl px-3.5 py-2.5 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-amber-600" />
           {submitError && <p className="text-xs text-rose-400">{submitError}</p>}
           <button onClick={handleClaim} disabled={sending || !twitterUrl.trim()}
             className="w-full py-2.5 rounded-xl bg-amber-600 hover:bg-amber-500 disabled:opacity-30 text-white font-bold text-sm tap transition-all flex items-center justify-center gap-2">
@@ -643,7 +657,7 @@ function BountyDashboard() {
           {bounties.map((b: any) => {
             const s = BOUNTY_STATUS[b.status as keyof typeof BOUNTY_STATUS]
             return (
-              <div key={b.id} className="rounded-xl border border-zinc-800/60 bg-zinc-900/40 p-3.5">
+              <div key={b.id} className="rounded-xl border border-white/[0.07] bg-zinc-900/60 p-3.5">
                 <div className="flex items-start justify-between gap-2">
                   <p className="text-xs font-bold text-white truncate flex-1">{b.bet_title}</p>
                   <span className={`text-[9px] font-black px-2 py-0.5 rounded-md border shrink-0 ${s.cls}`}>{s.label}</span>
@@ -675,10 +689,10 @@ function CreatorsDashboard() {
       </div>
 
       <div className="px-4 mb-5">
-        <div className="flex gap-1 p-1 rounded-xl bg-zinc-900 border border-zinc-800">
+        <div className="flex gap-1 p-1 rounded-xl bg-zinc-900/80 border border-white/[0.07]">
           {([["generator", "image", "Generador imagen"], ["bounties", "gift", "Mis bounties"]] as const).map(([id, icon, label]) => (
             <button key={id} onClick={() => setTab(id)}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-bold tap transition-all ${tab === id ? "bg-zinc-800 text-white" : "text-zinc-500 hover:text-zinc-400"}`}>
+              className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-bold tap transition-all ${tab === id ? "bg-white/[0.09] text-white" : "text-zinc-500 hover:text-zinc-400"}`}>
               <Icon name={icon} className="w-3.5 h-3.5" strokeWidth={2} />{label}
             </button>
           ))}

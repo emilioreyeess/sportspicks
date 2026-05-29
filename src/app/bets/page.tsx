@@ -253,14 +253,14 @@ export default function BetsPage() {
   return (
     <div className="min-h-screen bg-zinc-950 text-white pb-24">
       {/* Header */}
-      <div className="sticky top-0 z-10 bg-zinc-950/90 backdrop-blur border-b border-white/5 px-4 py-3 flex items-center justify-between">
+      <div className="sticky top-0 z-10 bg-zinc-950/90 backdrop-blur-xl border-b border-white/[0.07] px-4 py-3 flex items-center justify-between">
         <div>
           <h1 className="text-lg font-bold">Mis Apuestas</h1>
           <p className="text-xs text-zinc-500">Historial y seguimiento</p>
         </div>
         <button
           onClick={() => setShowForm(s => !s)}
-          className="bg-green-600 hover:bg-green-500 text-white text-sm font-semibold px-4 py-2 rounded-xl transition"
+          className="bg-emerald-500 hover:bg-emerald-400 text-zinc-950 text-sm font-semibold px-4 py-2 rounded-xl transition"
         >
           + Nueva
         </button>
@@ -275,7 +275,7 @@ export default function BetsPage() {
               { label: "Yield", value: `${stats.yield > 0 ? "+" : ""}${stats.yield}%`, color: stats.yield >= 0 ? "text-green-400" : "text-red-400" },
               { label: "Beneficio", value: `${stats.profit >= 0 ? "+" : ""}${stats.profit}€`, color: stats.profit >= 0 ? "text-green-400" : "text-red-400" },
             ].map(s => (
-              <div key={s.label} className="bg-zinc-900 rounded-xl p-3 text-center border border-white/5">
+              <div key={s.label} className="bg-zinc-900/60 rounded-xl p-3 text-center border border-white/[0.07]">
                 <div className={`text-xl font-bold ${s.color}`}>{s.value}</div>
                 <div className="text-xs text-zinc-500 mt-0.5">{s.label}</div>
               </div>
@@ -289,7 +289,7 @@ export default function BetsPage() {
             <button
               onClick={runAnalysis}
               disabled={analysisLoading}
-              className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl border border-purple-700/40 bg-purple-500/8 hover:bg-purple-500/15 text-purple-300 text-sm font-bold transition-all tap"
+              className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl border border-purple-700/40 bg-purple-500/[0.08] hover:bg-purple-500/[0.15] text-purple-300 text-sm font-bold transition-all tap"
             >
               {analysisLoading
                 ? <><span className="w-3.5 h-3.5 rounded-full border-2 border-purple-500 border-t-transparent animate-spin" />Analizando historial…</>
@@ -298,7 +298,7 @@ export default function BetsPage() {
             </button>
 
             {showAnalysis && (
-              <div ref={analysisRef} className="mt-3 rounded-2xl border border-purple-800/40 bg-zinc-900/70 p-4 space-y-2">
+              <div ref={analysisRef} className="mt-3 rounded-2xl border border-purple-800/40 bg-zinc-900/60 p-4 space-y-2">
                 <div className="flex items-center justify-between">
                   <p className="text-[10px] font-bold uppercase tracking-wider text-purple-400">🧠 Análisis personalizado · {plan.toUpperCase()}</p>
                   <button onClick={() => setShowAnalysis(false)} className="text-zinc-600 hover:text-zinc-400 text-lg leading-none">×</button>
@@ -317,7 +317,7 @@ export default function BetsPage() {
 
         {/* Pending bets to settle prompt */}
         {pendingToSettle.length > 0 && (
-          <div className="rounded-2xl border border-amber-700/40 bg-amber-500/8 p-4 space-y-3">
+          <div className="rounded-2xl border border-amber-700/40 bg-amber-500/[0.08] p-4 space-y-3">
             <div className="flex items-center gap-2">
               <span className="text-xl">⏰</span>
               <div>
@@ -326,22 +326,22 @@ export default function BetsPage() {
               </div>
             </div>
             {pendingToSettle.slice(0, 3).map(b => (
-              <div key={b.id} className="bg-zinc-900/80 rounded-xl p-3 space-y-2">
+              <div key={b.id} className="bg-zinc-900/60 border border-white/[0.07] rounded-xl p-3 space-y-2">
                 <p className="text-xs font-bold text-white truncate">{b.title}</p>
                 <p className="text-[11px] text-zinc-500">
                   {b.stake}€ @ {b.combined_odds} · {new Date(b.created_at).toLocaleDateString("es-ES", { day: "numeric", month: "short" })}
                 </p>
                 <div className="flex gap-2">
                   <button onClick={() => settle(b.id, "won")}
-                    className="flex-1 py-2 rounded-xl bg-green-600/20 hover:bg-green-600/30 text-green-400 text-xs font-bold border border-green-700/40 transition-all">
+                    className="flex-1 py-2 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-400 text-xs font-bold border border-emerald-700/40 transition-all">
                     ✓ Ganada
                   </button>
                   <button onClick={() => settle(b.id, "lost")}
-                    className="flex-1 py-2 rounded-xl bg-red-600/20 hover:bg-red-600/30 text-red-400 text-xs font-bold border border-red-700/40 transition-all">
+                    className="flex-1 py-2 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 text-rose-400 text-xs font-bold border border-rose-700/40 transition-all">
                     ✗ Perdida
                   </button>
                   <button onClick={() => settle(b.id, "void")}
-                    className="w-16 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-500 text-xs font-bold transition-all">
+                    className="w-16 py-2 rounded-xl bg-zinc-800/60 border border-white/[0.07] hover:bg-zinc-700/60 text-zinc-500 text-xs font-bold transition-all">
                     Anulada
                   </button>
                 </div>
@@ -352,24 +352,24 @@ export default function BetsPage() {
 
         {/* Add bet form */}
         {showForm && (
-          <form onSubmit={handleSubmit} className="bg-zinc-900 rounded-2xl border border-white/10 p-4 space-y-3">
+          <form onSubmit={handleSubmit} className="bg-zinc-900/60 rounded-2xl border border-white/[0.07] p-4 space-y-3">
             <h2 className="font-semibold text-sm text-zinc-300">Nueva apuesta</h2>
             <input
-              className="w-full bg-zinc-800 rounded-xl px-3 py-2 text-sm placeholder-zinc-500 outline-none focus:ring-1 ring-green-500"
+              className="w-full bg-zinc-800/60 border border-white/[0.07] rounded-xl px-3 py-2 text-sm placeholder-zinc-500 outline-none focus:border-white/[0.16]"
               placeholder="Título (opcional)"
               value={form.title}
               onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
             />
             <div className="flex gap-2">
               <input
-                className="flex-1 bg-zinc-800 rounded-xl px-3 py-2 text-sm placeholder-zinc-500 outline-none focus:ring-1 ring-green-500"
+                className="flex-1 bg-zinc-800/60 border border-white/[0.07] rounded-xl px-3 py-2 text-sm placeholder-zinc-500 outline-none focus:border-white/[0.16]"
                 placeholder="Stake (€)"
                 type="number" step="0.01" min="0"
                 value={form.stake}
                 onChange={e => setForm(f => ({ ...f, stake: e.target.value }))}
               />
               <input
-                className="flex-1 bg-zinc-800 rounded-xl px-3 py-2 text-sm placeholder-zinc-500 outline-none focus:ring-1 ring-green-500"
+                className="flex-1 bg-zinc-800/60 border border-white/[0.07] rounded-xl px-3 py-2 text-sm placeholder-zinc-500 outline-none focus:border-white/[0.16]"
                 placeholder={`Cuota total (${calcCombo() || "auto"})`}
                 type="number" step="0.01" min="1"
                 value={form.combined_odds}
@@ -384,20 +384,20 @@ export default function BetsPage() {
                 <div key={i} className="flex gap-2 items-start">
                   <div className="flex-1 space-y-1">
                     <input
-                      className="w-full bg-zinc-800 rounded-lg px-2.5 py-1.5 text-xs placeholder-zinc-600 outline-none"
+                      className="w-full bg-zinc-800/60 border border-white/[0.06] rounded-[9px] px-2.5 py-1.5 text-xs placeholder-zinc-600 outline-none"
                       placeholder="Partido (ej: Real Madrid vs Barça)"
                       value={leg.match}
                       onChange={e => updateLeg(i, "match", e.target.value)}
                     />
                     <div className="flex gap-1">
                       <input
-                        className="flex-1 bg-zinc-800 rounded-lg px-2.5 py-1.5 text-xs placeholder-zinc-600 outline-none"
+                        className="flex-1 bg-zinc-800/60 border border-white/[0.06] rounded-[9px] px-2.5 py-1.5 text-xs placeholder-zinc-600 outline-none"
                         placeholder="Selección"
                         value={leg.selection}
                         onChange={e => updateLeg(i, "selection", e.target.value)}
                       />
                       <input
-                        className="w-16 bg-zinc-800 rounded-lg px-2 py-1.5 text-xs placeholder-zinc-600 outline-none text-center"
+                        className="w-16 bg-zinc-800/60 border border-white/[0.06] rounded-[9px] px-2 py-1.5 text-xs placeholder-zinc-600 outline-none text-center"
                         placeholder="Cuota"
                         type="number" step="0.01"
                         value={leg.odds}
@@ -416,7 +416,7 @@ export default function BetsPage() {
             {/* Image upload + scan */}
             <div className="space-y-2 pt-1">
               <div className="flex items-center gap-2">
-                <label className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border border-zinc-700 bg-zinc-800 text-xs text-zinc-400 hover:text-zinc-200 hover:border-zinc-600 cursor-pointer transition ${(uploadingImage || scanningImage) ? "opacity-40 pointer-events-none" : ""}`}>
+                <label className={`flex items-center gap-1.5 px-3 py-2 rounded-xl border border-white/[0.07] bg-zinc-800/60 text-xs text-zinc-400 hover:text-zinc-200 hover:border-white/[0.12] cursor-pointer transition ${(uploadingImage || scanningImage) ? "opacity-40 pointer-events-none" : ""}`}>
                   <input type="file" accept="image/*" className="sr-only" onChange={handleImageUpload} disabled={uploadingImage || scanningImage} />
                   {scanningImage
                     ? <span className="w-3 h-3 rounded-full border-2 border-green-500 border-t-transparent animate-spin" />
@@ -431,16 +431,16 @@ export default function BetsPage() {
               {scanError && <p className="text-xs text-amber-400">{scanError}</p>}
               {form.imageUrl && (
                 // eslint-disable-next-line @next/next/no-img-element
-                <img src={form.imageUrl} alt="Boleto" className="w-full max-h-48 object-contain rounded-xl border border-zinc-700 bg-zinc-900" />
+                <img src={form.imageUrl} alt="Boleto" className="w-full max-h-48 object-contain rounded-xl border border-white/[0.07] bg-zinc-900/60" />
               )}
             </div>
 
             {saveError && (
-              <p className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">{saveError}</p>
+              <p className="text-xs text-rose-400 bg-rose-500/10 border border-rose-700/30 rounded-[9px] px-3 py-2">{saveError}</p>
             )}
             <div className="flex gap-2 pt-1">
-              <button type="button" onClick={() => { setShowForm(false); setSaveError(null) }} className="flex-1 bg-zinc-800 hover:bg-zinc-700 rounded-xl py-2 text-sm transition">Cancelar</button>
-              <button type="submit" disabled={saving} className="flex-1 bg-green-600 hover:bg-green-500 disabled:opacity-50 rounded-xl py-2 text-sm font-semibold transition">
+              <button type="button" onClick={() => { setShowForm(false); setSaveError(null) }} className="flex-1 bg-zinc-800/60 border border-white/[0.07] hover:bg-zinc-700/60 rounded-xl py-2 text-sm transition">Cancelar</button>
+              <button type="submit" disabled={saving} className="flex-1 bg-emerald-500 hover:bg-emerald-400 text-zinc-950 disabled:opacity-50 rounded-xl py-2 text-sm font-semibold transition">
                 {saving ? "Guardando…" : "Guardar"}
               </button>
             </div>
@@ -448,12 +448,12 @@ export default function BetsPage() {
         )}
 
         {/* Filter tabs */}
-        <div className="flex gap-1 bg-zinc-900 p-1 rounded-xl border border-white/5">
+        <div className="flex gap-1 bg-zinc-900/80 p-1 rounded-xl border border-white/[0.07]">
           {(["all", "pending", "won", "lost"] as const).map(f => (
             <button
               key={f}
               onClick={() => setFilter(f)}
-              className={`flex-1 text-xs py-1.5 rounded-lg font-medium transition ${filter === f ? "bg-zinc-700 text-white" : "text-zinc-500 hover:text-zinc-300"}`}
+              className={`flex-1 text-xs py-1.5 rounded-lg font-medium transition ${filter === f ? "bg-white/[0.09] text-white" : "text-zinc-500 hover:text-zinc-300"}`}
             >
               {f === "all" ? "Todas" : STATUS_LABEL[f]}
             </button>
@@ -470,13 +470,21 @@ export default function BetsPage() {
         ) : (
           <div className="space-y-3">
             {filtered.map(bet => (
-              <div key={bet.id} className="bg-zinc-900 rounded-2xl border border-white/5 overflow-hidden">
+              <div key={bet.id} className="bg-zinc-900/60 rounded-2xl border border-white/[0.07] overflow-hidden">
                 {/* Bet header */}
                 <div
                   className="p-4 cursor-pointer hover:bg-white/[0.02] transition"
                   onClick={() => setExpanded(e => e === bet.id ? null : bet.id)}
                 >
-                  <div className="flex items-start justify-between gap-2">
+                  <div className="flex items-start gap-3 justify-between">
+                    {bet.image_url && (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img
+                        src={bet.image_url}
+                        alt=""
+                        className="w-12 h-12 rounded-lg object-cover border border-white/[0.07] shrink-0 bg-zinc-900"
+                      />
+                    )}
                     <div className="flex-1 min-w-0">
                       <div className="font-medium text-sm truncate">{bet.title}</div>
                       <div className="flex items-center gap-2 mt-1">
@@ -494,18 +502,18 @@ export default function BetsPage() {
                         )}
                       </div>
                     </div>
-                    <div className="text-zinc-600 text-sm">{expanded === bet.id ? "▲" : "▼"}</div>
+                    <div className="text-zinc-600 text-sm shrink-0">{expanded === bet.id ? "▲" : "▼"}</div>
                   </div>
                 </div>
 
                 {/* Expanded details */}
                 {expanded === bet.id && (
-                  <div className="border-t border-white/5 px-4 pb-4 pt-3 space-y-3">
+                  <div className="border-t border-white/[0.07] px-4 pb-4 pt-3 space-y-3">
                     {/* Legs */}
                     {bet.bet_legs && bet.bet_legs.length > 0 ? (
                       <div className="space-y-2">
                         {bet.bet_legs.map((leg, i) => (
-                          <div key={i} className="flex items-start gap-2 text-xs bg-zinc-800/50 rounded-lg px-3 py-2">
+                          <div key={i} className="flex items-start gap-2 text-xs bg-zinc-800/50 border border-white/[0.06] rounded-[9px] px-3 py-2">
                             <div className="flex-1 min-w-0">
                               <div className="text-zinc-400 truncate">{leg.match}</div>
                               <div className="font-semibold text-white">{leg.selection}</div>
@@ -520,12 +528,12 @@ export default function BetsPage() {
                         ))}
                       </div>
                     ) : (
-                      <p className="text-xs text-zinc-600 italic">Sin selecciones registradas</p>
+                      <p className="text-xs text-zinc-600">Sin selecciones registradas</p>
                     )}
 
                     {/* Attached image */}
                     {bet.image_url && (
-                      <div className="rounded-xl overflow-hidden border border-zinc-700/60">
+                      <div className="rounded-xl overflow-hidden border border-white/[0.07]">
                         {/* eslint-disable-next-line @next/next/no-img-element */}
                         <img src={bet.image_url} alt="Boleto" className="w-full max-h-64 object-contain bg-zinc-900" />
                       </div>
@@ -533,9 +541,9 @@ export default function BetsPage() {
 
                     {bet.status === "pending" && (
                       <div className="flex gap-2 pt-1">
-                        <button onClick={() => settle(bet.id, "won")}  className="flex-1 bg-green-600/20 hover:bg-green-600/40 text-green-300 text-xs py-2 rounded-xl transition">✓ Ganada</button>
-                        <button onClick={() => settle(bet.id, "lost")} className="flex-1 bg-red-600/20  hover:bg-red-600/40  text-red-300   text-xs py-2 rounded-xl transition">✗ Perdida</button>
-                        <button onClick={() => settle(bet.id, "void")} className="flex-1 bg-zinc-700   hover:bg-zinc-600   text-zinc-300   text-xs py-2 rounded-xl transition">— Anulada</button>
+                        <button onClick={() => settle(bet.id, "won")}  className="flex-1 bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 text-xs py-2 rounded-xl border border-emerald-700/40 transition">✓ Ganada</button>
+                        <button onClick={() => settle(bet.id, "lost")} className="flex-1 bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 text-xs py-2 rounded-xl border border-rose-700/40 transition">✗ Perdida</button>
+                        <button onClick={() => settle(bet.id, "void")} className="flex-1 bg-zinc-800/60 border border-white/[0.07] hover:bg-zinc-700/60 text-zinc-400 text-xs py-2 rounded-xl transition">— Anulada</button>
                       </div>
                     )}
 

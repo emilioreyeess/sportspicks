@@ -20,13 +20,13 @@ interface Group {
   invite_code?: string
 }
 
-type ChatTab = "chat" | "members" | "ranking"
+type ChatTab = "chat" | "members" | "ranking" | "bets"
 
 // ── Empty states ──────────────────────────────────────────────
 function EmptyChat() {
   return (
     <div className="flex flex-col items-center justify-center flex-1 text-center px-6 py-12">
-      <div className="w-14 h-14 rounded-2xl bg-zinc-900 border border-zinc-800 grid place-items-center mb-3">
+      <div className="w-14 h-14 rounded-2xl bg-zinc-900 border border-white/[0.07] grid place-items-center mb-3">
         <Icon name="groups" className="w-7 h-7 text-zinc-600" strokeWidth={1.5} />
       </div>
       <p className="text-sm font-black text-zinc-300 mb-1">Sin mensajes aún</p>
@@ -55,9 +55,31 @@ function EmptyRanking() {
   )
 }
 
+function EmptyGroupBets() {
+  return (
+    <div className="flex flex-col items-center justify-center py-14 text-center px-6">
+      <Icon name="ticket" className="w-10 h-10 text-zinc-700 mb-3" strokeWidth={1.5} />
+      <p className="text-sm font-black text-zinc-400">Sin apuestas compartidas</p>
+      <p className="text-xs text-zinc-600 mt-1 max-w-xs">
+        Comparte una apuesta pendiente para que cuente en el ranking del grupo.
+        Solo se admiten picks pre-partido.
+      </p>
+    </div>
+  )
+}
+
 interface Message { id: string; content: string; user_email: string; sender_name: string; sender_avatar?: string; created_at: string }
 interface RankingEntry { email: string; name: string; avatar_url?: string; role: string; picks: number; won: number; winrate: number; yield: number; profit: number }
 interface Member { email: string; name: string; avatar_url?: string; role: string; joined_at: string }
+
+interface BetLeg { id: string; match: string; selection: string; odds: number; status: string }
+interface UserBet { id: string; title: string; stake: number; combined_odds: number; status: string; sport: string; image_url?: string; created_at: string; bet_legs?: BetLeg[] }
+interface GroupBetEntry {
+  sharedId: string; sharedAt: string; isPreMatch: boolean
+  sharedBy: string; sharedByName: string; sharedByAvatar?: string; isOwn: boolean
+  bet: UserBet
+}
+interface GroupBetRankingEntry { email: string; name: string; avatar_url?: string; picks: number; won: number; winrate: number; yield: number; profit: number }
 
 // ── Chat view ─────────────────────────────────────────────────
 function ChatView({ group, onBack }: { group: Group; onBack: () => void }) {
@@ -71,6 +93,15 @@ function ChatView({ group, onBack }: { group: Group; onBack: () => void }) {
   const [members, setMembers] = useState<Member[]>([])
   const [membersLoading, setMembersLoading] = useState(false)
   const [linkCopied, setLinkCopied] = useState(false)
+  const [groupBets, setGroupBets] = useState<GroupBetEntry[]>([])
+  const [groupBetsLoading, setGroupBetsLoading] = useState(false)
+  const [groupBetsRanking, setGroupBetsRanking] = useState<GroupBetRankingEntry[]>([])
+  const [myBets, setMyBets] = useState<UserBet[]>([])
+  const [myBetsLoading, setMyBetsLoading] = useState(false)
+  const [sharingBetId, setSharingBetId] = useState<string | null>(null)
+  const [shareError, setShareError] = useState("")
+  const [shareSuccess, setShareSuccess] = useState("")
+  const [showSharePicker, setShowSharePicker] = useState(false)
   const { data: session } = useSession()
 
   const loadMessages = useCallback(async () => {
@@ -93,6 +124,52 @@ function ChatView({ group, onBack }: { group: Group; onBack: () => void }) {
     if (res.ok) { const d = await res.json(); setMembers(d.members ?? []) }
     setMembersLoading(false)
   }, [group.id])
+
+  const loadGroupBets = useCallback(async () => {
+    setGroupBetsLoading(true)
+    const res = await fetch(`/api/groups/${group.id}/bets`)
+    if (res.ok) {
+      const d = await res.json()
+      setGroupBets(d.bets ?? [])
+      setGroupBetsRanking(d.ranking ?? [])
+    }
+    setGroupBetsLoading(false)
+  }, [group.id])
+
+  const loadMyBets = useCallback(async () => {
+    setMyBetsLoading(true)
+    const res = await fetch("/api/bets")
+    if (res.ok) {
+      const d = await res.json()
+      // Only show pending bets (pre-match only)
+      setMyBets((d.bets ?? []).filter((b: UserBet) => b.status === "pending"))
+    }
+    setMyBetsLoading(false)
+  }, [])
+
+  const shareBet = async (betId: string) => {
+    setSharingBetId(betId); setShareError(""); setShareSuccess("")
+    const res = await fetch(`/api/groups/${group.id}/bets`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ bet_id: betId }),
+    })
+    const d = await res.json()
+    setSharingBetId(null)
+    if (res.ok) {
+      setShareSuccess(d.message ?? "Apuesta compartida")
+      setShowSharePicker(false)
+      loadGroupBets()
+      setTimeout(() => setShareSuccess(""), 3000)
+    } else {
+      setShareError(d.error ?? "Error al compartir")
+    }
+  }
+
+  const unshareGroupBet = async (sharedId: string) => {
+    await fetch(`/api/groups/${group.id}/bets?sharedId=${sharedId}`, { method: "DELETE" })
+    loadGroupBets()
+  }
 
   function copyInviteLink() {
     if (!group.invite_code) return
@@ -159,12 +236,13 @@ function ChatView({ group, onBack }: { group: Group; onBack: () => void }) {
     { id: "chat",    label: "Chat",         icon: "groups"      },
     { id: "members", label: "Participantes", icon: "user"        },
     { id: "ranking", label: "Ranking",       icon: "leaderboard" },
+    { id: "bets",    label: "Mis Apuestas",  icon: "ticket"      },
   ]
 
   return (
     <div className="flex flex-col h-[calc(100vh-8rem)]">
       {/* Header */}
-      <div className="flex items-center gap-3 px-4 py-3 border-b border-zinc-800/60 bg-zinc-950/80 backdrop-blur-sm shrink-0">
+      <div className="flex items-center gap-3 px-4 py-3 border-b border-white/[0.07] bg-zinc-950/80 backdrop-blur-sm shrink-0">
         <button onClick={onBack} className="tap p-1 -ml-1 text-zinc-500 hover:text-white">
           <Icon name="arrowRight" className="w-5 h-5 rotate-180" strokeWidth={2.2} />
         </button>
@@ -195,12 +273,13 @@ function ChatView({ group, onBack }: { group: Group; onBack: () => void }) {
       </div>
 
       {/* Tab bar */}
-      <div className="shrink-0 flex border-b border-zinc-800/60 bg-zinc-950/60">
+      <div className="shrink-0 flex border-b border-white/[0.07] bg-zinc-950/60">
         {TABS.map((t) => (
           <button key={t.id} onClick={() => {
             setTab(t.id)
             if (t.id === "ranking" && !ranking.length) loadRanking()
             if (t.id === "members" && !members.length) loadMembers()
+            if (t.id === "bets") { loadGroupBets(); loadMyBets() }
           }}
             className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 text-xs font-bold tap transition-all border-b-2 ${tab === t.id ? "border-emerald-500 text-white" : "border-transparent text-zinc-600 hover:text-zinc-400"}`}>
             <Icon name={t.icon} className="w-3.5 h-3.5" strokeWidth={2} />
@@ -226,7 +305,7 @@ function ChatView({ group, onBack }: { group: Group; onBack: () => void }) {
                       <img
                         src={msg.content.slice(5, -6)}
                         alt="imagen"
-                        className="max-w-[200px] rounded-xl border border-zinc-700/50 cursor-pointer"
+                        className="max-w-[200px] rounded-xl border border-white/[0.07] cursor-pointer"
                         onClick={() => window.open(msg.content.slice(5, -6), "_blank")}
                       />
                     ) : (
@@ -243,10 +322,10 @@ function ChatView({ group, onBack }: { group: Group; onBack: () => void }) {
             })}
           </div>
           {/* Input */}
-          <div className="shrink-0 px-4 py-3 border-t border-zinc-800/60 bg-zinc-950/80 backdrop-blur-sm">
+          <div className="shrink-0 px-4 py-3 border-t border-white/[0.07] bg-zinc-950/80 backdrop-blur-sm">
             <div className="flex items-center gap-2">
               {/* Image upload */}
-              <label className={`tap p-2.5 rounded-xl border border-zinc-800 hover:border-zinc-700 text-zinc-500 hover:text-zinc-300 transition-all cursor-pointer shrink-0 ${uploadingImage ? "opacity-40 pointer-events-none" : ""}`}>
+              <label className={`tap p-2.5 rounded-xl border border-white/[0.07] hover:border-white/[0.14] text-zinc-500 hover:text-zinc-300 transition-all cursor-pointer shrink-0 ${uploadingImage ? "opacity-40 pointer-events-none" : ""}`}>
                 <input type="file" accept="image/*" className="sr-only" onChange={handleImageUpload} disabled={uploadingImage} />
                 {uploadingImage ? (
                   <span className="inline-block w-4 h-4 rounded-full border-2 border-zinc-500 border-t-transparent animate-spin" />
@@ -259,7 +338,7 @@ function ChatView({ group, onBack }: { group: Group; onBack: () => void }) {
                 onChange={(e) => setInput(e.target.value)}
                 onKeyDown={(e) => e.key === "Enter" && sendMessage()}
                 placeholder="Escribe un mensaje..."
-                className="flex-1 bg-zinc-900 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-zinc-700"
+                className="flex-1 bg-zinc-800/40 border border-white/[0.08] rounded-xl px-3.5 py-2.5 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-white/[0.16]"
               />
               <button disabled={!input.trim() || sending} onClick={sendMessage}
                 className="tap p-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white disabled:opacity-30 transition-all">
@@ -284,7 +363,7 @@ function ChatView({ group, onBack }: { group: Group; onBack: () => void }) {
               {group.role === "admin" && group.invite_code && (
                 <button
                   onClick={copyInviteLink}
-                  className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all ${linkCopied ? "border-emerald-700/60 bg-emerald-500/10" : "border-zinc-700/50 bg-zinc-900/50 hover:bg-zinc-800/60"}`}
+                  className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all ${linkCopied ? "border-emerald-700/60 bg-emerald-500/10" : "border-white/[0.07] bg-zinc-900/50 hover:bg-zinc-800/60"}`}
                 >
                   <Icon name={linkCopied ? "check" : "share"} className={`w-4 h-4 shrink-0 ${linkCopied ? "text-emerald-400" : "text-zinc-400"}`} strokeWidth={2} />
                   <div className="text-left">
@@ -296,7 +375,7 @@ function ChatView({ group, onBack }: { group: Group; onBack: () => void }) {
                 </button>
               )}
               {members.map((m) => (
-                <div key={m.email} className="flex items-center gap-3 p-3 rounded-xl border border-zinc-800/60 bg-zinc-900/40">
+                <div key={m.email} className="flex items-center gap-3 p-3 rounded-xl border border-white/[0.07] bg-zinc-900/40">
                   <div className="w-9 h-9 rounded-full bg-zinc-700 grid place-items-center text-sm font-bold shrink-0 overflow-hidden">
                     {m.avatar_url ? <img src={m.avatar_url} className="w-full h-full object-cover" alt="" /> : m.name?.[0]?.toUpperCase()}
                   </div>
@@ -327,7 +406,7 @@ function ChatView({ group, onBack }: { group: Group; onBack: () => void }) {
           ) : (
             <div className="px-4 pt-4 pb-6 space-y-2">
               {ranking.map((r, i) => (
-                <div key={r.email} className="flex items-center gap-3 rounded-xl border border-zinc-800/60 bg-zinc-900/40 p-3">
+                <div key={r.email} className="flex items-center gap-3 rounded-xl border border-white/[0.07] bg-zinc-900/40 p-3">
                   <div className={`w-7 h-7 rounded-full grid place-items-center text-xs font-black shrink-0 ${i === 0 ? "bg-amber-500 text-black" : i === 1 ? "bg-zinc-400 text-black" : i === 2 ? "bg-amber-700 text-white" : "bg-zinc-800 text-zinc-400"}`}>
                     {i + 1}
                   </div>
@@ -348,6 +427,218 @@ function ChatView({ group, onBack }: { group: Group; onBack: () => void }) {
           )}
         </div>
       )}
+
+      {tab === "bets" && (
+        <div className="flex-1 overflow-y-auto">
+          {groupBetsLoading ? (
+            <div className="flex items-center justify-center py-16">
+              <div className="w-7 h-7 rounded-full border-2 border-emerald-500 border-t-transparent animate-spin" />
+            </div>
+          ) : (
+            <div className="px-4 pt-4 pb-24 space-y-4">
+              {/* Share bet CTA */}
+              <button
+                onClick={() => { setShowSharePicker(v => !v); setShareError(""); loadMyBets() }}
+                className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-dashed border-emerald-700/50 bg-emerald-500/5 hover:bg-emerald-500/10 text-emerald-400 text-xs font-bold tap transition-colors"
+              >
+                <Icon name="plus" className="w-3.5 h-3.5" strokeWidth={2.5} />
+                Compartir apuesta (pre-partido)
+              </button>
+
+              {shareSuccess && (
+                <div className="flex items-center gap-2 rounded-xl border border-emerald-700/40 bg-emerald-500/[0.08] px-3 py-2.5">
+                  <Icon name="check" className="w-4 h-4 text-emerald-400 shrink-0" strokeWidth={2.5} />
+                  <p className="text-xs font-bold text-emerald-300">{shareSuccess}</p>
+                </div>
+              )}
+
+              {shareError && (
+                <p className="text-xs text-rose-400 font-bold px-1">{shareError}</p>
+              )}
+
+              {/* Bet picker */}
+              {showSharePicker && (
+                <div className="rounded-xl border border-white/[0.07] bg-zinc-900/60 p-3 space-y-2">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1">
+                    Mis apuestas pendientes
+                  </p>
+                  {myBetsLoading ? (
+                    <div className="flex items-center justify-center py-6">
+                      <div className="w-5 h-5 rounded-full border-2 border-emerald-500 border-t-transparent animate-spin" />
+                    </div>
+                  ) : myBets.length === 0 ? (
+                    <p className="text-xs text-zinc-600 text-center py-4">
+                      Sin apuestas pendientes. Ve a <span className="text-emerald-400">Mis Apuestas</span> y registra una antes del partido.
+                    </p>
+                  ) : (
+                    myBets.map(b => {
+                      const alreadyShared = groupBets.some(gb => gb.bet.id === b.id)
+                      return (
+                        <div key={b.id} className="flex items-center gap-2 rounded-lg border border-white/[0.06] bg-zinc-800/50 px-3 py-2.5">
+                          {b.image_url && (
+                            <img src={b.image_url} alt="" className="w-8 h-8 rounded object-cover shrink-0 border border-white/[0.07]" />
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-bold text-white truncate">{b.title}</p>
+                            <p className="text-[10px] text-zinc-500">
+                              @{b.combined_odds} · {b.bet_legs?.length ?? 0} sel.
+                              · {new Date(b.created_at).toLocaleDateString("es-ES", { day: "numeric", month: "short" })}
+                            </p>
+                          </div>
+                          <button
+                            disabled={alreadyShared || sharingBetId === b.id}
+                            onClick={() => shareBet(b.id)}
+                            className={`shrink-0 px-3 py-1.5 rounded-lg text-[10px] font-black tap transition-all ${
+                              alreadyShared
+                                ? "bg-zinc-800 text-zinc-600 cursor-default"
+                                : sharingBetId === b.id
+                                  ? "bg-emerald-500/20 text-emerald-400 opacity-60"
+                                  : "bg-emerald-500/15 border border-emerald-700/40 text-emerald-400 hover:bg-emerald-500/25"
+                            }`}
+                          >
+                            {alreadyShared ? "✓ Compartida" : sharingBetId === b.id ? "…" : "Compartir"}
+                          </button>
+                        </div>
+                      )
+                    })
+                  )}
+                </div>
+              )}
+
+              {/* Isolated group ranking (only group-shared bets) */}
+              {groupBetsRanking.length > 0 && (
+                <div className="space-y-1.5">
+                  <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500 px-1">
+                    Ranking del grupo (picks compartidos)
+                  </p>
+                  {groupBetsRanking.map((r, i) => (
+                    <div key={r.email} className="flex items-center gap-2.5 rounded-xl border border-white/[0.07] bg-zinc-900/40 px-3 py-2.5">
+                      <div className={`w-6 h-6 rounded-full grid place-items-center text-[10px] font-black shrink-0 ${i === 0 ? "bg-amber-500 text-black" : i === 1 ? "bg-zinc-400 text-black" : i === 2 ? "bg-amber-700 text-white" : "bg-zinc-800 text-zinc-400"}`}>
+                        {i + 1}
+                      </div>
+                      <div className="w-7 h-7 rounded-full bg-zinc-700 grid place-items-center text-xs font-bold shrink-0 overflow-hidden">
+                        {r.avatar_url ? <img src={r.avatar_url} className="w-full h-full object-cover" alt="" /> : r.name?.[0]?.toUpperCase()}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-bold text-white truncate">{r.name}</p>
+                        <p className="text-[10px] text-zinc-500">{r.picks} picks · {r.won} ✓</p>
+                      </div>
+                      <div className="text-right shrink-0">
+                        <p className={`text-sm font-black ${r.yield >= 0 ? "text-emerald-400" : "text-red-400"}`}>
+                          {r.yield > 0 ? "+" : ""}{r.yield}%
+                        </p>
+                        <p className="text-[10px] text-zinc-500">{r.winrate}% WR</p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Shared bets list */}
+              {groupBets.length === 0 && !showSharePicker ? (
+                <EmptyGroupBets />
+              ) : (
+                <div className="space-y-2.5">
+                  {groupBets.length > 0 && (
+                    <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500 px-1">
+                      Picks compartidos ({groupBets.length})
+                    </p>
+                  )}
+                  {groupBets.map((gb) => {
+                    const bet = gb.bet
+                    const STATUS_COLORS: Record<string, string> = {
+                      pending: "bg-yellow-500/20 text-yellow-300 border-yellow-500/30",
+                      won:     "bg-green-500/20  text-green-300  border-green-500/30",
+                      lost:    "bg-red-500/20    text-red-300    border-red-500/30",
+                      void:    "bg-zinc-500/20   text-zinc-300   border-zinc-500/30",
+                    }
+                    const STATUS_LABEL: Record<string, string> = { pending: "Pendiente", won: "Ganada", lost: "Perdida", void: "Anulada" }
+                    return (
+                      <div key={gb.sharedId} className="rounded-2xl border border-white/[0.07] bg-zinc-900/60 overflow-hidden">
+                        {/* Shared-by header */}
+                        <div className="flex items-center gap-2 px-3 py-2 border-b border-white/[0.07] bg-zinc-950/30">
+                          <div className="w-5 h-5 rounded-full bg-zinc-700 grid place-items-center text-[9px] font-bold overflow-hidden shrink-0">
+                            {gb.sharedByAvatar
+                              ? <img src={gb.sharedByAvatar} className="w-full h-full object-cover" alt="" />
+                              : gb.sharedByName?.[0]?.toUpperCase()
+                            }
+                          </div>
+                          <span className="text-[10px] text-zinc-500 flex-1 truncate">
+                            {gb.isOwn ? "Tú" : gb.sharedByName}
+                          </span>
+                          {gb.isPreMatch && (
+                            <span className="text-[9px] font-black text-emerald-500 bg-emerald-500/10 border border-emerald-700/30 px-1.5 py-0.5 rounded">
+                              ✓ Pre-partido
+                            </span>
+                          )}
+                          <span className="text-[9px] text-zinc-700">
+                            {new Date(gb.sharedAt).toLocaleDateString("es-ES", { day: "numeric", month: "short" })}
+                          </span>
+                          {gb.isOwn && (
+                            <button
+                              onClick={() => unshareGroupBet(gb.sharedId)}
+                              className="tap text-zinc-700 hover:text-rose-400 transition-colors"
+                              title="Eliminar del grupo"
+                            >
+                              <Icon name="trash" className="w-3 h-3" strokeWidth={2} />
+                            </button>
+                          )}
+                        </div>
+
+                        {/* Bet info */}
+                        <div className="p-3 flex items-start gap-3">
+                          {bet.image_url && (
+                            <img src={bet.image_url} alt="" className="w-12 h-12 rounded-lg object-cover border border-white/[0.07] shrink-0" />
+                          )}
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-black text-white truncate">{bet.title}</p>
+                            <div className="flex items-center gap-2 mt-1 flex-wrap">
+                              <span className={`text-[10px] px-2 py-0.5 rounded-full border ${STATUS_COLORS[bet.status] ?? STATUS_COLORS.void}`}>
+                                {STATUS_LABEL[bet.status] ?? bet.status}
+                              </span>
+                              <span className="text-[10px] text-zinc-500">
+                                {bet.stake}€ @ {bet.combined_odds}
+                              </span>
+                              {bet.status === "won" && (
+                                <span className="text-[10px] text-emerald-400 font-bold">
+                                  +{((bet.combined_odds - 1) * bet.stake).toFixed(2)}€
+                                </span>
+                              )}
+                            </div>
+                            {/* Legs preview */}
+                            {bet.bet_legs && bet.bet_legs.length > 0 && (
+                              <div className="mt-2 space-y-1">
+                                {bet.bet_legs.slice(0, 3).map((leg, li) => (
+                                  <div key={li} className="flex items-center gap-1.5 text-[10px]">
+                                    <span className="text-zinc-600 truncate flex-1">{leg.match}</span>
+                                    <span className="text-zinc-400 font-bold shrink-0">{leg.selection}</span>
+                                    <span className="text-emerald-500 font-mono shrink-0">@{Number(leg.odds).toFixed(2)}</span>
+                                  </div>
+                                ))}
+                                {bet.bet_legs.length > 3 && (
+                                  <p className="text-[9px] text-zinc-700">+{bet.bet_legs.length - 3} selecciones más</p>
+                                )}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
+
+              {/* Info banner */}
+              <div className="rounded-xl border border-emerald-800/30 bg-emerald-500/5 px-3.5 py-2.5">
+                <p className="text-[10px] text-emerald-400/70 font-bold">🔒 Solo picks pre-partido</p>
+                <p className="text-[10px] text-zinc-600 mt-0.5">
+                  El servidor valida que la apuesta sea pendiente al compartirla. Los resultados cuentan en el ranking aislado del grupo.
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -356,8 +647,8 @@ function ChatView({ group, onBack }: { group: Group; onBack: () => void }) {
 function GroupItem({ group, onClick }: { group: Group; onClick: () => void }) {
   return (
     <button onClick={onClick}
-      className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-zinc-900/60 tap transition-colors border-b border-zinc-800/40 text-left">
-      <div className="w-11 h-11 rounded-2xl bg-zinc-800 border border-zinc-700/50 grid place-items-center text-2xl shrink-0">
+      className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-zinc-900/60 tap transition-colors border-b border-white/[0.07] text-left">
+      <div className="w-11 h-11 rounded-2xl bg-zinc-800 border border-white/[0.07] grid place-items-center text-2xl shrink-0">
         {group.avatar_emoji}
       </div>
       <div className="flex-1 min-w-0">
@@ -400,7 +691,7 @@ function CreateGroupModal({ onClose, onCreated }: { onClose: () => void; onCreat
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-sm mx-4 sm:mx-auto rounded-2xl border border-zinc-800 bg-zinc-950 p-5 space-y-4 mb-20 sm:mb-0">
+      <div className="relative w-full max-w-sm mx-4 sm:mx-auto rounded-2xl border border-white/[0.07] bg-zinc-950 p-5 space-y-4 mb-20 sm:mb-0">
         <div className="flex items-center justify-between">
           <h3 className="text-base font-black text-white">Nuevo grupo</h3>
           <button onClick={onClose} className="tap p-1 text-zinc-500 hover:text-white">
@@ -410,14 +701,14 @@ function CreateGroupModal({ onClose, onCreated }: { onClose: () => void; onCreat
         <div className="flex flex-wrap gap-2">
           {EMOJIS.map((e) => (
             <button key={e} onClick={() => setEmoji(e)}
-              className={`w-9 h-9 rounded-xl text-xl tap transition-all ${emoji === e ? "bg-emerald-500/20 border-2 border-emerald-500/60" : "bg-zinc-900 border border-zinc-800 hover:border-zinc-700"}`}>
+              className={`w-9 h-9 rounded-xl text-xl tap transition-all ${emoji === e ? "bg-emerald-500/20 border-2 border-emerald-500/60" : "bg-zinc-900 border border-white/[0.07] hover:border-white/[0.14]"}`}>
               {e}
             </button>
           ))}
         </div>
         <input value={name} onChange={(e) => setName(e.target.value)}
           placeholder="Nombre del grupo" maxLength={40}
-          className="w-full bg-zinc-900 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-zinc-700" />
+          className="w-full bg-zinc-800/40 border border-white/[0.08] rounded-xl px-3.5 py-2.5 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-white/[0.16]" />
         {error && <p className="text-xs text-red-400">{error}</p>}
         <button disabled={!name.trim() || saving} onClick={handleCreate}
           className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-30 text-white font-bold text-sm tap transition-all">
@@ -450,7 +741,7 @@ function JoinGroupModal({ onClose, onJoined }: { onClose: () => void; onJoined: 
   return (
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
       <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
-      <div className="relative w-full max-w-sm mx-4 sm:mx-auto rounded-2xl border border-zinc-800 bg-zinc-950 p-5 space-y-4 mb-20 sm:mb-0">
+      <div className="relative w-full max-w-sm mx-4 sm:mx-auto rounded-2xl border border-white/[0.07] bg-zinc-950 p-5 space-y-4 mb-20 sm:mb-0">
         <div className="flex items-center justify-between">
           <h3 className="text-base font-black text-white">Unirse a un grupo</h3>
           <button onClick={onClose} className="tap p-1 text-zinc-500 hover:text-white">
@@ -460,7 +751,7 @@ function JoinGroupModal({ onClose, onJoined }: { onClose: () => void; onJoined: 
         <p className="text-xs text-zinc-500">Introduce el código de invitación que te compartió el administrador.</p>
         <input value={code} onChange={(e) => setCode(e.target.value.toUpperCase())}
           placeholder="XXXXXX" maxLength={6}
-          className="w-full text-center text-2xl font-black tracking-[0.3em] bg-zinc-900 border border-zinc-800 rounded-xl px-3.5 py-3 text-white placeholder:text-zinc-700 focus:outline-none focus:border-zinc-700 uppercase" />
+          className="w-full text-center text-2xl font-black tracking-[0.3em] bg-zinc-800/40 border border-white/[0.08] rounded-xl px-3.5 py-3 text-white placeholder:text-zinc-700 focus:outline-none focus:border-white/[0.16] uppercase" />
         {error && <p className="text-xs text-red-400 text-center">{error}</p>}
         <button disabled={code.length < 4 || saving} onClick={handleJoin}
           className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-30 text-white font-bold text-sm tap transition-all">
@@ -526,7 +817,7 @@ export default function GroupsPage() {
         </div>
         <div className="flex items-center gap-2">
           <button onClick={() => setShowJoin(true)}
-            className="tap px-3 py-2 rounded-xl border border-zinc-800 hover:border-zinc-700 bg-zinc-900/60 text-zinc-400 text-xs font-bold">
+            className="tap px-3 py-2 rounded-xl border border-white/[0.07] hover:border-white/[0.14] bg-zinc-900/60 text-zinc-400 text-xs font-bold">
             + Unirse
           </button>
           <button onClick={() => setShowCreate(true)}
@@ -541,19 +832,19 @@ export default function GroupsPage() {
           <div className="w-7 h-7 rounded-full border-2 border-emerald-500 border-t-transparent animate-spin" />
         </div>
       ) : groups.length > 0 ? (
-        <div className="border-t border-zinc-800/40">
+        <div className="border-t border-white/[0.07]">
           {groups.map((g) => <GroupItem key={g.id} group={g} onClick={() => setActiveGroup(g)} />)}
         </div>
       ) : (
         <div className="flex flex-col items-center justify-center py-20 text-center px-4">
-          <div className="w-16 h-16 rounded-2xl bg-zinc-900 border border-zinc-800 grid place-items-center mb-4">
+          <div className="w-16 h-16 rounded-2xl bg-zinc-900 border border-white/[0.07] grid place-items-center mb-4">
             <Icon name="groups" className="w-8 h-8 text-zinc-600" strokeWidth={1.5} />
           </div>
           <p className="text-sm font-black text-zinc-300 mb-1">Sin grupos aún</p>
           <p className="text-xs text-zinc-600 mb-6">Crea un grupo o únete con un código de invitación.</p>
           <div className="flex gap-2">
             <button onClick={() => setShowJoin(true)}
-              className="tap px-4 py-2.5 rounded-xl border border-zinc-800 hover:border-zinc-700 text-zinc-400 text-sm font-bold">
+              className="tap px-4 py-2.5 rounded-xl border border-white/[0.07] hover:border-white/[0.14] text-zinc-400 text-sm font-bold">
               Unirse
             </button>
             <button onClick={() => setShowCreate(true)}

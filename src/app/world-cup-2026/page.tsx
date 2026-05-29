@@ -25,6 +25,7 @@ export default function WorldCupPage() {
   const [loading, setLoading] = useState(true)
   const [analysisId, setAnalysisId] = useState<string | null>(null)
   const [tab, setTab] = useState<PageTab>("grupos")
+  const [selectedGroup, setSelectedGroup] = useState<WCGroup | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -62,14 +63,14 @@ export default function WorldCupPage() {
       <DisclaimerBanner variant="retos" />
 
       {/* Tab picker */}
-      <div className="flex gap-1 p-1 rounded-xl bg-zinc-900 border border-zinc-800">
+      <div className="flex gap-1 p-1 rounded-xl bg-zinc-900/80 border border-white/[0.07]">
         {([
           ["grupos",   "trophy",  "Grupos"],
           ["partidos", "value",   "Partidos"],
         ] as const).map(([id, icon, label]) => (
           <button key={id} onClick={() => setTab(id)}
             className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-xs font-bold tap transition-all ${
-              tab === id ? "bg-zinc-800 text-white shadow-sm" : "text-zinc-500 hover:text-zinc-300"
+              tab === id ? "bg-white/[0.09] text-white shadow-sm" : "text-zinc-500 hover:text-zinc-300"
             }`}>
             <Icon name={icon} className="w-3.5 h-3.5" strokeWidth={tab === id ? 2.2 : 1.8} />
             {label}
@@ -91,7 +92,11 @@ export default function WorldCupPage() {
               ))}
             </div>
           ) : (
-            <GroupsGrid byGroup={byGroup} teams={teams} />
+            <GroupsGrid
+              byGroup={byGroup}
+              teams={teams}
+              onGroupClick={(g) => { setSelectedGroup(g); setTab("partidos") }}
+            />
           )}
         </section>
       )}
@@ -102,14 +107,26 @@ export default function WorldCupPage() {
           <div className="flex items-center justify-between mb-4">
             <div>
               <span className="section-label">Próximos partidos</span>
-              <h2 className="text-lg font-black text-white mt-0.5">Calendario Mundial 2026</h2>
+              <h2 className="text-lg font-black text-white mt-0.5">
+                Calendario Mundial 2026
+              </h2>
             </div>
-            {isPremium && (
-              <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-amber-400 border border-amber-700/50 bg-amber-500/10 rounded-full px-2.5 py-1">
-                <Icon name="spark" className="w-3 h-3" strokeWidth={2.5} />
-                Análisis disponible
-              </span>
-            )}
+            <div className="flex items-center gap-2">
+              {selectedGroup && (
+                <button
+                  onClick={() => setSelectedGroup(null)}
+                  className="flex items-center gap-1 text-[10px] font-black bg-amber-500/15 border border-amber-700/40 text-amber-400 px-2.5 py-1 rounded-full tap hover:bg-amber-500/25 transition-colors"
+                >
+                  Grupo {selectedGroup} ×
+                </button>
+              )}
+              {isPremium && (
+                <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-amber-400 border border-amber-700/50 bg-amber-500/10 rounded-full px-2.5 py-1">
+                  <Icon name="spark" className="w-3 h-3" strokeWidth={2.5} />
+                  Análisis disponible
+                </span>
+              )}
+            </div>
           </div>
 
           {loading ? (
@@ -119,20 +136,28 @@ export default function WorldCupPage() {
               ))}
             </div>
           ) : fixtures.length === 0 ? (
-            <PreTournamentFixtures teams={teams} onAnalyze={handleAnalyze} analysisId={analysisId} isPremium={isPremium} />
+            <PreTournamentFixtures
+              teams={teams}
+              onAnalyze={handleAnalyze}
+              analysisId={analysisId}
+              isPremium={isPremium}
+              filterGroup={selectedGroup ?? undefined}
+            />
           ) : (
             <div className="space-y-2.5">
-              {fixtures.map((fix) => (
-                <FixtureCard
-                  key={fix.matchId}
-                  fixture={fix}
-                  homeTeam={teams.get(fix.homeCode)}
-                  awayTeam={teams.get(fix.awayCode)}
-                  onAnalyze={handleAnalyze}
-                  analysisId={analysisId}
-                  isPremium={isPremium}
-                />
-              ))}
+              {fixtures
+                .filter(fix => !selectedGroup || fix.group === selectedGroup)
+                .map((fix) => (
+                  <FixtureCard
+                    key={fix.matchId}
+                    fixture={fix}
+                    homeTeam={teams.get(fix.homeCode)}
+                    awayTeam={teams.get(fix.awayCode)}
+                    onAnalyze={handleAnalyze}
+                    analysisId={analysisId}
+                    isPremium={isPremium}
+                  />
+                ))}
             </div>
           )}
 
@@ -156,7 +181,7 @@ export default function WorldCupPage() {
       )}
 
       {/* Combinadas WC */}
-      <div className="rounded-2xl border border-zinc-800/60 bg-zinc-900/40 p-4 flex items-center justify-between gap-3">
+      <div className="rounded-2xl border border-white/[0.07] bg-zinc-900/60 p-4 flex items-center justify-between gap-3">
         <div>
           <p className="text-sm font-black text-white">Combinadas del Mundial</p>
           <p className="text-xs text-zinc-500 mt-0.5">Motor Poisson · 3 perfiles de riesgo</p>
@@ -178,9 +203,11 @@ export default function WorldCupPage() {
 function GroupsGrid({
   byGroup,
   teams,
+  onGroupClick,
 }: {
   byGroup: Partial<Record<WCGroup, WCTeam[]>>
   teams: Map<string, WCTeam>
+  onGroupClick?: (group: WCGroup) => void
 }) {
   // If byGroup is empty (API miss), build it from teams map
   const resolvedByGroup: Partial<Record<WCGroup, WCTeam[]>> = Object.keys(byGroup).length > 0
@@ -201,9 +228,13 @@ function GroupsGrid({
       {WC_GROUP_ORDER.map((group) => {
         const groupTeams = resolvedByGroup[group] ?? []
         return (
-          <div key={group} className="rounded-2xl border border-zinc-800/60 bg-zinc-900/40 overflow-hidden">
+          <button
+            key={group}
+            onClick={() => onGroupClick?.(group)}
+            className="rounded-2xl border border-white/[0.07] bg-zinc-900/60 overflow-hidden text-left w-full tap hover:border-amber-700/40 hover:bg-zinc-900/80 transition-all"
+          >
             {/* Group header */}
-            <div className="flex items-center justify-between px-4 py-2.5 border-b border-zinc-800/40 bg-zinc-900/60">
+            <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/[0.07] bg-zinc-900/60">
               <span className="text-xs font-black uppercase tracking-widest text-white">
                 Grupo {group}
               </span>
@@ -215,13 +246,13 @@ function GroupsGrid({
               </span>
             </div>
             {/* Teams */}
-            <div className="divide-y divide-zinc-800/30">
+            <div className="divide-y divide-white/[0.07]">
               {groupTeams.length > 0 ? groupTeams.map((team, i) => (
                 <div key={team.code} className="flex items-center gap-3 px-4 py-2.5">
                   <span className="text-[11px] text-zinc-600 w-3.5 shrink-0 font-bold">{i + 1}</span>
                   <span className="text-xl shrink-0">{team.flagEmoji}</span>
                   <span className="text-sm font-bold text-white flex-1 truncate">{team.name}</span>
-                  <span className="text-[10px] text-zinc-500 shrink-0">
+                  <span className="text-[10px] text-zinc-500 shrink-0 font-mono">
                     {team.fifaRanking != null ? `#${team.fifaRanking}` : "—"}
                   </span>
                 </div>
@@ -231,7 +262,14 @@ function GroupsGrid({
                 </div>
               )}
             </div>
-          </div>
+            {/* Click hint footer */}
+            {onGroupClick && (
+              <div className="flex items-center justify-end gap-1 px-4 py-1.5 border-t border-white/[0.05] bg-zinc-950/30">
+                <span className="text-[9px] text-zinc-700 font-bold">Ver partidos</span>
+                <Icon name="arrowRight" className="w-2.5 h-2.5 text-zinc-700" strokeWidth={2.5} />
+              </div>
+            )}
+          </button>
         )
       })}
     </div>
@@ -273,7 +311,7 @@ function HeroSection() {
             <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Arranque en</span>
             <span className="text-sm font-black text-amber-300">{countdown}</span>
           </span>
-          <span className="inline-flex items-center gap-1.5 rounded-xl border border-zinc-800 bg-zinc-950/60 px-3 py-1.5 text-[11px] text-zinc-400 font-bold">
+          <span className="inline-flex items-center gap-1.5 rounded-xl border border-white/[0.07] bg-zinc-950/60 px-3 py-1.5 text-[11px] text-zinc-400 font-bold">
             12 grupos · 104 partidos
           </span>
         </div>
@@ -302,7 +340,7 @@ function FixtureCard({
   const isFinal = fixture.status === "final"
 
   return (
-    <div className="rounded-2xl border border-zinc-800/60 bg-zinc-900/50 overflow-hidden">
+    <div className="rounded-2xl border border-white/[0.07] bg-zinc-900/60 overflow-hidden">
       <div className="px-4 py-3.5">
         {/* Date + stage */}
         <div className="flex items-center justify-between mb-3">
@@ -354,8 +392,8 @@ function FixtureCard({
               isOpen
                 ? "border-amber-600/60 bg-amber-500/15 text-amber-300"
                 : isPremium
-                  ? "border-zinc-700/60 bg-zinc-800/50 text-zinc-400 hover:text-zinc-200 hover:border-zinc-600"
-                  : "border-zinc-800/50 bg-zinc-900/30 text-zinc-600"
+                  ? "border-white/[0.07] bg-zinc-800/50 text-zinc-400 hover:text-zinc-200 hover:border-white/[0.12]"
+                  : "border-white/[0.05] bg-zinc-900/50 text-zinc-600"
             }`}
           >
             {isPremium ? (
@@ -382,14 +420,15 @@ function FixtureCard({
 // ─── Pre-tournament fixtures (static group matches) ───────────────────────────
 
 function PreTournamentFixtures({
-  teams, onAnalyze, analysisId, isPremium,
+  teams, onAnalyze, analysisId, isPremium, filterGroup,
 }: {
   teams: Map<string, WCTeam>
   onAnalyze: (id: string) => void
   analysisId: string | null
   isPremium: boolean
+  filterGroup?: WCGroup
 }) {
-  // Show group A opener as example until ESPN exposes fixtures
+  // Show group openers as example until ESPN exposes fixtures
   const PREVIEW_FIXTURES: Array<{
     matchId: string; group: string; homeCode: string; awayCode: string
     kickoffISO: string; venue: string; city: string
@@ -404,14 +443,26 @@ function PreTournamentFixtures({
     { matchId: "wc26-J-1", group: "J", homeCode: "ARG", awayCode: "AUT", kickoffISO: "2026-06-17T20:00:00-04:00", venue: "MetLife Stadium", city: "Nueva York" },
   ]
 
+  const displayed = filterGroup
+    ? PREVIEW_FIXTURES.filter(f => f.group === filterGroup)
+    : PREVIEW_FIXTURES
+
   return (
     <div className="space-y-2.5">
       <div className="rounded-xl border border-amber-800/30 bg-amber-500/5 px-4 py-2.5 mb-1">
         <p className="text-[11px] text-amber-400/80 font-bold">
-          Fixtures orientativos — se confirman al inicio del torneo (11 jun 2026)
+          {filterGroup
+            ? `Grupo ${filterGroup} — Fixtures orientativos (se confirman el 11 jun 2026)`
+            : "Fixtures orientativos — se confirman al inicio del torneo (11 jun 2026)"}
         </p>
       </div>
-      {PREVIEW_FIXTURES.map((fix) => {
+      {displayed.length === 0 && (
+        <div className="py-10 text-center">
+          <p className="text-sm text-zinc-600 font-bold">Sin partidos prevista para el Grupo {filterGroup}</p>
+          <p className="text-xs text-zinc-700 mt-1">Los fixtures del grupo se confirmarán el 11 jun 2026.</p>
+        </div>
+      )}
+      {displayed.map((fix) => {
         const homeTeam = teams.get(fix.homeCode)
         const awayTeam = teams.get(fix.awayCode)
         const isOpen = analysisId === fix.matchId
@@ -420,7 +471,7 @@ function PreTournamentFixtures({
         const timeStr = kickoff.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })
 
         return (
-          <div key={fix.matchId} className="rounded-2xl border border-zinc-800/60 bg-zinc-900/50 overflow-hidden">
+          <div key={fix.matchId} className="rounded-2xl border border-white/[0.07] bg-zinc-900/60 overflow-hidden">
             <div className="px-4 py-3.5">
               <div className="flex items-center justify-between mb-3">
                 <span className="text-[10px] font-black uppercase tracking-widest text-zinc-600">
@@ -453,8 +504,8 @@ function PreTournamentFixtures({
                   isOpen
                     ? "border-amber-600/60 bg-amber-500/15 text-amber-300"
                     : isPremium
-                      ? "border-zinc-700/60 bg-zinc-800/50 text-zinc-400 hover:text-zinc-200 hover:border-zinc-600"
-                      : "border-zinc-800/50 bg-zinc-900/30 text-zinc-600"
+                      ? "border-white/[0.10] bg-zinc-800/50 text-zinc-400 hover:text-zinc-200 hover:border-white/[0.18]"
+                      : "border-white/[0.05] bg-zinc-900/30 text-zinc-600"
                 }`}
               >
                 {isPremium ? (
@@ -507,9 +558,9 @@ function MatchAnalysisPanel({
   }, [matchId, homeCode, awayCode])
 
   if (loading) return (
-    <div className="border-t border-zinc-800/60 px-4 py-4">
+    <div className="border-t border-white/[0.07] px-4 py-4">
       <div className="flex items-center gap-2 text-xs text-zinc-500">
-        <span className="w-3.5 h-3.5 rounded-full border-2 border-zinc-700 border-t-amber-400 animate-spin block shrink-0" />
+        <span className="w-3.5 h-3.5 rounded-full border-2 border-white/[0.08] border-t-amber-400 animate-spin block shrink-0" />
         Cargando análisis…
       </div>
     </div>
@@ -523,14 +574,14 @@ function MatchAnalysisPanel({
   const { home, away, referee, context } = data
 
   return (
-    <div className="border-t border-zinc-800/60 bg-zinc-950/40 px-4 py-4 space-y-4">
+    <div className="border-t border-white/[0.07] bg-zinc-950/40 px-4 py-4 space-y-4">
       <p className="text-[10px] font-black uppercase tracking-widest text-amber-400">
         Análisis estadístico · Solo datos, sin predicción de resultado
       </p>
 
       {/* Cuotas reales */}
       {odds && (
-        <div className="rounded-xl border border-zinc-800/60 bg-zinc-900/50 p-3">
+        <div className="rounded-xl border border-white/[0.07] bg-zinc-900/60 p-3">
           <div className="flex items-center justify-between mb-2">
             <p className="text-[10px] font-black uppercase tracking-widest text-zinc-600">Cuotas reales</p>
             <span className="text-[9px] text-zinc-600">{odds.bookmaker}</span>
@@ -541,14 +592,14 @@ function MatchAnalysisPanel({
               { label: "X Empate",                  value: odds.draw,  color: "text-amber-400"   },
               { label: `2 ${away.team.flagEmoji}`,  value: odds.away,  color: "text-blue-400"    },
             ].map((c) => (
-              <div key={c.label} className="text-center rounded-lg border border-zinc-800 bg-zinc-950/60 py-2">
+              <div key={c.label} className="text-center rounded-lg border border-white/[0.07] bg-zinc-950/60 py-2">
                 <p className={`text-lg font-black ${c.color}`}>{c.value?.toFixed(2) ?? "—"}</p>
                 <p className="text-[9px] text-zinc-600">{c.label}</p>
               </div>
             ))}
           </div>
           {odds.over25 && (
-            <div className="mt-2 flex items-center justify-center gap-4 border-t border-zinc-800/50 pt-2">
+            <div className="mt-2 flex items-center justify-center gap-4 border-t border-white/[0.07] pt-2">
               <span className="text-[10px] text-zinc-500">+2.5 <span className="font-black text-white">{odds.over25.toFixed(2)}</span></span>
               <span className="text-[10px] text-zinc-500">-2.5 <span className="font-black text-white">{odds.under25?.toFixed(2) ?? "—"}</span></span>
             </div>
@@ -562,7 +613,7 @@ function MatchAnalysisPanel({
           { label: home.team.shortName, form: home.form, flag: home.team.flagEmoji },
           { label: away.team.shortName, form: away.form, flag: away.team.flagEmoji },
         ].map((side) => (
-          <div key={side.label} className="rounded-xl border border-zinc-800/60 bg-zinc-900/50 p-3">
+          <div key={side.label} className="rounded-xl border border-white/[0.07] bg-zinc-900/60 p-3">
             <p className="text-[10px] font-black text-zinc-500 mb-2">{side.flag} {side.label}</p>
             {side.form ? (
               <div className="space-y-1.5">
@@ -593,7 +644,7 @@ function MatchAnalysisPanel({
 
       {/* xG */}
       {(home.xg || away.xg) && (
-        <div className="rounded-xl border border-zinc-800/60 bg-zinc-900/50 p-3">
+        <div className="rounded-xl border border-white/[0.07] bg-zinc-900/60 p-3">
           <p className="text-[10px] font-black uppercase tracking-widest text-zinc-600 mb-2">xG estimado (últimos 5)</p>
           <div className="flex items-center justify-around">
             {home.xg && (
@@ -615,7 +666,7 @@ function MatchAnalysisPanel({
 
       {/* Referee */}
       {referee && (
-        <div className="rounded-xl border border-zinc-800/60 bg-zinc-900/50 p-3 flex items-center justify-between gap-2">
+        <div className="rounded-xl border border-white/[0.07] bg-zinc-900/60 p-3 flex items-center justify-between gap-2">
           <div>
             <p className="text-[10px] font-black uppercase tracking-widest text-zinc-600 mb-0.5">Árbitro</p>
             <p className="text-sm font-black text-white">{referee.name}</p>
@@ -625,7 +676,7 @@ function MatchAnalysisPanel({
             referee.severity === "very-strict" ? "bg-rose-500/15 text-rose-400" :
             referee.severity === "strict"      ? "bg-orange-500/15 text-orange-400" :
             referee.severity === "lenient"     ? "bg-emerald-500/15 text-emerald-400" :
-            "bg-zinc-800 text-zinc-400"
+            "bg-zinc-800/60 text-zinc-400 border border-white/[0.07]"
           }`}>
             {referee.severity}
           </span>
@@ -664,13 +715,13 @@ function FormBasedAnalysis({ homeCode, awayCode }: { homeCode?: string; awayCode
   }, [homeCode, awayCode])
 
   if (loading) return (
-    <div className="border-t border-zinc-800/60 px-4 py-3">
+    <div className="border-t border-white/[0.07] px-4 py-3">
       <span className="text-[11px] text-zinc-500">Cargando datos de equipos…</span>
     </div>
   )
 
   if (!data) return (
-    <div className="border-t border-zinc-800/60 px-4 py-3">
+    <div className="border-t border-white/[0.07] px-4 py-3">
       <p className="text-[11px] text-zinc-500">Datos disponibles al inicio del torneo (11 jun 2026).</p>
     </div>
   )
@@ -680,7 +731,7 @@ function FormBasedAnalysis({ homeCode, awayCode }: { homeCode?: string; awayCode
     const form = teamData?.form
     if (!team) return null
     return (
-      <div className="rounded-xl border border-zinc-800/60 bg-zinc-900/50 p-3">
+      <div className="rounded-xl border border-white/[0.07] bg-zinc-900/60 p-3">
         <p className="text-[10px] font-black text-zinc-500 mb-1.5">{team.flagEmoji} {team.name}</p>
         <p className="text-[10px] text-zinc-500">#{team.fifaRanking ?? "?"} FIFA · {team.confederation}</p>
         {form ? (
@@ -704,7 +755,7 @@ function FormBasedAnalysis({ homeCode, awayCode }: { homeCode?: string; awayCode
   }
 
   return (
-    <div className="border-t border-zinc-800/60 bg-zinc-950/40 px-4 py-4 space-y-3">
+    <div className="border-t border-white/[0.07] bg-zinc-950/40 px-4 py-4 space-y-3">
       <p className="text-[10px] font-black uppercase tracking-widest text-amber-400">
         Análisis estadístico · Solo datos, sin predicción de resultado
       </p>
