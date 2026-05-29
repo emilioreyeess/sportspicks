@@ -37,8 +37,13 @@ export const maxDuration = 300   // 5 min max (Vercel Pro)
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 
 function isAuthorized(req: NextRequest): boolean {
+  // CN-031: fail CLOSED. Este endpoint escribe en Supabase y consume la cuota
+  // limitada de API-Football, así que NUNCA debe quedar abierto por falta de
+  // secret (antes `if (!secret) return true` lo dejaba público si CRON_SECRET
+  // no estaba configurado). Consistente con /api/cron/settle-bets: exige
+  // CRON_SECRET de ≥16 chars + cabecera Bearer.
   const secret = process.env.CRON_SECRET
-  if (!secret) return true   // dev: no secret configured → open
+  if (!secret || secret.trim().length < 16) return false
   const auth = req.headers.get("authorization") ?? ""
   return auth === `Bearer ${secret}`
 }
