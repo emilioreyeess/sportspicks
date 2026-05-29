@@ -41,7 +41,7 @@ export function AgeGate({ children }: { children: React.ReactNode }) {
   if (!verified) {
     return (
       <div className="fixed inset-0 z-[100] bg-zinc-950/98 backdrop-blur-sm flex items-center justify-center px-4">
-        <div className="max-w-md w-full bg-zinc-900 border border-zinc-700 rounded-3xl p-8 text-center space-y-6">
+        <div className="max-w-md w-full bg-zinc-900/95 border border-white/[0.07] rounded-3xl p-8 text-center space-y-6 backdrop-blur-xl">
           {/* Logo */}
           <div className="space-y-2">
             <div className="text-4xl">⚽</div>
@@ -49,7 +49,7 @@ export function AgeGate({ children }: { children: React.ReactNode }) {
             <p className="text-sm text-zinc-500">Plataforma de análisis estadístico deportivo</p>
           </div>
 
-          <div className="h-px bg-zinc-800" />
+          <div className="h-px bg-white/[0.07]" />
 
           {/* Age check */}
           <div className="space-y-3">

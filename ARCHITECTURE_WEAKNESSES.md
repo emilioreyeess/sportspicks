@@ -8,12 +8,12 @@
 ```
 [Browser]
    ↓ HTTPS
-[Vercel Edge/Serverless]
+[Vercel Edge/Serverless — team: emilioreyeess-proyect]
    → Next.js 14 App Router
    → NextAuth (JWT strategy, Google OAuth)
    → API Routes (nodejs runtime)
    ↓
-[Supabase PostgreSQL]   [Anthropic Claude API]   [Stripe]
+[Supabase PostgreSQL eu-west-1]   [Anthropic Claude API]   [Stripe Test]
 ```
 
 ---
@@ -101,27 +101,19 @@ const isVip = localStorage.getItem("sp_vip_unlocked") === "1"
 ```
 El acceso al panel de tipster en el home se controla por localStorage. Cualquier usuario puede abrir DevTools y escribir `localStorage.setItem("sp_vip_unlocked", "1")` para ver el panel. Los endpoints API tienen validación real, pero la UI es engañosa.
 
-**Impacto:** El panel de creadores es visible para cualquiera → posible confusión y soporte innecesario.
-
 **Fix propuesto:** Verificar `is_vip_tipster` via `/api/auth/plan` en lugar de localStorage.
 
 ---
 
 ### W-06 — Embeddings sin vectores reales (waste de API calls)
 **Severidad:** 🔵 LOW  
-**Descripción:** El cron almacena "aprendizaje" en `ai_learning_embeddings` pero el campo `embedding vector(1536)` siempre es NULL. Se llama a Claude Haiku para generar un resumen de 1 frase, se guarda el texto, pero nunca se vectoriza. La búsqueda semántica futura requeriría el vector. Sin él, la tabla es texto no estructurado sin ninguna ventaja de RAG.
+**Descripción:** El cron almacena "aprendizaje" en `ai_learning_embeddings` pero el campo `embedding vector(1536)` siempre es NULL. Se llama a Claude Haiku para generar un resumen de 1 frase, se guarda el texto, pero nunca se vectoriza. Sin vector la búsqueda semántica futura no es posible.
 
-**Fix propuesto:** Usar la Embeddings API de Anthropic o OpenAI para generar el vector real antes de insertar, o eliminar el campo y simplificar.
-
----
-
-### W-07 — Falta implementación de `/api/auth/plan`
-**Severidad:** 🟡 MEDIUM  
-**Descripción:** El archivo `/api/auth/plan/route.ts` existe (listado en el file tree) pero no se usa para mantener el plan sincronizado con Supabase. El plan en JWT puede quedar desactualizado indefinidamente.
+**Fix propuesto:** Usar la Embeddings API para generar el vector real, o eliminar el campo hasta que se use.
 
 ---
 
-### W-08 — Sin paginación en endpoints que retornan listas grandes
+### W-07 — Sin paginación en endpoints que retornan listas grandes
 **Severidad:** 🟡 MEDIUM  
 **Endpoints afectados:**
 - `GET /api/bets` → retorna TODAS las apuestas del usuario sin límite
@@ -130,22 +122,27 @@ El acceso al panel de tipster en el home se controla por localStorage. Cualquier
 
 **Risk:** Con usuarios muy activos (100+ apuestas, 1000+ mensajes), estas queries pueden ser lentas y costosas.
 
-**Fix propuesto:**
-```typescript
-// Paginación básica
-const page = parseInt(req.nextUrl.searchParams.get("page") ?? "1")
-const limit = Math.min(parseInt(req.nextUrl.searchParams.get("limit") ?? "50"), 100)
-const offset = (page - 1) * limit
-await sb.from("bets").select("...").range(offset, offset + limit - 1)
-```
+---
+
+### W-08 — N+1 queries en ranking de grupos
+**Severidad:** 🟡 MEDIUM  
+**Ruta:** `/api/groups/[id]/ranking`  
+Una query por cada miembro del grupo para obtener sus apuestas. Con 20 miembros = 21 queries. Fix: SQL con GROUP BY + JOIN.
 
 ---
 
-## DIAGRAMA DE RIESGO RESIDUAL
+## DIAGRAMA DE RIESGO RESIDUAL TRAS HARDENING
 
 ```
 CRÍTICO ██████░░░░ 0/5 activos (todos corregidos)
 ALTO    ████░░░░░░ 2/6 pendientes (Stripe webhook, Rate limit Redis)
-MEDIO   █████░░░░░ 4/8 pendientes (JWT plan sync, user_profiles, VIP localStorage, paginación)
+MEDIO   █████░░░░░ 4/7 pendientes (JWT plan sync, user_profiles, VIP localStorage, paginación, N+1)
 BAJO    ██░░░░░░░░ 4/4 documentados (no críticos para producción actual)
 ```
+
+---
+
+## RUNTIME LOGS VERCEL (últimos 7d)
+
+**Estado:** Sin errores de nivel error/fatal detectados en Vercel Runtime Logs.  
+**Nota:** Esto es consistente con la ausencia de Sentry — si hay errores silenciosos en producción, no están siendo capturados. Integrar `@sentry/nextjs` es la acción más impactante para visibilidad.

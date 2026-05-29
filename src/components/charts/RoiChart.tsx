@@ -20,7 +20,7 @@ export function RoiChart({ days = 30 }: { days?: number }) {
   const profitable = (summary.profit_units ?? 0) >= 0
 
   return (
-    <div className="rounded-2xl bg-zinc-900 border border-zinc-800 p-5 space-y-5">
+    <div className="rounded-2xl bg-zinc-900/60 border border-white/[0.07] p-5 space-y-5">
       <div className="flex items-start justify-between">
         <div>
           <h3 className="text-sm font-semibold text-zinc-300">ROI últimos {days} días</h3>

@@ -36,7 +36,7 @@ export function UpgradeModal({ open, onClose, feature }: {
     <div className="fixed inset-0 z-[60] flex items-end sm:items-center justify-center bg-black/75 backdrop-blur-sm safe-bottom"
       onClick={onClose}>
       <div onClick={(e) => e.stopPropagation()}
-        className="w-full sm:w-[420px] bg-zinc-900 border border-zinc-700 rounded-t-3xl sm:rounded-2xl p-6 animate-slide-up sm:animate-scale-in">
+        className="w-full sm:w-[420px] bg-zinc-900/95 border border-white/[0.07] rounded-t-3xl sm:rounded-2xl p-6 animate-slide-up sm:animate-scale-in backdrop-blur-xl">
         <div className="flex justify-center mb-4">
           <span className="grid place-items-center w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-500/20 to-cyan-500/20 border border-emerald-700/50 text-emerald-400">
             <Icon name="crown" className="w-7 h-7" strokeWidth={2} />
@@ -84,7 +84,7 @@ export function LockedSection({ feature, title, hint, children }: {
       </div>
       <div className="absolute inset-0 grid place-items-center bg-gradient-to-b from-zinc-950/40 to-zinc-950/90 p-6">
         <div className="text-center max-w-xs">
-          <span className="grid place-items-center w-12 h-12 mx-auto rounded-2xl bg-zinc-800 border border-zinc-700 text-emerald-400 mb-3">
+          <span className="grid place-items-center w-12 h-12 mx-auto rounded-2xl bg-zinc-800/60 border border-white/[0.07] text-emerald-400 mb-3">
             <Icon name="lock" className="w-5.5 h-5.5" />
           </span>
           <p className="text-white font-bold">{title ?? "Contenido Premium"}</p>

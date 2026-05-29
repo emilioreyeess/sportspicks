@@ -173,7 +173,7 @@ export default function CombinadasPage() {
               return (
                 <button key={m.key} onClick={() => pickMode(m)}
                   className={`relative rounded-xl p-3 border text-left transition-all tap ${
-                    active ? "border-zinc-600 bg-zinc-800" : "border-zinc-800 bg-zinc-900/60 hover:border-zinc-700"
+                    active ? "border-white/[0.16] bg-zinc-800/60" : "border-white/[0.07] bg-zinc-900/60 hover:border-white/[0.12]"
                   }`}>
                   {locked && (
                     <span className="absolute top-2 right-2 text-zinc-600">
@@ -200,8 +200,8 @@ export default function CombinadasPage() {
                 onClick={() => setLeagueId(l.id)}
                 className={`shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl border text-xs font-bold transition-all tap ${
                   leagueId === l.id
-                    ? "border-zinc-600 bg-zinc-800 text-white"
-                    : "border-zinc-800 bg-zinc-900/60 text-zinc-500 hover:text-zinc-300 hover:border-zinc-700"
+                    ? "border-white/[0.16] bg-zinc-800/60 text-white"
+                    : "border-white/[0.07] bg-zinc-900/60 text-zinc-500 hover:text-zinc-300 hover:border-white/[0.12]"
                 }`}
               >
                 <span>{l.flag}</span>
@@ -222,7 +222,7 @@ export default function CombinadasPage() {
         )}
 
         {freeAtLimit ? (
-          <div className="rounded-xl border border-amber-800/50 bg-amber-500/8 px-4 py-3 flex items-start gap-2.5">
+          <div className="rounded-xl border border-amber-700/40 bg-amber-500/[0.08] px-4 py-3 flex items-start gap-2.5">
             <Icon name="shield" className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
             <div>
               <p className="text-sm font-bold text-amber-300">Límite diario alcanzado</p>
@@ -245,7 +245,7 @@ export default function CombinadasPage() {
 
       {/* Error estándar */}
       {error && (
-        <div className="flex items-start gap-2 rounded-xl border border-amber-800/50 bg-amber-500/8 px-4 py-3">
+        <div className="flex items-start gap-2 rounded-xl border border-amber-700/40 bg-amber-500/[0.08] px-4 py-3">
           <Icon name="shield" className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
           <p className="text-sm text-amber-200/90 leading-snug">{error}</p>
         </div>
@@ -277,7 +277,7 @@ export default function CombinadasPage() {
                 onKeyDown={(e) => { if (e.key === "Enter" && aiPrompt.trim()) generateAi() }}
                 placeholder="Describe tu combinada ideal…"
                 maxLength={500}
-                className="flex-1 bg-zinc-800 border border-zinc-700 focus:border-emerald-600 rounded-xl px-4 py-3 text-sm text-white outline-none transition-colors"
+                className="flex-1 bg-zinc-800/40 border border-white/[0.08] focus:border-white/[0.16] rounded-xl px-4 py-3 text-sm text-white outline-none transition-colors"
               />
               <button onClick={generateAi} disabled={aiLoading || !aiPrompt.trim()}
                 className="px-4 py-3 bg-gradient-to-r from-emerald-500 to-cyan-500 text-zinc-950 font-bold rounded-xl text-sm tap disabled:opacity-40 shrink-0 inline-flex items-center gap-1.5">
@@ -288,7 +288,7 @@ export default function CombinadasPage() {
               </button>
             </div>
             {aiError && (
-              <div className="flex items-start gap-2 rounded-xl border border-amber-800/50 bg-amber-500/8 px-4 py-2.5">
+              <div className="flex items-start gap-2 rounded-xl border border-amber-700/40 bg-amber-500/[0.08] px-4 py-2.5">
                 <Icon name="shield" className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
                 <p className="text-sm text-amber-200/90 leading-snug">{aiError}</p>
               </div>
@@ -323,9 +323,9 @@ export default function CombinadasPage() {
 function NoMatchPanel({ nm, onRetry }: { nm: NoMatchResult; onRetry: (q: string) => void }) {
   const what = nm.requested_market ?? nm.requested_league ?? "lo pedido"
   return (
-    <div className="rounded-xl border border-zinc-800 bg-zinc-950/60 overflow-hidden animate-scale-in">
+    <div className="rounded-xl border border-white/[0.07] bg-zinc-950/60 overflow-hidden animate-scale-in">
       {/* Header */}
-      <div className="px-4 py-3 border-b border-zinc-800 bg-amber-500/5 flex items-start gap-2.5">
+      <div className="px-4 py-3 border-b border-white/[0.07] bg-amber-500/5 flex items-start gap-2.5">
         <span className="text-base shrink-0 mt-0.5">🔍</span>
         <div>
           <p className="text-sm font-bold text-amber-300">{nm.message}</p>
@@ -335,13 +335,13 @@ function NoMatchPanel({ nm, onRetry }: { nm: NoMatchResult; onRetry: (q: string)
 
       {/* Available markets */}
       {nm.available_markets && nm.available_markets.length > 0 && (
-        <div className="px-4 py-3 border-b border-zinc-800">
+        <div className="px-4 py-3 border-b border-white/[0.07]">
           <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-600 mb-2">
             Mercados disponibles en el pool de hoy
           </p>
           <div className="flex flex-wrap gap-1.5">
             {nm.available_markets.map((m) => (
-              <span key={m} className="px-2.5 py-1 rounded-lg bg-zinc-800 text-xs text-zinc-300 font-medium border border-zinc-700">
+              <span key={m} className="px-2.5 py-1 rounded-lg bg-zinc-800/60 text-xs text-zinc-300 font-medium border border-white/[0.07]">
                 {m}
               </span>
             ))}
@@ -351,13 +351,13 @@ function NoMatchPanel({ nm, onRetry }: { nm: NoMatchResult; onRetry: (q: string)
 
       {/* Available leagues */}
       {nm.available_leagues && nm.available_leagues.length > 0 && (
-        <div className="px-4 py-3 border-b border-zinc-800">
+        <div className="px-4 py-3 border-b border-white/[0.07]">
           <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-600 mb-2">
             Ligas disponibles hoy
           </p>
           <div className="flex flex-wrap gap-1.5">
             {nm.available_leagues.slice(0, 8).map((l) => (
-              <span key={l} className="px-2.5 py-1 rounded-lg bg-zinc-800 text-xs text-zinc-300 font-medium border border-zinc-700">
+              <span key={l} className="px-2.5 py-1 rounded-lg bg-zinc-800/60 text-xs text-zinc-300 font-medium border border-white/[0.07]">
                 {l}
               </span>
             ))}
@@ -389,13 +389,13 @@ function CombinadaResult({ result, accent, bar, isAi = false }: {
   return (
     <Card glow className="overflow-hidden animate-scale-in">
       {result.fallback_reason && (
-        <div className="px-5 py-2 bg-amber-500/8 border-b border-amber-800/30">
+        <div className="px-5 py-2 bg-amber-500/[0.08] border-b border-amber-700/30">
           <p className="text-[11px] text-amber-400/90">ℹ️ {result.fallback_reason}</p>
         </div>
       )}
       {/* Interpretation badge (AI only) */}
       {isAi && result.interpretation && (
-        <div className="px-5 py-2.5 bg-zinc-950/60 border-b border-zinc-800">
+        <div className="px-5 py-2.5 bg-zinc-950/60 border-b border-white/[0.07]">
           <p className="text-[10px] font-bold uppercase tracking-wide text-emerald-400 mb-0.5">✦ IA interpretó</p>
           <p className="text-xs text-zinc-300 leading-snug">{result.interpretation}</p>
         </div>
@@ -403,13 +403,13 @@ function CombinadaResult({ result, accent, bar, isAi = false }: {
 
       {/* Reasoning (AI only) */}
       {isAi && result.ai_reasoning && (
-        <div className="px-5 py-2.5 border-b border-zinc-800 bg-emerald-500/5">
+        <div className="px-5 py-2.5 border-b border-white/[0.07] bg-emerald-500/5">
           <p className="text-xs text-zinc-400 leading-snug">{result.ai_reasoning}</p>
         </div>
       )}
 
       {/* Summary */}
-      <div className="p-5 border-b border-zinc-800 bg-zinc-900">
+      <div className="p-5 border-b border-white/[0.07] bg-zinc-900/60">
         <p className="text-[11px] text-zinc-500 mb-1.5">
           Combinada {result.mode} · {result.legs.length} patas · cuotas reales
         </p>
@@ -423,18 +423,18 @@ function CombinadaResult({ result, accent, bar, isAi = false }: {
             <p className="text-[10px] text-zinc-600">prob. del modelo</p>
           </div>
         </div>
-        <div className="mt-3 h-2 bg-zinc-800 rounded-full overflow-hidden">
+        <div className="mt-3 h-2 bg-white/[0.06] rounded-full overflow-hidden">
           <div className={`h-full rounded-full transition-all ${bar}`}
             style={{ width: `${Math.min(result.combined_prob * 1.5, 100)}%` }} />
         </div>
       </div>
 
       {/* Legs */}
-      <div className="divide-y divide-zinc-800">
+      <div className="divide-y divide-white/[0.07]">
         {result.legs.map((leg, i) => (
           <div key={i} className="px-5 py-3.5 flex items-center justify-between gap-3">
             <div className="flex items-center gap-3 min-w-0">
-              <span className="grid place-items-center w-6 h-6 rounded-lg bg-zinc-800 text-zinc-500 font-black text-xs shrink-0">
+              <span className="grid place-items-center w-6 h-6 rounded-lg bg-zinc-800/60 border border-white/[0.07] text-zinc-500 font-black text-xs shrink-0">
                 {i + 1}
               </span>
               <div className="min-w-0">
@@ -456,7 +456,7 @@ function CombinadaResult({ result, accent, bar, isAi = false }: {
         ))}
       </div>
 
-      <div className="px-5 py-2.5 bg-zinc-950/50 border-t border-zinc-800">
+      <div className="px-5 py-2.5 bg-zinc-950/50 border-t border-white/[0.07]">
         <p className="text-[10px] text-zinc-700 text-center">
           Cuotas reales · análisis informativo · no constituye recomendación de apuesta · +18
         </p>

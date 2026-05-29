@@ -20,6 +20,14 @@
     {
       "path": "/api/cron/settle-bets",
       "schedule": "0 2 * * *"
+    },
+    {
+      "path": "/api/cron/ml-settle",
+      "schedule": "0 0,12 * * *"
+    },
+    {
+      "path": "/api/cron/live-sync",
+      "schedule": "* * * * *"
     }
   ]
 }

@@ -14,7 +14,7 @@ export default function CookiesPage() {
             { type: "Analíticas", examples: "Páginas visitadas, tiempo en plataforma, funciones más usadas (sin identificación personal)", canDisable: true },
             { type: "Marketing", examples: "Personalización de contenido. Nunca usamos cookies de publicidad de apuestas.", canDisable: true },
           ].map((c) => (
-            <div key={c.type} className="bg-zinc-900 border border-zinc-800 rounded-xl p-3">
+            <div key={c.type} className="bg-zinc-900/60 border border-white/[0.07] rounded-xl p-3">
               <div className="flex items-center justify-between mb-1">
                 <p className="text-sm font-bold text-zinc-300">{c.type}</p>
                 <span className={`text-[10px] px-2 py-0.5 rounded-full ${c.canDisable ? "bg-amber-500/15 text-amber-500" : "bg-emerald-500/15 text-emerald-500"}`}>
@@ -28,7 +28,7 @@ export default function CookiesPage() {
       </LegalSection>
       <LegalSection title="Gestionar cookies">
         <p>Puedes gestionar tus preferencias de cookies en cualquier momento haciendo clic en el botón inferior o desde la configuración de tu navegador.</p>
-        <button className="mt-2 px-4 py-2 bg-zinc-800 border border-zinc-700 text-sm text-zinc-300 rounded-xl hover:bg-zinc-700 transition-colors">
+        <button className="mt-2 px-4 py-2 bg-zinc-800/60 border border-white/[0.07] text-sm text-zinc-300 rounded-xl hover:bg-zinc-700/60 transition-colors">
           Gestionar preferencias de cookies
         </button>
       </LegalSection>

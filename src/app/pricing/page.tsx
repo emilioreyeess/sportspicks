@@ -151,14 +151,14 @@ export default function PricingPage() {
 
       {/* ── Hero ──────────────────────────────────────────────────────────── */}
       <div className="text-center mb-8">
-        <span className="inline-flex items-center gap-1.5 text-[11px] font-black uppercase tracking-widest text-emerald-400 border border-emerald-800/60 bg-emerald-500/8 px-3 py-1 rounded-full mb-4">
-          <Icon name="value" className="w-3.5 h-3.5" /> Planes y precios
+        <span className="inline-flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-widest text-emerald-400 border border-emerald-800/50 bg-emerald-500/[0.07] px-3 py-1 rounded-full mb-5">
+          <Icon name="value" className="w-3 h-3" /> Planes y precios
         </span>
-        <h1 className="text-3xl sm:text-4xl font-black text-white tracking-tight leading-tight">
+        <h1 className="text-[28px] sm:text-[36px] font-black text-white tracking-tight leading-tight mb-3">
           Elige tu nivel.<br />
-          <span className="gradient-text">El motor es el mismo para todos.</span>
+          <span className="gradient-text-static">El motor es el mismo para todos.</span>
         </h1>
-        <p className="text-sm text-zinc-500 mt-3 max-w-lg mx-auto leading-relaxed">
+        <p className="text-[14px] text-zinc-500 max-w-lg mx-auto leading-relaxed">
           Datos reales de ESPN, modelo Poisson, cero invención. El plan decide cuánto desbloqueas.
         </p>
       </div>
@@ -166,18 +166,18 @@ export default function PricingPage() {
       {/* ── Billing toggle ─────────────────────────────────────────────────── */}
       <div className="flex items-center justify-center gap-3 mb-8">
         <button onClick={() => setBilling("monthly")}
-          className={`text-sm font-bold transition-colors ${billing === "monthly" ? "text-white" : "text-zinc-500 hover:text-zinc-300"}`}>
+          className={`text-[14px] font-semibold transition-colors ${billing === "monthly" ? "text-white" : "text-zinc-500 hover:text-zinc-300"}`}>
           Mensual
         </button>
         <button role="switch" aria-checked={billing === "annual"}
           onClick={() => setBilling(b => b === "monthly" ? "annual" : "monthly")}
-          className={`relative w-12 h-6 rounded-full transition-colors ${billing === "annual" ? "bg-emerald-500" : "bg-zinc-700"}`}>
-          <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-all ${billing === "annual" ? "left-[26px]" : "left-0.5"}`} />
+          className={`relative w-11 h-[22px] rounded-full transition-colors ${billing === "annual" ? "bg-emerald-500" : "bg-zinc-700/80"}`}>
+          <span className={`absolute top-[2px] h-[18px] w-[18px] rounded-full bg-white shadow-sm transition-all ${billing === "annual" ? "left-[24px]" : "left-[2px]"}`} />
         </button>
         <button onClick={() => setBilling("annual")}
-          className={`text-sm font-bold transition-colors flex items-center gap-1.5 ${billing === "annual" ? "text-white" : "text-zinc-500 hover:text-zinc-300"}`}>
+          className={`text-[14px] font-semibold transition-colors flex items-center gap-1.5 ${billing === "annual" ? "text-white" : "text-zinc-500 hover:text-zinc-300"}`}>
           Anual
-          <span className="text-[10px] font-black bg-emerald-500/20 text-emerald-400 border border-emerald-700/50 px-1.5 py-0.5 rounded-full">
+          <span className="text-[10px] font-semibold bg-emerald-500/12 text-emerald-400 border border-emerald-700/45 px-1.5 py-0.5 rounded-full">
             hasta −21%
           </span>
         </button>
@@ -185,7 +185,7 @@ export default function PricingPage() {
 
       {/* Demo notice */}
       {!STRIPE_ENABLED && (
-        <div className="mb-6 flex items-start gap-2.5 rounded-xl border border-amber-800/50 bg-amber-500/8 px-4 py-3 max-w-2xl mx-auto">
+        <div className="mb-6 flex items-start gap-2.5 rounded-xl border border-amber-800/50 bg-amber-500/[0.08] px-4 py-3 max-w-2xl mx-auto">
           <Icon name="shield" className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
           <p className="text-xs text-amber-200/90 leading-relaxed">
             <strong className="text-amber-300">Modo demo.</strong> Activa cualquier plan para explorar la experiencia completa. El pago con Stripe se conecta añadiendo las claves en .env.local.
@@ -198,7 +198,7 @@ export default function PricingPage() {
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm"
           onClick={() => { if (!modalSubmitting) setEmailFor(null) }}>
           <div onClick={e => e.stopPropagation()}
-            className="w-full sm:w-[400px] bg-zinc-900 border border-zinc-700 rounded-t-3xl sm:rounded-2xl p-6 animate-slide-up sm:animate-scale-in safe-bottom">
+            className="w-full sm:w-[400px] bg-zinc-900/95 border border-white/[0.07] rounded-t-3xl sm:rounded-2xl p-6 animate-slide-up sm:animate-scale-in safe-bottom backdrop-blur-xl">
             <h3 className="text-lg font-black text-white mb-1">¿A qué email enviamos el recibo?</h3>
             <p className="text-xs text-zinc-400 mb-4 leading-snug">Stripe lo usará para confirmar tu suscripción.</p>
 
@@ -211,7 +211,7 @@ export default function PricingPage() {
               }}
               disabled={modalSubmitting}
               placeholder="tu@email.com"
-              className="w-full bg-zinc-800 border border-zinc-700 focus:border-emerald-600 rounded-xl px-4 py-3 text-sm text-white outline-none transition-colors mb-3 disabled:opacity-60" />
+              className="w-full bg-zinc-800/40 border border-white/[0.08] focus:border-emerald-600/60 rounded-xl px-4 py-3 text-sm text-white outline-none transition-colors mb-3 disabled:opacity-60" />
 
             {/* Error / loading visible DENTRO del modal */}
             {modalError && (
@@ -283,12 +283,12 @@ export default function PricingPage() {
       </div>
 
       {showTable && (
-        <div className="mt-5 rounded-2xl border border-zinc-800 overflow-hidden animate-fade-in">
-          <div className="grid grid-cols-4 text-[11px] font-bold uppercase tracking-wider border-b border-zinc-800">
+        <div className="mt-5 rounded-2xl border border-white/[0.07] overflow-hidden animate-fade-in">
+          <div className="grid grid-cols-4 text-[11px] font-bold uppercase tracking-wider border-b border-white/[0.07]">
             <div className="p-4 text-zinc-500">Función</div>
-            <div className="p-4 border-l border-zinc-800 text-zinc-400 text-center">Free</div>
-            <div className="p-4 border-l border-zinc-800 text-emerald-400 text-center">Premium ⭐</div>
-            <div className="p-4 border-l border-zinc-800 text-violet-400 text-center">Pro 👑</div>
+            <div className="p-4 border-l border-white/[0.07] text-zinc-400 text-center">Free</div>
+            <div className="p-4 border-l border-white/[0.07] text-emerald-400 text-center">Premium ⭐</div>
+            <div className="p-4 border-l border-white/[0.07] text-violet-400 text-center">Pro 👑</div>
           </div>
           {TABLE_ROWS.map((row, i) => (
             <div key={row.label} className={`grid grid-cols-4 text-sm ${i % 2 === 0 ? "bg-zinc-900/40" : ""}`}>
@@ -302,30 +302,30 @@ export default function PricingPage() {
       )}
 
       {/* ── Trust signals ──────────────────────────────────────────────────── */}
-      <div className="mt-10 grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="mt-10 grid grid-cols-2 sm:grid-cols-4 gap-2.5">
         {[
           { icon: "shield",  t: "Datos reales",     d: "Cuotas DraftKings vía ESPN" },
           { icon: "stats",   t: "Modelo Poisson",   d: "Ajustado por rival y motivación" },
           { icon: "check",   t: "Cero invención",   d: "Sin estadísticas fabricadas" },
           { icon: "bell",    t: "Sin permanencia",  d: "Cancela cuando quieras" },
         ].map((x) => (
-          <div key={x.t} className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-3.5 card-glow">
-            <Icon name={x.icon} className="w-5 h-5 text-emerald-400 mb-2" />
-            <p className="text-xs font-bold text-white">{x.t}</p>
+          <div key={x.t} className="rounded-[13px] border border-white/[0.07] bg-zinc-900/65 p-3.5">
+            <Icon name={x.icon} className="w-[18px] h-[18px] text-emerald-400 mb-2" />
+            <p className="text-[13px] font-semibold text-white">{x.t}</p>
             <p className="text-[11px] text-zinc-500 mt-0.5 leading-snug">{x.d}</p>
           </div>
         ))}
       </div>
 
       {/* ── FAQ ────────────────────────────────────────────────────────────── */}
-      <div className="mt-10 rounded-2xl border border-zinc-800 bg-zinc-900/50 p-6 text-center">
+      <div className="mt-10 rounded-2xl border border-white/[0.07] bg-zinc-900/55 p-6 text-center">
         <Icon name="shield" className="w-7 h-7 text-emerald-400 mx-auto mb-3" />
-        <p className="text-base font-black text-white">¿Alguna duda?</p>
-        <p className="text-sm text-zinc-400 mt-1 max-w-md mx-auto leading-relaxed">
+        <p className="text-[16px] font-bold text-white">¿Alguna duda?</p>
+        <p className="text-[14px] text-zinc-400 mt-1.5 max-w-md mx-auto leading-relaxed">
           SportsPicks es una plataforma de análisis estadístico informativo. No es una casa de apuestas ni te aconsejamos qué apostar. Cancela en cualquier momento.
         </p>
         <Link href="/legal/contact"
-          className="inline-flex items-center gap-1.5 mt-4 text-sm font-bold text-emerald-400 hover:text-emerald-300 transition-colors">
+          className="inline-flex items-center gap-1.5 mt-4 text-[14px] font-semibold text-emerald-400 hover:text-emerald-300 transition-colors">
           Contactar <Icon name="arrowRight" className="w-4 h-4" strokeWidth={2.4} />
         </Link>
       </div>
@@ -354,27 +354,27 @@ function PlanCard({ planId, billing, currentPlan, justSet, checkoutLoading, onCh
 
   const styles = {
     free: {
-      wrapper: "border-zinc-800 bg-zinc-900",
+      wrapper: "border-white/[0.07] bg-zinc-900/70",
       name: "text-zinc-400",
       price: "text-white",
-      badge: "bg-zinc-800 text-zinc-400 border-zinc-700",
-      btn: isCurrent ? "bg-zinc-800 text-zinc-500 cursor-default" : "bg-zinc-800 hover:bg-zinc-700 text-white border border-zinc-700",
+      badge: "bg-zinc-800/80 text-zinc-400 border-white/[0.07]",
+      btn: isCurrent ? "bg-zinc-800/60 text-zinc-500 cursor-default" : "bg-white/[0.06] hover:bg-white/[0.10] text-white border border-white/[0.12]",
       check: "text-zinc-500",
     },
     premium: {
-      wrapper: "border-emerald-700/60 bg-gradient-to-b from-emerald-500/8 to-zinc-900 shadow-[0_8px_60px_-16px_rgba(52,211,153,0.35)]",
+      wrapper: "border-emerald-700/50 bg-gradient-to-b from-emerald-500/[0.07] to-zinc-900/80 shadow-[0_8px_60px_-16px_rgba(52,211,153,0.28)]",
       name: "text-emerald-400",
-      price: "gradient-text",
-      badge: "bg-gradient-to-r from-emerald-500 to-cyan-500 text-zinc-950",
-      btn: isPaidCurrent ? "bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700" : isCurrent ? "bg-zinc-800 text-zinc-500 cursor-default" : "bg-gradient-to-r from-emerald-500 to-cyan-500 hover:opacity-90 text-zinc-950",
+      price: "gradient-text-static",
+      badge: "bg-gradient-to-r from-emerald-500 to-cyan-500 text-zinc-950 border-transparent",
+      btn: isPaidCurrent ? "bg-white/[0.06] hover:bg-white/[0.10] text-zinc-300 border border-white/[0.12]" : isCurrent ? "bg-zinc-800/60 text-zinc-500 cursor-default" : "bg-gradient-to-r from-emerald-500 to-cyan-500 hover:opacity-92 text-zinc-950",
       check: "text-emerald-400",
     },
     pro: {
-      wrapper: "border-violet-700/50 bg-gradient-to-b from-violet-500/8 to-zinc-900 shadow-[0_8px_40px_-16px_rgba(167,139,250,0.25)]",
+      wrapper: "border-violet-700/45 bg-gradient-to-b from-violet-500/[0.07] to-zinc-900/80 shadow-[0_8px_40px_-16px_rgba(139,92,246,0.22)]",
       name: "text-violet-400",
       price: "text-white",
-      badge: "bg-violet-500 text-white",
-      btn: isPaidCurrent ? "bg-zinc-800 hover:bg-zinc-700 text-zinc-300 border border-zinc-700" : isCurrent ? "bg-zinc-800 text-zinc-500 cursor-default" : "bg-violet-500 hover:bg-violet-400 text-white",
+      badge: "bg-violet-500/90 text-white border-violet-600/60",
+      btn: isPaidCurrent ? "bg-white/[0.06] hover:bg-white/[0.10] text-zinc-300 border border-white/[0.12]" : isCurrent ? "bg-zinc-800/60 text-zinc-500 cursor-default" : "bg-violet-500 hover:bg-violet-400 text-white",
       check: "text-violet-400",
     },
   }[planId]
@@ -387,29 +387,29 @@ function PlanCard({ planId, billing, currentPlan, justSet, checkoutLoading, onCh
 
       {/* Badge */}
       {p.badge && (
-        <span className={`absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full px-3 py-0.5 text-[10px] font-black uppercase tracking-wide border border-transparent ${styles.badge}`}>
+        <span className={`absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full px-3 py-0.5 text-[10px] font-bold uppercase tracking-wide border ${styles.badge}`}>
           {p.badge}
         </span>
       )}
 
       {/* Plan name */}
       <div className="mb-3">
-        <p className={`text-sm font-black uppercase tracking-widest ${styles.name}`}>
+        <p className={`text-[12px] font-bold uppercase tracking-wider ${styles.name}`}>
           {p.emoji} {p.name}
         </p>
-        <p className="text-xs text-zinc-500 mt-0.5 leading-snug">{p.tagline}</p>
+        <p className="text-[12px] text-zinc-500 mt-0.5 leading-snug">{p.tagline}</p>
       </div>
 
       {/* Price */}
       <div className="mb-1">
         <div className="flex items-end gap-1">
-          <span className={`text-4xl font-black leading-none ${styles.price}`}>{monthly}</span>
+          <span className={`text-[36px] font-black leading-none tracking-tight ${styles.price}`}>{monthly}</span>
           {p.priceMonthly > 0 && (
-            <span className="text-xs text-zinc-500 mb-1">/mes</span>
+            <span className="text-[12px] text-zinc-500 mb-1">/mes</span>
           )}
         </div>
         {p.priceMonthly > 0 && billing === "annual" && (
-          <p className="text-[11px] text-emerald-400 font-bold mt-1">
+          <p className="text-[11px] text-emerald-400 font-semibold mt-1">
             Se cobra {p.priceAnnual}€ ahora · ahorras {saving}€
           </p>
         )}
@@ -418,7 +418,7 @@ function PlanCard({ planId, billing, currentPlan, justSet, checkoutLoading, onCh
 
       {/* CTA */}
       <button onClick={() => onChoose(planId)} disabled={(isCurrent && planId === "free") || loading}
-        className={`w-full py-3 rounded-xl text-sm font-bold tap transition-all inline-flex items-center justify-center gap-2 mb-5 ${styles.btn}`}>
+        className={`w-full py-2.5 rounded-[11px] text-[14px] font-semibold tap transition-all inline-flex items-center justify-center gap-2 mb-5 disabled:opacity-50 ${styles.btn}`}>
         {loading ? (
           <><Icon name="settings" className="w-4 h-4 animate-spin" /> Redirigiendo…</>
         ) : isPaidCurrent ? (
@@ -434,14 +434,14 @@ function PlanCard({ planId, billing, currentPlan, justSet, checkoutLoading, onCh
       </button>
 
       {/* Perks */}
-      <div className="border-t border-zinc-800/80 pt-4">
-        <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-600 mb-3">
+      <div className="border-t border-white/[0.06] pt-4">
+        <p className="apple-eyebrow text-zinc-600 mb-3">
           {planId === "free" ? "Incluye" : planId === "premium" ? "Todo lo que desbloqueas" : "Todo Premium +"}
         </p>
         <ul className="space-y-2.5">
           {p.perks.map((perk) => (
-            <li key={perk} className="flex items-start gap-2 text-sm text-zinc-300">
-              <Icon name="check" className={`w-4 h-4 mt-0.5 shrink-0 ${styles.check}`} strokeWidth={2.5} />
+            <li key={perk} className="flex items-start gap-2 text-[13px] text-zinc-300">
+              <Icon name="check" className={`w-[15px] h-[15px] mt-0.5 shrink-0 ${styles.check}`} strokeWidth={2.5} />
               <span className="leading-snug">{perk}</span>
             </li>
           ))}
@@ -449,12 +449,12 @@ function PlanCard({ planId, billing, currentPlan, justSet, checkoutLoading, onCh
 
         {/* PRO exclusive block */}
         {p.proFeatures && p.proFeatures.length > 0 && (
-          <div className="mt-4 rounded-xl border border-violet-800/50 bg-violet-500/5 p-3.5 space-y-2">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-violet-400 mb-2">Funciones exclusivas 👑</p>
+          <div className="mt-4 rounded-[11px] border border-violet-800/40 bg-violet-500/[0.05] p-3.5 space-y-2">
+            <p className="apple-eyebrow text-violet-400 mb-2">Funciones exclusivas 👑</p>
             {p.proFeatures.map((f) => (
               <div key={f} className="flex items-start gap-2">
                 <Icon name="spark" className="w-3.5 h-3.5 text-violet-400 shrink-0 mt-0.5" strokeWidth={2} />
-                <span className="text-xs text-zinc-300 leading-snug">{f}</span>
+                <span className="text-[12px] text-zinc-300 leading-snug">{f}</span>
               </div>
             ))}
           </div>
@@ -462,11 +462,11 @@ function PlanCard({ planId, billing, currentPlan, justSet, checkoutLoading, onCh
 
         {/* Free — lo que NO incluye */}
         {planId === "free" && (
-          <div className="mt-3 pt-3 border-t border-zinc-800">
-            <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-700 mb-2">No incluye</p>
+          <div className="mt-3 pt-3 border-t border-white/[0.06]">
+            <p className="apple-eyebrow text-zinc-700 mb-2">No incluye</p>
             <ul className="space-y-1.5">
               {["Análisis completo de picks", "Combinada Soñadora", "Combinada IA por prompt", "Estadísticas avanzadas", "Alertas de valor"].map((n) => (
-                <li key={n} className="flex items-start gap-2 text-xs text-zinc-700">
+                <li key={n} className="flex items-start gap-2 text-[12px] text-zinc-700">
                   <Icon name="close" className="w-3.5 h-3.5 mt-0.5 shrink-0" strokeWidth={2} />
                   <span className="line-through decoration-zinc-800">{n}</span>
                 </li>
@@ -482,7 +482,7 @@ function PlanCard({ planId, billing, currentPlan, justSet, checkoutLoading, onCh
 function TableCell({ val, accent }: { val: string | boolean; accent?: "emerald" | "violet" }) {
   const color = accent === "emerald" ? "text-emerald-400" : accent === "violet" ? "text-violet-400" : "text-zinc-500"
   return (
-    <div className={`px-4 py-3 border-l border-zinc-800 text-center flex items-center justify-center ${color}`}>
+    <div className={`px-4 py-3 border-l border-white/[0.07] text-center flex items-center justify-center ${color}`}>
       {val === true
         ? <Icon name="check" className="w-4 h-4" strokeWidth={2.5} />
         : val === false

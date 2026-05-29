@@ -103,7 +103,7 @@ export default function AdminPage() {
                 type="password" value={tokenInput} onChange={(e) => setTokenInput(e.target.value)}
                 placeholder="Pega aquí tu ADMIN_TOKEN"
                 autoFocus autoComplete="off"
-                className="mt-1.5 w-full bg-zinc-800 border border-zinc-700 focus:border-emerald-600 rounded-xl px-3.5 py-2.5 text-sm text-white outline-none transition-colors font-mono"
+                className="mt-1.5 w-full bg-zinc-800/40 border border-white/[0.08] focus:border-emerald-600/60 rounded-xl px-3.5 py-2.5 text-sm text-white outline-none transition-colors font-mono"
               />
             </label>
             {tokenError && <p className="text-xs text-rose-400">{tokenError}</p>}
@@ -216,7 +216,7 @@ export default function AdminPage() {
           {/* Logs */}
           <Card className="p-5">
             <SectionTitle icon="stats" title="Registro del pipeline" />
-            <div className="max-h-72 overflow-y-auto rounded-lg bg-zinc-950 border border-zinc-800 p-3 space-y-0.5">
+            <div className="max-h-72 overflow-y-auto rounded-lg bg-zinc-950 border border-white/[0.07] p-3 space-y-0.5">
               {meta!.logs.length === 0 ? (
                 <p className="text-xs text-zinc-600">Sin registros todavía.</p>
               ) : meta!.logs.map((l, i) => (
@@ -232,7 +232,7 @@ export default function AdminPage() {
 
 function Mini({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-xl bg-zinc-950/60 border border-zinc-800 p-2.5">
+    <div className="rounded-xl bg-zinc-950/60 border border-white/[0.07] p-2.5">
       <p className="text-[10px] text-zinc-600 uppercase tracking-wide">{label}</p>
       <p className="text-xs font-bold text-zinc-200 mt-0.5">{value}</p>
     </div>

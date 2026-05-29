@@ -72,7 +72,7 @@ export function BracketView({ teams, groups, knockoutFixtures, drawCompleted, on
       <div>
         <SectionTitle icon="trophy" title="Eliminatorias" subtitle="32 → 16 → Cuartos → Semis → Final" />
         {knockoutFixtures.length === 0 ? (
-          <div className="mt-4 rounded-2xl border border-zinc-800/60 bg-zinc-950/50 px-5 py-6 text-center">
+          <div className="mt-4 rounded-2xl border border-white/[0.07] bg-zinc-950/50 px-5 py-6 text-center">
             <p className="text-sm text-zinc-500 font-bold">Cruces pendientes</p>
             <p className="text-[11px] text-zinc-600 mt-1">Se generan al cierre de la fase de grupos.</p>
           </div>
@@ -83,7 +83,7 @@ export function BracketView({ teams, groups, knockoutFixtures, drawCompleted, on
                 <button
                   key={f.matchId}
                   onClick={() => onSelectMatch?.(f.matchId)}
-                  className="shrink-0 w-56 text-left rounded-xl border border-zinc-800/80 bg-zinc-900/70 backdrop-blur-sm p-3 hover:border-amber-700/60 transition-colors tap"
+                  className="shrink-0 w-56 text-left rounded-xl border border-white/[0.07] bg-zinc-900/70 backdrop-blur-sm p-3 hover:border-amber-700/60 transition-colors tap"
                 >
                   <p className="text-[10px] font-black uppercase tracking-widest text-amber-400 mb-2">
                     {f.stage.replace("-", " ")}
@@ -121,8 +121,8 @@ function GroupCard({
   const teamByCode = new Map(teams.map((t) => [t.code, t]))
 
   return (
-    <div className="rounded-2xl border border-zinc-800/80 bg-zinc-900/70 backdrop-blur-sm overflow-hidden shadow-xl">
-      <div className="bg-gradient-to-br from-amber-600/15 via-amber-600/5 to-transparent px-4 py-2.5 border-b border-zinc-800/60 flex items-center justify-between">
+    <div className="rounded-2xl border border-white/[0.07] bg-zinc-900/70 backdrop-blur-sm overflow-hidden shadow-xl">
+      <div className="bg-gradient-to-br from-amber-600/15 via-amber-600/5 to-transparent px-4 py-2.5 border-b border-white/[0.07] flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="grid place-items-center w-7 h-7 rounded-lg bg-gradient-to-br from-amber-400 to-yellow-500 text-zinc-950 font-black text-sm shadow-lg shadow-amber-900/30">
             {letter}
@@ -134,7 +134,7 @@ function GroupCard({
         )}
       </div>
 
-      <ul className="divide-y divide-zinc-800/60">
+      <ul className="divide-y divide-white/[0.07]">
         {rows.slice(0, 4).map((row, idx) => {
           const team = teamByCode.get(row.teamCode)
           const isQualified = idx < 2

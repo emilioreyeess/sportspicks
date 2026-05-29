@@ -11,7 +11,7 @@ export default function RefundPolicyPage() {
             { name: "Premium ⭐", price: "9.99€/mes", features: "Todo desbloqueado, bot 15/día, IA combinadas" },
             { name: "Pro 👑", price: "19.99€/mes", features: "Sin límites, retos, watchlist, modo trader" },
           ].map((p) => (
-            <div key={p.name} className="bg-zinc-900 border border-zinc-800 rounded-xl p-3">
+            <div key={p.name} className="bg-zinc-900/60 border border-white/[0.07] rounded-xl p-3">
               <p className="font-bold text-white text-sm">{p.name}</p>
               <p className="text-emerald-400 font-black text-lg">{p.price}</p>
               <p className="text-xs text-zinc-500 mt-1">{p.features}</p>

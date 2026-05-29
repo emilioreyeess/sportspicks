@@ -15,7 +15,7 @@ const LEGAL_LINKS = [
 
 export function GlobalFooter() {
   return (
-    <footer className="border-t border-zinc-800/80 bg-zinc-950/60 mt-auto">
+    <footer className="border-t border-white/[0.07] bg-zinc-950/60 mt-auto">
 
       {/* ─── Disclaimer strip ─────────────────────────────────────────── */}
       <div className="border-b border-amber-900/25 bg-amber-500/[0.04]">
@@ -59,7 +59,7 @@ export function GlobalFooter() {
           <div className="flex items-center gap-2">
             {["+18", "Solo análisis", "Sin apuestas"].map((tag) => (
               <span key={tag}
-                className="text-[10px] px-2 py-1 rounded-lg border border-zinc-800/80 bg-zinc-900/60 text-zinc-600 font-medium">
+                className="text-[10px] px-2 py-1 rounded-lg border border-white/[0.07] bg-zinc-900/60 text-zinc-600 font-medium">
                 {tag}
               </span>
             ))}
@@ -80,7 +80,7 @@ export function GlobalFooter() {
         </div>
 
         {/* Fine print */}
-        <div className="h-px bg-zinc-800/80" />
+        <div className="h-px bg-white/[0.07]" />
         <div className="grid sm:grid-cols-2 gap-3 text-[10px] text-zinc-700">
           <p>© {new Date().getFullYear()} Sports Picks Analytics Ltd. Todos los derechos reservados.</p>
           <p className="sm:text-right">

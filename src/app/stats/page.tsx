@@ -224,25 +224,25 @@ export default function StatsPage() {
           value={query}
           onChange={(e) => { setQuery(e.target.value); setStats(null); setAnalysis(""); setAnalysisError("") }}
           placeholder="Busca un equipo: Real Madrid, Boca Juniors, Al Nassr…"
-          className="w-full bg-zinc-900 border border-zinc-700 focus:border-zinc-500
+          className="w-full bg-zinc-800/40 border border-white/[0.08] focus:border-white/[0.16]
             text-white placeholder-zinc-600 rounded-2xl pl-10 pr-4 py-3.5 text-sm outline-none transition-colors"
         />
         {loadingSearch && (
           <span className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-500 text-xs">Buscando…</span>
         )}
         {(teamResults.length > 0 || playerResults.length > 0) && (
-          <div className="absolute top-full mt-2 w-full bg-zinc-900 border border-zinc-700
-            rounded-2xl overflow-hidden z-20 shadow-2xl max-h-80 overflow-y-auto">
+          <div className="absolute top-full mt-2 w-full bg-zinc-900/95 border border-white/[0.07]
+            rounded-2xl overflow-hidden z-20 shadow-2xl max-h-80 overflow-y-auto backdrop-blur-xl">
             {/* Equipos */}
             {teamResults.length > 0 && (
               <>
-                <p className="px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-zinc-600 border-b border-zinc-800">
+                <p className="px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-zinc-600 border-b border-white/[0.07]">
                   Equipos
                 </p>
                 {teamResults.slice(0, 5).map((t) => (
                   <button key={`team-${t.slug}-${t.id}`} onClick={() => loadTeam(t)}
-                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-zinc-800
-                      transition-colors text-left border-b border-zinc-800 last:border-0">
+                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white/[0.04]
+                      transition-colors text-left border-b border-white/[0.07] last:border-0">
                     <span className="text-xl">{t.flag}</span>
                     <div>
                       <p className="text-sm font-medium text-white">{t.name}</p>
@@ -255,14 +255,14 @@ export default function StatsPage() {
             {/* Jugadores */}
             {playerResults.length > 0 && (
               <>
-                <p className="px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-zinc-600 border-b border-zinc-800">
+                <p className="px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-zinc-600 border-b border-white/[0.07]">
                   Jugadores
                 </p>
                 {playerResults.slice(0, 5).map((p) => (
                   <button key={`player-${p.id}`} onClick={() => selectPlayer(p)}
-                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-zinc-800
-                      transition-colors text-left border-b border-zinc-800 last:border-0">
-                    <div className="grid place-items-center w-9 h-9 rounded-xl bg-zinc-800 border border-zinc-700 shrink-0">
+                    className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white/[0.04]
+                      transition-colors text-left border-b border-white/[0.07] last:border-0">
+                    <div className="grid place-items-center w-9 h-9 rounded-xl bg-zinc-800/60 border border-white/[0.07] shrink-0">
                       <span className="text-xs font-black text-zinc-400">{p.jersey ?? p.positionAbbr}</span>
                     </div>
                     <div className="min-w-0">
@@ -281,7 +281,7 @@ export default function StatsPage() {
       {loadingTeam && (
         <div className="space-y-3">
           {[...Array(4)].map((_, i) => (
-            <div key={i} className="h-24 rounded-2xl bg-zinc-900 animate-pulse" />
+            <div key={i} className="h-24 rounded-2xl bg-zinc-900/80 animate-pulse" />
           ))}
         </div>
       )}
@@ -315,7 +315,7 @@ export default function StatsPage() {
           <div className="flex flex-wrap justify-center gap-2 mt-4">
             {QUICK.map((t) => (
               <button key={t.id} onClick={() => loadTeam(t)}
-                className="text-xs px-3 py-1.5 bg-zinc-900 border border-zinc-800
+                className="text-xs px-3 py-1.5 bg-zinc-900/80 border border-white/[0.07]
                   text-zinc-400 hover:text-white rounded-xl transition-colors">
                 {t.flag} {t.name}
               </button>
@@ -333,9 +333,9 @@ export default function StatsPage() {
 
 function PlayerCard({ player }: { player: PlayerResult }) {
   return (
-    <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5 animate-fade-in">
+    <div className="bg-zinc-900/60 border border-white/[0.07] rounded-2xl p-5 animate-fade-in">
       <div className="flex items-start gap-4">
-        <div className="grid place-items-center w-14 h-14 rounded-2xl bg-zinc-800 border border-zinc-700 shrink-0">
+        <div className="grid place-items-center w-14 h-14 rounded-2xl bg-zinc-800/60 border border-white/[0.07] shrink-0">
           <span className="text-xl font-black text-zinc-300">
             {player.jersey ? `#${player.jersey}` : player.positionAbbr}
           </span>
@@ -344,19 +344,19 @@ function PlayerCard({ player }: { player: PlayerResult }) {
           <h2 className="text-xl font-black text-white leading-tight">{player.name}</h2>
           <p className="text-sm text-zinc-400 mt-0.5">{player.position}</p>
           <div className="flex flex-wrap gap-2 mt-3">
-            <span className="text-xs bg-zinc-800 border border-zinc-700 text-zinc-300 px-2.5 py-1 rounded-full">
+            <span className="text-xs bg-zinc-800/60 border border-white/[0.07] text-zinc-300 px-2.5 py-1 rounded-full">
               {player.flag} {player.teamName}
             </span>
-            <span className="text-xs bg-zinc-800 border border-zinc-700 text-zinc-500 px-2.5 py-1 rounded-full">
+            <span className="text-xs bg-zinc-800/60 border border-white/[0.07] text-zinc-500 px-2.5 py-1 rounded-full">
               {player.league}
             </span>
             {player.age && (
-              <span className="text-xs bg-zinc-800 border border-zinc-700 text-zinc-500 px-2.5 py-1 rounded-full">
+              <span className="text-xs bg-zinc-800/60 border border-white/[0.07] text-zinc-500 px-2.5 py-1 rounded-full">
                 {player.age} años
               </span>
             )}
             {player.nationality && (
-              <span className="text-xs bg-zinc-800 border border-zinc-700 text-zinc-500 px-2.5 py-1 rounded-full">
+              <span className="text-xs bg-zinc-800/60 border border-white/[0.07] text-zinc-500 px-2.5 py-1 rounded-full">
                 {player.nationality}
               </span>
             )}
@@ -366,7 +366,7 @@ function PlayerCard({ player }: { player: PlayerResult }) {
       {player.espnUrl && (
         <a href={player.espnUrl} target="_blank" rel="noopener noreferrer"
           className="mt-4 flex items-center justify-center gap-2 w-full py-2.5 rounded-xl
-            bg-zinc-800 hover:bg-zinc-700 text-zinc-300 text-sm font-semibold transition-colors tap">
+            bg-zinc-800/60 border border-white/[0.07] hover:bg-zinc-700/60 text-zinc-300 text-sm font-semibold transition-colors tap">
           <Icon name="arrowRight" className="w-4 h-4" strokeWidth={2.2} />
           Ver estadísticas completas en ESPN
         </a>
@@ -382,7 +382,7 @@ function PlayerCard({ player }: { player: PlayerResult }) {
 
 function StatCard({ icon, value, label, color }: { icon: string; value: string; label: string; color: string }) {
   return (
-    <div className="bg-zinc-900 border border-zinc-800 rounded-xl p-3 text-center">
+    <div className="bg-zinc-900/60 border border-white/[0.07] rounded-xl p-3 text-center">
       <p className="text-2xl mb-0.5">{icon}</p>
       <p className={`text-xl font-black ${color}`}>{value}</p>
       <p className="text-[10px] text-zinc-600 mt-0.5">{label}</p>
@@ -444,7 +444,7 @@ function TeamStatsView({ stats, isPremium, isPro, analyzeUsed, onAnalyze, analys
   return (
     <div className="space-y-5">
       {/* Header + botón análisis IA */}
-      <div className="bg-zinc-900 border border-zinc-800 rounded-2xl p-5">
+      <div className="bg-zinc-900/60 border border-white/[0.07] rounded-2xl p-5">
         <div className="flex items-start justify-between mb-4 gap-3">
           <div className="min-w-0">
             <h2 className="text-xl font-black text-white">{stats.name}</h2>
@@ -465,9 +465,9 @@ function TeamStatsView({ stats, isPremium, isPro, analyzeUsed, onAnalyze, analys
               disabled={analysisLoading || (isPremium && !isPro && analyzeUsed)}
               className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold tap transition-all ${
                 !isPremium
-                  ? "bg-zinc-800 border border-zinc-700 text-zinc-400 hover:border-zinc-600"
+                  ? "bg-zinc-800/60 border border-white/[0.07] text-zinc-400 hover:border-white/[0.12]"
                   : isPremium && !isPro && analyzeUsed
-                  ? "bg-zinc-800 border border-zinc-700 text-zinc-500 cursor-not-allowed opacity-60"
+                  ? "bg-zinc-800/60 border border-white/[0.07] text-zinc-500 cursor-not-allowed opacity-60"
                   : "bg-gradient-to-r from-emerald-500 to-cyan-500 text-zinc-950 hover:opacity-90 disabled:opacity-50"
               }`}
             >
@@ -539,7 +539,7 @@ function TeamStatsView({ stats, isPremium, isPro, analyzeUsed, onAnalyze, analys
       )}
 
       {analysisError && (
-        <div className="flex items-start gap-2 rounded-xl border border-amber-800/50 bg-amber-500/8 px-4 py-3">
+        <div className="flex items-start gap-2 rounded-xl border border-amber-700/40 bg-amber-500/[0.08] px-4 py-3">
           <Icon name="shield" className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
           <p className="text-sm text-amber-200/90 leading-snug">{analysisError}</p>
         </div>
@@ -548,7 +548,7 @@ function TeamStatsView({ stats, isPremium, isPro, analyzeUsed, onAnalyze, analys
       {(analysis || analysisLoading) && (
         <div ref={analysisRef} className="rounded-2xl border border-emerald-800/40 bg-gradient-to-b from-emerald-500/5 to-zinc-900 overflow-hidden animate-fade-in">
           {/* Header del informe */}
-          <div className="flex items-center gap-3 px-5 py-4 border-b border-zinc-800">
+          <div className="flex items-center gap-3 px-5 py-4 border-b border-white/[0.07]">
             <div className="grid place-items-center w-9 h-9 rounded-xl bg-emerald-500/15 shrink-0">
               <Icon name="spark" className="w-4.5 h-4.5 text-emerald-400" strokeWidth={2} />
             </div>
@@ -566,13 +566,13 @@ function TeamStatsView({ stats, isPremium, isPro, analyzeUsed, onAnalyze, analys
               ? <AnalysisText text={analysis} />
               : <div className="space-y-2">
                   {[...Array(5)].map((_, i) => (
-                    <div key={i} className={`h-3.5 bg-zinc-800 rounded animate-pulse ${i === 2 ? "w-3/4" : "w-full"}`} />
+                    <div key={i} className={`h-3.5 bg-white/[0.06] rounded animate-pulse ${i === 2 ? "w-3/4" : "w-full"}`} />
                   ))}
                 </div>
             }
           </div>
           {!analysisLoading && analysis && (
-            <div className="px-5 py-2.5 border-t border-zinc-800 bg-zinc-950/40">
+            <div className="px-5 py-2.5 border-t border-white/[0.07] bg-zinc-950/40">
               <p className="text-[10px] text-zinc-700 text-center">
                 Análisis generado por IA · basado solo en estadísticas ESPN · no constituye consejo de apuesta · +18
               </p>
@@ -583,7 +583,7 @@ function TeamStatsView({ stats, isPremium, isPro, analyzeUsed, onAnalyze, analys
 
       {/* Goals & available metrics */}
       <div>
-        <p className="text-xs text-zinc-600 uppercase tracking-wider mb-3">Goles y ofensiva</p>
+        <p className="apple-eyebrow mb-3">Goles y ofensiva</p>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <StatCard icon="⚽" value={String(stats.goals_for)}     label="Goles a favor"   color="text-emerald-400" />
           <StatCard icon="🥅" value={String(stats.goals_against)} label="Goles en contra" color="text-red-400" />
@@ -594,7 +594,7 @@ function TeamStatsView({ stats, isPremium, isPro, analyzeUsed, onAnalyze, analys
 
       {/* Betting markets */}
       <div>
-        <p className="text-xs text-zinc-600 uppercase tracking-wider mb-3">Mercados de apuesta</p>
+        <p className="apple-eyebrow mb-3">Mercados de apuesta</p>
         <div className="grid grid-cols-3 gap-3">
           {[
             { label: "BTTS",         pct: stats.btts_pct,   color: "amber" },
@@ -604,10 +604,10 @@ function TeamStatsView({ stats, isPremium, isPro, analyzeUsed, onAnalyze, analys
             const colors: Record<string, string> = { amber: "text-amber-400", blue: "text-blue-400", emerald: "text-emerald-400" }
             const bars: Record<string, string>   = { amber: "bg-amber-400",   blue: "bg-blue-500",   emerald: "bg-emerald-500" }
             return (
-              <div key={c.label} className="bg-zinc-900 border border-zinc-800 rounded-xl p-4 text-center">
+              <div key={c.label} className="bg-zinc-900/60 border border-white/[0.07] rounded-xl p-4 text-center">
                 <p className={`text-2xl font-black ${colors[c.color]}`}>{c.pct}%</p>
                 <p className="text-[10px] text-zinc-500 mt-0.5">{c.label}</p>
-                <div className="mt-2 h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+                <div className="mt-2 h-1.5 bg-white/[0.06] rounded-full overflow-hidden">
                   <div className={`h-full ${bars[c.color]} rounded-full`} style={{ width: `${c.pct}%` }} />
                 </div>
               </div>
@@ -619,7 +619,7 @@ function TeamStatsView({ stats, isPremium, isPro, analyzeUsed, onAnalyze, analys
       {/* Stats avanzadas */}
       {(stats.advanced_samples ?? 0) > 0 && (
         <div>
-          <p className="text-xs text-zinc-600 uppercase tracking-wider mb-3">
+          <p className="apple-eyebrow mb-3">
             Stats avanzadas · medias últimos {stats.advanced_samples} partidos
           </p>
           <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -639,13 +639,13 @@ function TeamStatsView({ stats, isPremium, isPro, analyzeUsed, onAnalyze, analys
 
       {/* Home vs Away */}
       <div>
-        <p className="text-xs text-zinc-600 uppercase tracking-wider mb-3">Local vs Visitante</p>
+        <p className="apple-eyebrow mb-3">Local vs Visitante</p>
         <div className="grid grid-cols-2 gap-3">
           {[
             { label: "🏟️ Como local",    data: stats.home },
             { label: "✈️ Como visitante", data: stats.away },
           ].map((s) => (
-            <div key={s.label} className="bg-zinc-900 border border-zinc-800 rounded-xl p-4">
+            <div key={s.label} className="bg-zinc-900/60 border border-white/[0.07] rounded-xl p-4">
               <p className="text-xs font-bold text-zinc-400 mb-3">{s.label}</p>
               <div className="flex justify-between text-center">
                 <div>

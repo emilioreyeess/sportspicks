@@ -8,9 +8,9 @@ import { GlobalFooter } from "@/components/legal/GlobalFooter"
 import { ErrorBoundary } from "@/components/ui/ErrorBoundary"
 
 /**
- * Shell de la app. Layout responsive:
- *  - Móvil: TopBar sticky + contenido + BottomNav fija (estilo app nativa)
- *  - Desktop: Sidebar lateral + contenido + footer
+ * Shell de la app — Apple HIG layout:
+ *  - Móvil:   TopBar sticky + contenido + BottomNav fija (iOS native feel)
+ *  - Desktop: Sidebar lateral + contenido + footer (macOS feel)
  *  - Rutas inmersivas (/bot): pantalla completa sin chrome
  */
 export function AppShell({ children }: { children: React.ReactNode }) {
@@ -18,7 +18,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const immersive = path?.startsWith("/bot") ?? false
 
   if (immersive) {
-    return <div className="h-[100dvh] overflow-hidden bg-zinc-950">{children}</div>
+    return <div className="h-[100dvh] overflow-hidden bg-[var(--bg)]">{children}</div>
   }
 
   return (

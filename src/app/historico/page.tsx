@@ -47,7 +47,7 @@ interface PersonalBet {
 const RESULT_STYLE: Record<ResultType, string> = {
   WIN:     "text-emerald-400 bg-emerald-500/10 border-emerald-700/40",
   LOSS:    "text-rose-400 bg-rose-500/10 border-rose-700/40",
-  VOID:    "text-zinc-400 bg-zinc-800 border-zinc-700",
+  VOID:    "text-zinc-400 bg-zinc-800/60 border-white/[0.07]",
   PENDING: "text-amber-400 bg-amber-500/10 border-amber-700/40",
 }
 
@@ -58,7 +58,7 @@ const RESULT_LABEL: Record<ResultType, string> = {
 const BET_STATUS_STYLE: Record<string, string> = {
   won:     "text-emerald-400 bg-emerald-500/10 border-emerald-700/40",
   lost:    "text-rose-400 bg-rose-500/10 border-rose-700/40",
-  void:    "text-zinc-400 bg-zinc-800 border-zinc-700",
+  void:    "text-zinc-400 bg-zinc-800/60 border-white/[0.07]",
   pending: "text-amber-400 bg-amber-500/10 border-amber-700/40",
 }
 
@@ -129,7 +129,7 @@ function useYesterdayPicks() {
 function PickRow({ pick }: { pick: HistoricalPick }) {
   const result = (pick.result ?? "PENDING") as ResultType
   return (
-    <div className="px-5 py-3.5 flex items-center gap-3 border-b border-zinc-800/40 last:border-0">
+    <div className="px-5 py-3.5 flex items-center gap-3 border-b border-white/[0.07] last:border-0">
       <div className="flex-1 min-w-0">
         <p className="text-xs font-bold text-white truncate">{pick.home_team} vs {pick.away_team}</p>
         <div className="flex items-center flex-wrap gap-x-2 gap-y-0.5 mt-0.5">
@@ -157,7 +157,7 @@ function BetRow({ bet }: { bet: PersonalBet }) {
   const style = BET_STATUS_STYLE[s] ?? BET_STATUS_STYLE.pending
   const label = BET_STATUS_LABEL[s] ?? s
   return (
-    <div className="px-4 py-3 flex items-center gap-3 border-b border-zinc-800/40 last:border-0">
+    <div className="px-4 py-3 flex items-center gap-3 border-b border-white/[0.07] last:border-0">
       <div className="flex-1 min-w-0">
         <p className="text-xs font-bold text-white truncate">{bet.title}</p>
         <div className="flex items-center gap-2 mt-0.5">
@@ -254,7 +254,7 @@ export default function HistoricoPage() {
               { label: "WIN", value: wins.toString(), color: "text-emerald-400" },
               { label: "Winrate", value: `${Math.round((wins / settled) * 100)}%`, color: wins / settled >= 0.5 ? "text-emerald-400" : "text-rose-400" },
             ].map(s => (
-              <div key={s.label} className="rounded-xl border border-zinc-800/80 bg-zinc-900/50 p-3 text-center">
+              <div key={s.label} className="rounded-xl border border-white/[0.07] bg-zinc-900/60 p-3 text-center">
                 <p className={`text-xl font-black ${s.color}`}>{s.value}</p>
                 <p className="text-[10px] text-zinc-500 mt-0.5">{s.label}</p>
               </div>
@@ -265,29 +265,29 @@ export default function HistoricoPage() {
 
       {/* Monthly performance */}
       {monthStats && (
-        <section className="mx-4 mb-5 rounded-2xl border border-zinc-800 bg-zinc-900/50 overflow-hidden">
-          <div className="px-5 pt-4 pb-3 border-b border-zinc-800/60 flex items-center justify-between">
+        <section className="mx-4 mb-5 rounded-2xl border border-white/[0.07] bg-zinc-900/60 overflow-hidden">
+          <div className="px-5 pt-4 pb-3 border-b border-white/[0.07] flex items-center justify-between">
             <p className="text-sm font-black text-white">Este mes</p>
             <p className="text-[10px] text-zinc-500">{new Date().toLocaleDateString("es-ES", { month: "long", year: "numeric" })}</p>
           </div>
           <div className="p-4 grid grid-cols-4 gap-2 text-center">
-            <div className="rounded-xl bg-zinc-800/60 p-2.5 border border-zinc-700/40">
+            <div className="rounded-xl bg-zinc-800/60 p-2.5 border border-white/[0.07]">
               <p className={`text-lg font-black ${monthStats.profit >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
                 {monthStats.profit >= 0 ? "+" : ""}{monthStats.profit}€
               </p>
               <p className="text-[9px] text-zinc-500 mt-0.5 uppercase">Profit</p>
             </div>
-            <div className="rounded-xl bg-zinc-800/60 p-2.5 border border-zinc-700/40">
+            <div className="rounded-xl bg-zinc-800/60 p-2.5 border border-white/[0.07]">
               <p className={`text-lg font-black ${monthStats.winrate >= 50 ? "text-emerald-400" : "text-rose-400"}`}>
                 {monthStats.winrate}%
               </p>
               <p className="text-[9px] text-zinc-500 mt-0.5 uppercase">Winrate</p>
             </div>
-            <div className="rounded-xl bg-zinc-800/60 p-2.5 border border-zinc-700/40">
+            <div className="rounded-xl bg-zinc-800/60 p-2.5 border border-white/[0.07]">
               <p className="text-lg font-black text-emerald-400">{monthStats.won}</p>
               <p className="text-[9px] text-zinc-500 mt-0.5 uppercase">Ganadas</p>
             </div>
-            <div className="rounded-xl bg-zinc-800/60 p-2.5 border border-zinc-700/40">
+            <div className="rounded-xl bg-zinc-800/60 p-2.5 border border-white/[0.07]">
               <p className="text-lg font-black text-rose-400">{monthStats.lost}</p>
               <p className="text-[9px] text-zinc-500 mt-0.5 uppercase">Perdidas</p>
             </div>
@@ -320,11 +320,11 @@ export default function HistoricoPage() {
         </div>
 
         {picksLoading ? (
-          <div className="divide-y divide-zinc-800/40">
+          <div className="divide-y divide-white/[0.07]">
             {[...Array(4)].map((_, i) => (
               <div key={i} className="px-5 py-3.5 flex items-center gap-3 animate-pulse">
-                <div className="h-3 bg-zinc-800 rounded flex-1" />
-                <div className="h-5 w-12 bg-zinc-800 rounded" />
+                <div className="h-3 bg-white/[0.06] rounded flex-1" />
+                <div className="h-5 w-12 bg-white/[0.06] rounded" />
               </div>
             ))}
           </div>
@@ -347,10 +347,10 @@ export default function HistoricoPage() {
 
       {/* Personal bet history */}
       {status === "authenticated" && (
-        <section className="mx-4 mb-6 rounded-2xl border border-zinc-800 bg-zinc-900/50 overflow-hidden">
-          <div className="px-5 pt-5 pb-4 border-b border-zinc-800/60 flex items-center justify-between">
+        <section className="mx-4 mb-6 rounded-2xl border border-white/[0.07] bg-zinc-900/60 overflow-hidden">
+          <div className="px-5 pt-5 pb-4 border-b border-white/[0.07] flex items-center justify-between">
             <div className="flex items-center gap-2.5">
-              <span className="grid place-items-center w-9 h-9 rounded-xl bg-zinc-800 border border-zinc-700/50">
+              <span className="grid place-items-center w-9 h-9 rounded-xl bg-zinc-800/60 border border-white/[0.07]">
                 <Icon name="ticket" className="w-4.5 h-4.5 text-zinc-400" strokeWidth={2} />
               </span>
               <div>
@@ -364,11 +364,11 @@ export default function HistoricoPage() {
           </div>
 
           {betsLoading ? (
-            <div className="divide-y divide-zinc-800/40">
+            <div className="divide-y divide-white/[0.07]">
               {[...Array(3)].map((_, i) => (
                 <div key={i} className="px-4 py-3 flex items-center gap-3 animate-pulse">
-                  <div className="h-3 bg-zinc-800 rounded flex-1" />
-                  <div className="h-5 w-14 bg-zinc-800 rounded" />
+                  <div className="h-3 bg-white/[0.06] rounded flex-1" />
+                  <div className="h-5 w-14 bg-white/[0.06] rounded" />
                 </div>
               ))}
             </div>
@@ -390,7 +390,7 @@ export default function HistoricoPage() {
       {/* CTA */}
       <div className="px-4 pb-4">
         <Link href="/value"
-          className="flex items-center gap-4 rounded-2xl border border-emerald-800/50 bg-zinc-900/70 hover:border-emerald-700/60 p-4 tap transition-colors">
+          className="flex items-center gap-4 rounded-2xl border border-emerald-700/40 bg-zinc-900/60 hover:border-emerald-600/50 p-4 tap transition-colors">
           <span className="grid place-items-center w-10 h-10 rounded-xl bg-emerald-500/15 border border-emerald-700/40 text-emerald-400 shrink-0">
             <Icon name="value" className="w-5 h-5" strokeWidth={2} />
           </span>

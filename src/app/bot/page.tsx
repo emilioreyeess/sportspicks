@@ -97,7 +97,7 @@ export default function BotPage() {
   return (
     <div className="h-full flex flex-col bg-zinc-950">
       {/* Header */}
-      <header className="glass border-b border-zinc-800/80 safe-top">
+      <header className="glass border-b border-white/[0.07] safe-top">
         <div className="flex items-center gap-3 h-14 px-3">
           <Link href="/" aria-label="Volver"
             className="grid place-items-center w-9 h-9 rounded-lg text-zinc-400 hover:bg-zinc-800 tap">
@@ -134,7 +134,7 @@ export default function BotPage() {
       </div>
 
       {/* Input / paywall */}
-      <div className="border-t border-zinc-800/80 bg-zinc-950 px-3 pt-3 pb-3 safe-bottom">
+      <div className="border-t border-white/[0.07] bg-zinc-950 px-3 pt-3 pb-3 safe-bottom">
         <div className="max-w-2xl mx-auto">
           {limitReached ? (
             <div className="rounded-2xl border border-emerald-800/50 bg-gradient-to-r from-emerald-500/10 to-cyan-500/5 p-4 text-center">

@@ -19,7 +19,7 @@ const SEVERITY_CONFIG = {
 export function RefereeThermometer({ referee, compact = false }: Props) {
   if (!referee) {
     return (
-      <div className="rounded-2xl border border-zinc-800/60 bg-zinc-900/60 p-4">
+      <div className="rounded-2xl border border-white/[0.07] bg-zinc-900/60 p-4">
         <div className="flex items-center gap-3">
           <span className="grid place-items-center w-9 h-9 rounded-xl bg-zinc-800 text-zinc-500">
             <Icon name="whistle" className="w-4.5 h-4.5" />
@@ -40,7 +40,7 @@ export function RefereeThermometer({ referee, compact = false }: Props) {
 
   if (compact) {
     return (
-      <div className="flex items-center gap-3 rounded-xl border border-zinc-800/60 bg-zinc-900/60 px-3 py-2">
+      <div className="flex items-center gap-3 rounded-xl border border-white/[0.07] bg-zinc-900/60 px-3 py-2">
         <span className={`grid place-items-center w-8 h-8 rounded-lg bg-gradient-to-br ${cfg.color} text-zinc-950`}>
           <Icon name="whistle" className="w-4 h-4" strokeWidth={2} />
         </span>
@@ -53,9 +53,9 @@ export function RefereeThermometer({ referee, compact = false }: Props) {
   }
 
   return (
-    <div className="rounded-2xl border border-zinc-800/60 bg-zinc-900/60 backdrop-blur-sm overflow-hidden shadow-xl">
+    <div className="rounded-2xl border border-white/[0.07] bg-zinc-900/60 backdrop-blur-sm overflow-hidden shadow-xl">
       {/* Header */}
-      <div className="bg-gradient-to-br from-amber-600/12 to-transparent px-5 py-4 border-b border-zinc-800/60">
+      <div className="bg-gradient-to-br from-amber-600/12 to-transparent px-5 py-4 border-b border-white/[0.07]">
         <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1">Termómetro del árbitro</p>
         <div className="flex items-center gap-3">
           <span className={`grid place-items-center w-11 h-11 rounded-xl bg-gradient-to-br ${cfg.color} text-zinc-950 shadow-lg ${cfg.glow}`}>
@@ -113,7 +113,7 @@ export function RefereeThermometer({ referee, compact = false }: Props) {
 
 function StatCell({ label, value, color, icon }: { label: string; value: string; color: string; icon: string }) {
   return (
-    <div className="rounded-xl bg-zinc-950/60 border border-zinc-800/60 px-3 py-2.5">
+    <div className="rounded-xl bg-zinc-950/60 border border-white/[0.07] px-3 py-2.5">
       <div className="flex items-center gap-1.5 mb-1">
         <Icon name={icon} className={`w-3 h-3 ${color}`} strokeWidth={2} />
         <span className="text-[9px] font-black uppercase tracking-wider text-zinc-600">{label}</span>

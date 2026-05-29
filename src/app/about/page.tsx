@@ -57,7 +57,7 @@ export default function AboutPage() {
         <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
           <div className="absolute top-0 left-1/2 -translate-x-1/2 w-[600px] h-[300px] bg-blue-500/5 rounded-full blur-[80px]" />
         </div>
-        <div className="inline-flex items-center gap-2 bg-zinc-900/80 border border-zinc-800 rounded-full px-3.5 py-1.5 text-xs text-zinc-400 font-medium mb-5">
+        <div className="inline-flex items-center gap-2 bg-zinc-900/80 border border-white/[0.07] rounded-full px-3.5 py-1.5 text-xs text-zinc-400 font-medium mb-5">
           <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
           Análisis cuantitativo · datos reales
         </div>
@@ -75,10 +75,10 @@ export default function AboutPage() {
 
       {/* Pillars */}
       <section className="max-w-5xl mx-auto px-4 py-10">
-        <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 mb-5 px-1">Cómo funciona el motor</p>
+        <p className="apple-eyebrow mb-5 px-1">Cómo funciona el motor</p>
         <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3.5 stagger">
           {PILLARS.map((p) => (
-            <div key={p.title} className="rounded-2xl border border-zinc-800 bg-zinc-900/80 p-5 card-glow">
+            <div key={p.title} className="rounded-2xl border border-white/[0.07] bg-zinc-900/60 p-5 card-glow">
               <span className={`grid place-items-center w-10 h-10 rounded-xl ${p.bg} ${p.color} mb-3`}>
                 <Icon name={p.icon} className="w-5 h-5" strokeWidth={2} />
               </span>
@@ -91,10 +91,10 @@ export default function AboutPage() {
 
       {/* Anti-hallucination principles */}
       <section className="max-w-3xl mx-auto px-4 pb-10">
-        <div className="rounded-2xl border border-zinc-800 bg-zinc-900/60 p-6">
+        <div className="rounded-2xl border border-white/[0.07] bg-zinc-900/60 p-6">
           <div className="flex items-center gap-2 mb-4">
             <Icon name="shield" className="w-5 h-5 text-emerald-400" />
-            <h2 className="text-sm font-black text-white uppercase tracking-wide">Principios de honestidad</h2>
+            <h2 className="apple-eyebrow text-white/70">Principios de honestidad</h2>
           </div>
           <ul className="space-y-2.5">
             {PRINCIPLES.map((p) => (
@@ -109,7 +109,7 @@ export default function AboutPage() {
 
       {/* Disclaimer */}
       <section className="max-w-3xl mx-auto px-4 pb-12">
-        <div className="rounded-2xl border border-amber-800/40 bg-amber-500/6 p-6">
+        <div className="rounded-2xl border border-amber-700/40 bg-amber-500/[0.06] p-6">
           <p className="text-[11px] font-bold uppercase tracking-wider text-amber-400 mb-2">Aviso legal importante</p>
           <p className="text-sm text-amber-100/80 leading-relaxed">
             SportsPicks Analytics es una plataforma de <strong className="text-white">análisis estadístico informativo</strong>.

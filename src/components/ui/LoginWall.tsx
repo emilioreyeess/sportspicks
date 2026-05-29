@@ -103,8 +103,8 @@ export function LoginWall({ children }: { children: React.ReactNode }) {
       <div className="hidden lg:flex lg:w-[45%] xl:w-[48%] relative overflow-hidden bg-zinc-950 flex-col justify-between p-12">
         <div className="pointer-events-none absolute inset-0">
           <div className="absolute -top-24 -left-24 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl" />
-          <div className="absolute top-1/2 -right-32 w-80 h-80 bg-cyan-500/8 rounded-full blur-3xl" />
-          <div className="absolute -bottom-24 left-1/4 w-72 h-72 bg-violet-500/8 rounded-full blur-3xl" />
+          <div className="absolute top-1/2 -right-32 w-80 h-80 bg-cyan-500/[0.08] rounded-full blur-3xl" />
+          <div className="absolute -bottom-24 left-1/4 w-72 h-72 bg-violet-500/[0.08] rounded-full blur-3xl" />
         </div>
 
         <div className="relative">
@@ -150,7 +150,7 @@ export function LoginWall({ children }: { children: React.ReactNode }) {
         style={{ background: "#09090b" }}
       >
         <div className="pointer-events-none absolute inset-0 lg:hidden">
-          <div className="absolute -top-32 left-1/2 -translate-x-1/2 w-96 h-96 bg-emerald-500/8 rounded-full blur-3xl" />
+          <div className="absolute -top-32 left-1/2 -translate-x-1/2 w-96 h-96 bg-emerald-500/[0.08] rounded-full blur-3xl" />
           <div className="absolute bottom-0 right-0 w-64 h-64 bg-violet-500/6 rounded-full blur-3xl" />
         </div>
 
@@ -167,7 +167,7 @@ export function LoginWall({ children }: { children: React.ReactNode }) {
 
           {/* Card */}
           <div
-            className="rounded-2xl border border-zinc-800/80 overflow-hidden"
+            className="rounded-2xl border border-white/[0.07] overflow-hidden"
             style={{
               background: "rgba(24,24,27,0.75)",
               backdropFilter: "blur(20px) saturate(160%)",
@@ -175,7 +175,7 @@ export function LoginWall({ children }: { children: React.ReactNode }) {
             }}
           >
             {/* Header + mode toggle */}
-            <div className="px-6 pt-6 pb-4 border-b border-zinc-800/70">
+            <div className="px-6 pt-6 pb-4 border-b border-white/[0.07]">
               <h2 className="text-lg font-black text-white">
                 {mode === "login" ? "Accede a la plataforma" : "Crear cuenta"}
               </h2>
@@ -202,7 +202,7 @@ export function LoginWall({ children }: { children: React.ReactNode }) {
                     value={name}
                     onChange={e => setName(e.target.value)}
                     required
-                    className="w-full h-11 px-3.5 rounded-xl bg-zinc-900 border border-zinc-700/60 text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-emerald-600/60 transition-colors"
+                    className="w-full h-11 px-3.5 rounded-xl bg-zinc-800/40 border border-white/[0.08] text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-emerald-600/60 transition-colors"
                   />
                 )}
                 <input
@@ -212,7 +212,7 @@ export function LoginWall({ children }: { children: React.ReactNode }) {
                   onChange={e => setEmail(e.target.value)}
                   required
                   autoComplete="email"
-                  className="w-full h-11 px-3.5 rounded-xl bg-zinc-900 border border-zinc-700/60 text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-emerald-600/60 transition-colors"
+                  className="w-full h-11 px-3.5 rounded-xl bg-zinc-800/40 border border-white/[0.08] text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-emerald-600/60 transition-colors"
                 />
                 <input
                   type="password"
@@ -222,7 +222,7 @@ export function LoginWall({ children }: { children: React.ReactNode }) {
                   required
                   minLength={8}
                   autoComplete={mode === "register" ? "new-password" : "current-password"}
-                  className="w-full h-11 px-3.5 rounded-xl bg-zinc-900 border border-zinc-700/60 text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-emerald-600/60 transition-colors"
+                  className="w-full h-11 px-3.5 rounded-xl bg-zinc-800/40 border border-white/[0.08] text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-emerald-600/60 transition-colors"
                 />
 
                 {/* TyC + Cookies checkboxes (register only) */}
@@ -280,9 +280,9 @@ export function LoginWall({ children }: { children: React.ReactNode }) {
 
               {/* Divider + Google */}
               <div className="flex items-center gap-3 py-1">
-                <div className="flex-1 h-px bg-zinc-800" />
+                <div className="flex-1 h-px bg-white/[0.07]" />
                 <span className="text-[11px] text-zinc-600 font-medium">o continúa con</span>
-                <div className="flex-1 h-px bg-zinc-800" />
+                <div className="flex-1 h-px bg-white/[0.07]" />
               </div>
 
               <button
@@ -310,7 +310,7 @@ export function LoginWall({ children }: { children: React.ReactNode }) {
           <div className="mt-6 flex items-center justify-center gap-1.5 text-xs text-zinc-600">
             <span className="flex -space-x-1.5">
               {["🟢","🔵","🟣"].map((c, i) => (
-                <span key={i} className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-zinc-800 border border-zinc-700/60 text-[9px]">
+                <span key={i} className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-zinc-800/60 border border-white/[0.07] text-[9px]">
                   {c}
                 </span>
               ))}

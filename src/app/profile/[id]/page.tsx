@@ -36,7 +36,7 @@ const SPORT_EMOJI: Record<string, string> = {
 
 function Stat({ label, value, sub, color }: { label: string; value: string; sub?: string; color?: string }) {
   return (
-    <div className="bg-zinc-800/60 rounded-xl p-3 text-center border border-zinc-700/40">
+    <div className="bg-zinc-800/60 rounded-xl p-3 text-center border border-white/[0.07]">
       <p className={`text-xl font-black ${color ?? "text-white"}`}>{value}</p>
       <p className="text-[10px] text-zinc-500 mt-0.5 uppercase">{label}</p>
       {sub && <p className="text-[9px] text-zinc-600 mt-0.5">{sub}</p>}
@@ -113,10 +113,10 @@ export default function PublicProfilePage() {
               alt={profile.name}
               width={80}
               height={80}
-              className="rounded-full border-2 border-zinc-700"
+              className="rounded-full border-2 border-white/[0.07]"
             />
           ) : (
-            <div className="w-20 h-20 rounded-full bg-zinc-800 border-2 border-zinc-700 flex items-center justify-center text-2xl font-black text-zinc-400">
+            <div className="w-20 h-20 rounded-full bg-zinc-800 border-2 border-white/[0.07] flex items-center justify-center text-2xl font-black text-zinc-400">
               {profile.name.charAt(0).toUpperCase()}
             </div>
           )}
@@ -149,8 +149,8 @@ export default function PublicProfilePage() {
 
       {/* Stats */}
       {profile.stats.total_settled > 0 ? (
-        <section className="mx-4 mb-6 rounded-2xl border border-zinc-800 bg-zinc-900/50 overflow-hidden">
-          <div className="px-5 pt-4 pb-3 border-b border-zinc-800/60">
+        <section className="mx-4 mb-6 rounded-2xl border border-white/[0.07] bg-zinc-900/50 overflow-hidden">
+          <div className="px-5 pt-4 pb-3 border-b border-white/[0.07]">
             <p className="text-sm font-black text-white">Estadísticas públicas</p>
             <p className="text-[10px] text-zinc-500 mt-0.5">Basadas en apuestas registradas y resueltas</p>
           </div>
@@ -189,15 +189,15 @@ export default function PublicProfilePage() {
           </div>
         </section>
       ) : (
-        <div className="mx-4 mb-6 rounded-2xl border border-zinc-800 bg-zinc-900/50 px-5 py-8 text-center">
+        <div className="mx-4 mb-6 rounded-2xl border border-white/[0.07] bg-zinc-900/50 px-5 py-8 text-center">
           <p className="text-sm font-bold text-zinc-500">Sin apuestas registradas aún</p>
           <p className="text-xs text-zinc-600 mt-1">Las estadísticas se actualizan conforme se resuelven apuestas.</p>
         </div>
       )}
 
       {/* Activity */}
-      <section className="mx-4 mb-6 rounded-2xl border border-zinc-800 bg-zinc-900/50 px-5 py-4 flex items-center gap-4">
-        <div className="grid place-items-center w-12 h-12 rounded-xl bg-zinc-800 border border-zinc-700/50 text-xl shrink-0">
+      <section className="mx-4 mb-6 rounded-2xl border border-white/[0.07] bg-zinc-900/50 px-5 py-4 flex items-center gap-4">
+        <div className="grid place-items-center w-12 h-12 rounded-xl bg-zinc-800 border border-white/[0.07]/50 text-xl shrink-0">
           🔥
         </div>
         <div>
@@ -211,7 +211,7 @@ export default function PublicProfilePage() {
       {/* CTA */}
       <div className="px-4">
         <Link href="/bets"
-          className="flex items-center justify-center gap-2 w-full py-3 rounded-xl bg-zinc-800 border border-zinc-700 text-sm font-bold text-white tap hover:bg-zinc-700 transition-colors">
+          className="flex items-center justify-center gap-2 w-full py-3 rounded-xl bg-zinc-800 border border-white/[0.07] text-sm font-bold text-white tap hover:bg-zinc-700 transition-colors">
           Registra tus propias apuestas →
         </Link>
       </div>

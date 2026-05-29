@@ -38,8 +38,8 @@ export function CookieConsent() {
 
   return (
     <div className="fixed bottom-0 left-0 right-0 z-[90] p-4 lg:p-6">
-      <div className="max-w-3xl mx-auto bg-zinc-900 border border-zinc-700 rounded-2xl
-        shadow-2xl overflow-hidden">
+      <div className="max-w-3xl mx-auto bg-zinc-900/95 border border-white/[0.07] rounded-2xl
+        shadow-2xl overflow-hidden backdrop-blur-xl">
         {!advanced ? (
           <div className="p-5 sm:p-6">
             <div className="flex items-start gap-4">
@@ -60,14 +60,14 @@ export function CookieConsent() {
               <button
                 onClick={() => setAdvanced(true)}
                 className="text-xs px-3 py-2 rounded-xl bg-zinc-800 text-zinc-400
-                  hover:text-white transition-colors border border-zinc-700"
+                  hover:text-white transition-colors border border-white/[0.07]"
               >
                 Gestionar preferencias
               </button>
               <button
                 onClick={acceptNecessary}
                 className="text-xs px-3 py-2 rounded-xl bg-zinc-800 text-zinc-300
-                  hover:bg-zinc-700 transition-colors border border-zinc-700"
+                  hover:bg-zinc-700 transition-colors border border-white/[0.07]"
               >
                 Solo necesarias
               </button>
@@ -108,7 +108,7 @@ export function CookieConsent() {
               <button
                 onClick={() => setAdvanced(false)}
                 className="text-xs px-3 py-2 rounded-xl bg-zinc-800 text-zinc-400
-                  hover:text-white border border-zinc-700 transition-colors"
+                  hover:text-white border border-white/[0.07] transition-colors"
               >
                 ← Volver
               </button>

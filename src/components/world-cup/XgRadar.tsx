@@ -18,7 +18,7 @@ interface Props {
 export function XgRadar({ home, away }: Props) {
   if (!home.xg || !away.xg) {
     return (
-      <div className="rounded-2xl border border-zinc-800/60 bg-zinc-900/60 px-5 py-8 text-center">
+      <div className="rounded-2xl border border-white/[0.07] bg-zinc-900/60 px-5 py-8 text-center">
         <p className="text-sm font-bold text-zinc-400">Datos xG insuficientes</p>
         <p className="text-[11px] text-zinc-600 mt-1">Necesitamos al menos 5 partidos recientes de ambas selecciones.</p>
       </div>
@@ -56,8 +56,8 @@ export function XgRadar({ home, away }: Props) {
   ]
 
   return (
-    <div className="rounded-2xl border border-zinc-800/60 bg-zinc-900/60 backdrop-blur-sm overflow-hidden shadow-xl">
-      <div className="bg-gradient-to-br from-amber-600/10 to-transparent px-5 py-3 border-b border-zinc-800/60">
+    <div className="rounded-2xl border border-white/[0.07] bg-zinc-900/60 backdrop-blur-sm overflow-hidden shadow-xl">
+      <div className="bg-gradient-to-br from-amber-600/10 to-transparent px-5 py-3 border-b border-white/[0.07]">
         <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-0.5">Comparativa xG · últimos 5 partidos</p>
         <p className="text-xs text-zinc-400">
           <span className="text-amber-300 font-black">{home.code}</span>

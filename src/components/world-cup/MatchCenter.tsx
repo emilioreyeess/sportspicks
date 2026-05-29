@@ -47,10 +47,10 @@ export function MatchCenterModal({ matchId, onClose }: Props) {
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-full sm:max-w-3xl max-h-[92vh] overflow-y-auto bg-zinc-950 sm:bg-zinc-950/95 backdrop-blur-xl border-t sm:border border-zinc-800/80 rounded-t-3xl sm:rounded-2xl animate-slide-up safe-bottom"
+        className="w-full sm:max-w-3xl max-h-[92vh] overflow-y-auto bg-zinc-950 sm:bg-zinc-950/95 backdrop-blur-xl border-t sm:border border-white/[0.07] rounded-t-3xl sm:rounded-2xl animate-slide-up safe-bottom"
       >
         {/* Header sticky */}
-        <div className="sticky top-0 z-10 bg-gradient-to-b from-zinc-950 to-zinc-950/90 backdrop-blur-md border-b border-zinc-800/60 px-4 py-3 flex items-center gap-3">
+        <div className="sticky top-0 z-10 bg-gradient-to-b from-zinc-950 to-zinc-950/90 backdrop-blur-md border-b border-white/[0.07] px-4 py-3 flex items-center gap-3">
           <span className="grid place-items-center w-9 h-9 rounded-xl bg-gradient-to-br from-amber-500/20 to-yellow-600/10 border border-amber-700/40 text-amber-400">
             <Icon name="worldcup" className="w-4.5 h-4.5" strokeWidth={2} />
           </span>
@@ -91,7 +91,7 @@ function MatchBody({ data }: { data: MatchCenter }) {
   return (
     <>
       {/* Versus header */}
-      <div className="rounded-2xl bg-gradient-to-br from-amber-600/15 via-zinc-900/80 to-cyan-600/12 border border-zinc-800/60 backdrop-blur-sm p-5">
+      <div className="rounded-2xl bg-gradient-to-br from-amber-600/15 via-zinc-900/80 to-cyan-600/12 border border-white/[0.07] backdrop-blur-sm p-5">
         <div className="flex items-center justify-between gap-4">
           <div className="flex-1 text-center">
             <div className="text-5xl mb-1.5">{home.team.flagEmoji}</div>
@@ -118,7 +118,7 @@ function MatchBody({ data }: { data: MatchCenter }) {
         </div>
 
         {/* Venue */}
-        <div className="mt-4 pt-3 border-t border-zinc-800/60 text-center">
+        <div className="mt-4 pt-3 border-t border-white/[0.07] text-center">
           <p className="text-[10px] text-zinc-600 font-bold uppercase tracking-widest">📍 {fixture.venue.stadium}</p>
           <p className="text-[10px] text-zinc-700 mt-0.5">{fixture.venue.city}, {fixture.venue.country}</p>
         </div>
@@ -182,14 +182,14 @@ function FormCard({ label, form, accent }: { label: string; form: MatchCenter["h
   const ACCENT = accent === "amber" ? "text-amber-300" : "text-cyan-300"
   if (!form) {
     return (
-      <div className="rounded-2xl border border-zinc-800/60 bg-zinc-900/60 p-4">
+      <div className="rounded-2xl border border-white/[0.07] bg-zinc-900/60 p-4">
         <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-1">{label} · Forma</p>
         <p className="text-xs text-zinc-500">Sin datos recientes</p>
       </div>
     )
   }
   return (
-    <div className="rounded-2xl border border-zinc-800/60 bg-zinc-900/60 p-4">
+    <div className="rounded-2xl border border-white/[0.07] bg-zinc-900/60 p-4">
       <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-2">{label} · Últimos 5</p>
       <div className="flex items-center gap-1.5 mb-3">
         {form.formString.split("").map((r, i) => (
@@ -223,7 +223,7 @@ function AbsencesCard({ team, absences, squad, accent }: {
 }) {
   const hasAbsences = absences.length > 0
   return (
-    <div className={`rounded-2xl border ${hasAbsences ? "border-rose-700/50 bg-rose-500/5" : "border-zinc-800/60 bg-zinc-900/60"} p-4`}>
+    <div className={`rounded-2xl border ${hasAbsences ? "border-rose-700/50 bg-rose-500/5" : "border-white/[0.07] bg-zinc-900/60"} p-4`}>
       <p className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-2">{team} · Bajas</p>
       {hasAbsences ? (
         <ul className="space-y-1.5">

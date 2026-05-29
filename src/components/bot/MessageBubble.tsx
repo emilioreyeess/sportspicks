@@ -20,7 +20,7 @@ export function MessageBubble({ message, isStreaming }: Props) {
             <img
               src={message.imageUrl}
               alt="Combinada subida"
-              className="rounded-xl max-h-48 object-contain ml-auto border border-zinc-700"
+              className="rounded-xl max-h-48 object-contain ml-auto border border-white/[0.07]"
             />
           )}
           {message.content && (
@@ -43,7 +43,7 @@ export function MessageBubble({ message, isStreaming }: Props) {
       </div>
 
       <div className="flex-1 min-w-0">
-        <div className="bg-zinc-900 border border-zinc-800 rounded-2xl rounded-tl-md px-4 py-3">
+        <div className="bg-zinc-900/60 border border-white/[0.07] rounded-2xl rounded-tl-md px-4 py-3">
           <MarkdownMessage content={message.content} />
           {isStreaming && (
             <span className="inline-block h-4 w-0.5 bg-emerald-400 animate-pulse ml-0.5 align-middle" />

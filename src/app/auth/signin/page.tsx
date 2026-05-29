@@ -98,8 +98,8 @@ export default function SignInPage() {
       <div className="hidden lg:flex lg:w-[45%] xl:w-[48%] relative overflow-hidden bg-zinc-950 flex-col justify-between p-12">
         <div className="pointer-events-none absolute inset-0">
           <div className="absolute -top-24 -left-24 w-96 h-96 bg-emerald-500/10 rounded-full blur-3xl" />
-          <div className="absolute top-1/2 -right-32 w-80 h-80 bg-cyan-500/8 rounded-full blur-3xl" />
-          <div className="absolute -bottom-24 left-1/4 w-72 h-72 bg-violet-500/8 rounded-full blur-3xl" />
+          <div className="absolute top-1/2 -right-32 w-80 h-80 bg-cyan-500/[0.08] rounded-full blur-3xl" />
+          <div className="absolute -bottom-24 left-1/4 w-72 h-72 bg-violet-500/[0.08] rounded-full blur-3xl" />
           <div className="absolute inset-0 opacity-[0.03]"
             style={{
               backgroundImage: "linear-gradient(rgba(255,255,255,0.5) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.5) 1px, transparent 1px)",
@@ -109,38 +109,38 @@ export default function SignInPage() {
         </div>
 
         <div className="relative">
-          <div className="flex items-center gap-3 mb-16">
-            <span className="grid place-items-center w-11 h-11 rounded-2xl bg-gradient-to-br from-emerald-500/30 to-cyan-500/20 border border-emerald-600/40 text-emerald-400 shadow-[0_0_20px_rgba(52,211,153,0.2)]">
-              <Icon name="value" className="w-6 h-6" strokeWidth={2} />
+          <div className="flex items-center gap-3 mb-14">
+            <span className="grid place-items-center w-10 h-10 rounded-[12px] bg-gradient-to-br from-emerald-500/22 to-cyan-500/14 border border-emerald-600/38 text-emerald-400 shadow-[0_0_16px_rgba(52,211,153,0.18)]">
+              <Icon name="value" className="w-5 h-5" strokeWidth={2.1} />
             </span>
             <div>
-              <p className="text-base font-black text-white tracking-tight">SportsPicks</p>
-              <p className="text-[11px] text-emerald-400/80 font-bold tracking-wide">Analytics Engine</p>
+              <p className="text-[15px] font-black text-white tracking-tight leading-none">SportsPicks</p>
+              <p className="text-[10px] text-emerald-400/75 font-semibold tracking-wide mt-0.5">Analytics Engine</p>
             </div>
           </div>
-          <h1 className="text-4xl xl:text-5xl font-black text-white tracking-tight leading-[1.08] mb-5">
+          <h1 className="text-[40px] xl:text-[48px] font-black text-white tracking-tight leading-[1.06] mb-4">
             Análisis deportivo<br />
             <span className="gradient-text-static">cuantitativo</span>
           </h1>
-          <p className="text-zinc-400 text-lg leading-relaxed max-w-xs">
-            Picks con edge real. Cuotas verificadas. Cero datos inventados.
+          <p className="text-zinc-400 text-[16px] leading-relaxed max-w-xs">
+            Picks con <strong className="text-zinc-200 font-semibold">edge real</strong>. Cuotas verificadas. Cero datos inventados.
           </p>
         </div>
 
-        <div className="relative space-y-3">
-          <p className="text-[11px] font-black uppercase tracking-widest text-zinc-600 mb-4">Incluido en tu cuenta</p>
+        <div className="relative space-y-2.5">
+          <p className="apple-eyebrow text-zinc-600 mb-3">Incluido en tu cuenta</p>
           {features.map((f) => (
             <div key={f.label} className="flex items-center gap-3">
-              <span className="grid place-items-center w-7 h-7 rounded-lg bg-emerald-500/12 border border-emerald-700/40 text-emerald-400 shrink-0">
+              <span className="grid place-items-center w-7 h-7 rounded-[8px] bg-emerald-500/10 border border-emerald-700/38 text-emerald-400 shrink-0">
                 <Icon name={f.icon} className="w-3.5 h-3.5" strokeWidth={2} />
               </span>
-              <span className="text-sm text-zinc-300">{f.label}</span>
+              <span className="text-[14px] text-zinc-300">{f.label}</span>
             </div>
           ))}
         </div>
 
         <div className="relative">
-          <div className="h-px bg-zinc-800/80 mb-5" />
+          <div className="h-px bg-white/[0.07] mb-4" />
           <p className="text-[11px] text-zinc-600">+18 · Solo información. Juega con responsabilidad.</p>
         </div>
       </div>
@@ -150,7 +150,7 @@ export default function SignInPage() {
         style={{ background: "#09090b" }}>
 
         <div className="pointer-events-none absolute inset-0 lg:hidden">
-          <div className="absolute -top-32 left-1/2 -translate-x-1/2 w-96 h-96 bg-emerald-500/8 rounded-full blur-3xl" />
+          <div className="absolute -top-32 left-1/2 -translate-x-1/2 w-96 h-96 bg-emerald-500/[0.08] rounded-full blur-3xl" />
           <div className="absolute bottom-0 right-0 w-64 h-64 bg-violet-500/6 rounded-full blur-3xl" />
         </div>
 
@@ -158,34 +158,35 @@ export default function SignInPage() {
 
           {/* Mobile-only logo */}
           <div className="lg:hidden text-center mb-8">
-            <span className="inline-grid place-items-center w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-500/25 to-cyan-500/20 border border-emerald-600/40 text-emerald-400 shadow-[0_0_24px_rgba(52,211,153,0.2)] mb-4">
+            <span className="inline-grid place-items-center w-14 h-14 rounded-[16px] bg-gradient-to-br from-emerald-500/22 to-cyan-500/14 border border-emerald-600/38 text-emerald-400 shadow-[0_0_24px_rgba(52,211,153,0.18)] mb-4">
               <Icon name="value" className="w-7 h-7" strokeWidth={2} />
             </span>
-            <h1 className="text-2xl font-black text-white tracking-tight">SportsPicks</h1>
-            <p className="text-sm text-zinc-500 mt-1">Análisis deportivo cuantitativo</p>
+            <h1 className="text-[24px] font-black text-white tracking-tight">SportsPicks</h1>
+            <p className="text-[14px] text-zinc-500 mt-1">Análisis deportivo cuantitativo</p>
           </div>
 
-          {/* Card */}
+          {/* Card — Apple sheet style */}
           <div
-            className="rounded-2xl border border-zinc-800/80 overflow-hidden"
+            className="rounded-[20px] border border-white/[0.09] overflow-hidden"
             style={{
-              background: "rgba(24,24,27,0.75)",
-              backdropFilter: "blur(20px) saturate(160%)",
-              boxShadow: "0 8px 40px -4px rgba(0,0,0,0.6), 0 4px 16px -4px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.04)",
+              background: "rgba(22,22,26,0.88)",
+              backdropFilter: "saturate(180%) blur(20px)",
+              WebkitBackdropFilter: "saturate(180%) blur(20px)",
+              boxShadow: "0 8px 40px rgba(0,0,0,0.55), inset 0 0.5px 0 rgba(255,255,255,0.06)",
             }}
           >
             {/* Card header + mode toggle */}
-            <div className="px-6 pt-6 pb-4 border-b border-zinc-800/70">
-              <h2 className="text-lg font-black text-white">
+            <div className="px-6 pt-6 pb-4 border-b border-white/[0.07]">
+              <h2 className="text-[17px] font-bold text-white">
                 {mode === "login" ? "Accede a la plataforma" : "Crear cuenta"}
               </h2>
-              <p className="text-sm text-zinc-500 mt-0.5">
+              <p className="text-[13px] text-zinc-500 mt-0.5">
                 {mode === "login" ? "¿No tienes cuenta?" : "¿Ya tienes cuenta?"}
                 {" "}
                 <button
                   type="button"
                   onClick={() => { setMode(m => m === "login" ? "register" : "login"); setFormError("") }}
-                  className="text-emerald-400 hover:text-emerald-300 font-bold transition-colors"
+                  className="text-emerald-400 hover:text-emerald-300 font-semibold transition-colors"
                 >
                   {mode === "login" ? "Regístrate" : "Inicia sesión"}
                 </button>
@@ -202,7 +203,7 @@ export default function SignInPage() {
                     value={name}
                     onChange={e => setName(e.target.value)}
                     required
-                    className="w-full h-11 px-3.5 rounded-xl bg-zinc-900 border border-zinc-700/60 text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-emerald-600/60 transition-colors"
+                    className="w-full h-11 px-3.5 rounded-[11px] bg-zinc-800/60 border border-white/[0.10] text-[14px] text-white placeholder-zinc-500 focus:outline-none focus:border-emerald-600/55 focus:shadow-[0_0_0_3px_rgba(52,211,153,0.10)] transition-all"
                   />
                 )}
                 <input
@@ -212,7 +213,7 @@ export default function SignInPage() {
                   onChange={e => setEmail(e.target.value)}
                   required
                   autoComplete="email"
-                  className="w-full h-11 px-3.5 rounded-xl bg-zinc-900 border border-zinc-700/60 text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-emerald-600/60 transition-colors"
+                  className="w-full h-11 px-3.5 rounded-[11px] bg-zinc-800/60 border border-white/[0.10] text-[14px] text-white placeholder-zinc-500 focus:outline-none focus:border-emerald-600/55 focus:shadow-[0_0_0_3px_rgba(52,211,153,0.10)] transition-all"
                 />
                 <input
                   type="password"
@@ -222,13 +223,13 @@ export default function SignInPage() {
                   required
                   minLength={8}
                   autoComplete={mode === "register" ? "new-password" : "current-password"}
-                  className="w-full h-11 px-3.5 rounded-xl bg-zinc-900 border border-zinc-700/60 text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-emerald-600/60 transition-colors"
+                  className="w-full h-11 px-3.5 rounded-[11px] bg-zinc-800/60 border border-white/[0.10] text-[14px] text-white placeholder-zinc-500 focus:outline-none focus:border-emerald-600/55 focus:shadow-[0_0_0_3px_rgba(52,211,153,0.10)] transition-all"
                 />
 
-                {/* TyC + Cookies checkboxes (mandatory for register) */}
+                {/* TyC + Cookies checkboxes */}
                 {mode === "register" && (
                   <div className="space-y-2 pt-1">
-                    <label className="flex items-start gap-2.5 cursor-pointer group">
+                    <label className="flex items-start gap-2.5 cursor-pointer">
                       <input
                         type="checkbox"
                         checked={tyc}
@@ -240,10 +241,10 @@ export default function SignInPage() {
                         <a href="/legal/terms" target="_blank" className="text-emerald-400 hover:text-emerald-300 underline underline-offset-2">
                           Términos y Condiciones
                         </a>{" "}
-                        de uso de la plataforma. <span className="text-red-400">*</span>
+                        de uso. <span className="text-rose-400">*</span>
                       </span>
                     </label>
-                    <label className="flex items-start gap-2.5 cursor-pointer group">
+                    <label className="flex items-start gap-2.5 cursor-pointer">
                       <input
                         type="checkbox"
                         checked={cookies}
@@ -254,15 +255,14 @@ export default function SignInPage() {
                         Acepto la{" "}
                         <a href="/legal/privacy" target="_blank" className="text-emerald-400 hover:text-emerald-300 underline underline-offset-2">
                           Política de Privacidad y Cookies
-                        </a>
-                        . <span className="text-red-400">*</span>
+                        </a>. <span className="text-rose-400">*</span>
                       </span>
                     </label>
                   </div>
                 )}
 
                 {formError && (
-                  <p className="text-xs text-red-400 bg-red-500/10 border border-red-500/20 rounded-lg px-3 py-2">
+                  <p className="text-[12px] text-rose-400 bg-rose-500/[0.08] border border-rose-500/20 rounded-[10px] px-3 py-2">
                     {formError}
                   </p>
                 )}
@@ -270,7 +270,7 @@ export default function SignInPage() {
                 <button
                   type="submit"
                   disabled={!canSubmitCredentials || !!loading}
-                  className="w-full h-11 rounded-xl text-sm font-bold bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white transition-all tap flex items-center justify-center gap-2"
+                  className="w-full h-11 rounded-[11px] text-[14px] font-semibold bg-emerald-500 hover:bg-emerald-400 disabled:opacity-40 text-zinc-950 transition-all tap flex items-center justify-center gap-2 shadow-[0_4px_16px_-4px_rgba(52,211,153,0.35)]"
                 >
                   {loading === "credentials" ? <><Spinner /><span>Procesando…</span></> : (
                     mode === "login" ? "Iniciar sesión" : "Crear cuenta"
@@ -281,9 +281,9 @@ export default function SignInPage() {
               {/* Divider */}
               {providers?.google && (
                 <div className="flex items-center gap-3 py-1">
-                  <div className="flex-1 h-px bg-zinc-800" />
+                  <div className="flex-1 h-px bg-white/[0.07]" />
                   <span className="text-[11px] text-zinc-600 font-medium">o continúa con</span>
-                  <div className="flex-1 h-px bg-zinc-800" />
+                  <div className="flex-1 h-px bg-white/[0.07]" />
                 </div>
               )}
 
@@ -292,11 +292,11 @@ export default function SignInPage() {
                 <button
                   onClick={() => handleSignIn("google")}
                   disabled={!!loading}
-                  className="group w-full flex items-center justify-center gap-3 h-11 px-4 rounded-xl text-sm font-bold transition-all tap disabled:opacity-60 hover:scale-[1.01]"
+                  className="group w-full flex items-center justify-center gap-3 h-11 px-4 rounded-[11px] text-[14px] font-semibold transition-all tap disabled:opacity-60"
                   style={{
                     background: loading === "google" ? "#e5e7eb" : "#ffffff",
                     color: "#111827",
-                    boxShadow: "0 1px 4px rgba(0,0,0,0.25)",
+                    boxShadow: "0 1px 4px rgba(0,0,0,0.22)",
                   }}
                 >
                   {loading === "google" ? <Spinner /> : <GoogleIcon />}
@@ -318,7 +318,7 @@ export default function SignInPage() {
             <span className="flex -space-x-1.5">
               {["🟢","🔵","🟣"].map((c, i) => (
                 <span key={i}
-                  className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-zinc-800 border border-zinc-700/60 text-[9px]">
+                  className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-zinc-800/60 border border-white/[0.07] text-[9px]">
                   {c}
                 </span>
               ))}

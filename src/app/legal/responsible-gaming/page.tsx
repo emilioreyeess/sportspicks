@@ -39,7 +39,7 @@ export default function ResponsibleGamingPage() {
             { country: "🇦🇷 Argentina", org: "CUDAP", phone: "0800 333 0800", url: "" },
             { country: "🌍 Internacional", org: "Gambling Therapy", phone: "", url: "https://www.gamblingtherapy.org" },
           ].map((r) => (
-            <div key={r.country} className="bg-zinc-900 border border-zinc-800 rounded-xl p-3">
+            <div key={r.country} className="bg-zinc-900/60 border border-white/[0.07] rounded-xl p-3">
               <p className="text-xs font-bold text-zinc-300">{r.country}</p>
               <p className="text-xs text-zinc-500 mt-0.5">{r.org}</p>
               {r.phone && <p className="text-sm font-bold text-emerald-400 mt-1">{r.phone}</p>}

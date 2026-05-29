@@ -32,7 +32,7 @@ const CONTENT: Record<Variant, { icon: string; text: string }> = {
 export function DisclaimerBanner({ variant }: { variant: Variant }) {
   const { icon, text } = CONTENT[variant]
   return (
-    <div className="flex items-start gap-2.5 bg-zinc-900 border border-zinc-800 rounded-xl px-4 py-3 text-[11px] text-zinc-500 leading-relaxed">
+    <div className="flex items-start gap-2.5 bg-zinc-900/60 border border-white/[0.07] rounded-xl px-4 py-3 text-[11px] text-zinc-500 leading-relaxed">
       <span className="shrink-0 mt-0.5">{icon}</span>
       <p>
         <strong className="text-zinc-400">Aviso informativo:</strong> {text}

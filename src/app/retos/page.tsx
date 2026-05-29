@@ -179,7 +179,7 @@ function ComboDisplay({ combo, color }: { combo: RetoCombo; color: ColorKey }) {
 
       {/* Each pick */}
       {combo.picks.map((pick, i) => (
-        <div key={i} className="rounded-2xl border border-zinc-800/80 bg-zinc-900/60 overflow-hidden">
+        <div key={i} className="rounded-2xl border border-white/[0.07] bg-zinc-900/60 overflow-hidden">
           <div className="px-4 py-3.5">
             <div className="flex items-start gap-3">
               {/* Leg number */}
@@ -232,7 +232,7 @@ function ComboDisplay({ combo, color }: { combo: RetoCombo; color: ColorKey }) {
           {/* Reasoning toggle */}
           <button
             onClick={() => setOpenIdx(openIdx === i ? null : i)}
-            className="w-full flex items-center justify-between px-4 py-2.5 border-t border-zinc-800/60 bg-zinc-950/40 tap text-left"
+            className="w-full flex items-center justify-between px-4 py-2.5 border-t border-white/[0.07] bg-zinc-950/40 tap text-left"
           >
             <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-600">
               Por qué la IA eligió este pick
@@ -245,7 +245,7 @@ function ComboDisplay({ combo, color }: { combo: RetoCombo; color: ColorKey }) {
           </button>
 
           {openIdx === i && (
-            <div className="px-4 py-3 border-t border-zinc-800/60 space-y-1.5">
+            <div className="px-4 py-3 border-t border-white/[0.07] space-y-1.5">
               {pick.reasons.map((r, ri) => (
                 <p key={ri} className="text-[11px] text-zinc-400 leading-snug">{r}</p>
               ))}
@@ -267,7 +267,7 @@ function SimulationTracker({ sim, color }: { sim: SimResult; color: ColorKey }) 
   const gain = Math.round(((end - start) / start) * 100)
 
   return (
-    <div className="mt-3 rounded-2xl border border-zinc-800/60 bg-zinc-950/50 p-3.5">
+    <div className="mt-3 rounded-2xl border border-white/[0.07] bg-zinc-950/50 p-3.5">
       <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 mb-2">
         Tu racha actual · {sim.streakDays} día{sim.streakDays !== 1 ? "s" : ""} consecutivo{sim.streakDays !== 1 ? "s" : ""}
       </p>
@@ -305,7 +305,7 @@ function YesterdaySection({
   const isPending = entry.result === "PENDING"
 
   return (
-    <div className="mt-3 rounded-2xl border border-zinc-800/60 bg-zinc-950/50 p-3.5">
+    <div className="mt-3 rounded-2xl border border-white/[0.07] bg-zinc-950/50 p-3.5">
       <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 mb-2">Pick de ayer</p>
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
@@ -427,7 +427,7 @@ function CustomRetoCreator() {
                 className={`flex-1 py-1.5 rounded-lg border text-xs font-black transition-all ${
                   Math.abs(targetOdd - p.value) < 0.01
                     ? "border-violet-600/60 bg-violet-500/20 text-violet-300"
-                    : "border-zinc-800 text-zinc-600 hover:border-zinc-700 hover:text-zinc-400"
+                    : "border-white/[0.07] text-zinc-600 hover:border-white/[0.12] hover:text-zinc-400"
                 }`}>
                 {p.label}
               </button>
@@ -445,7 +445,7 @@ function CustomRetoCreator() {
                 className={`py-3 rounded-xl border text-sm font-black transition-all ${
                   nLegs === n
                     ? "border-violet-600/60 bg-violet-500/15 text-violet-300"
-                    : "border-zinc-800/80 text-zinc-500 hover:border-zinc-700 hover:text-zinc-300"
+                    : "border-white/[0.07] text-zinc-500 hover:border-white/[0.12] hover:text-zinc-300"
                 }`}>
                 {n === 1 ? "Simple" : `Combinada ×${n}`}
                 <p className="text-[10px] font-medium mt-0.5 opacity-60">
@@ -491,7 +491,7 @@ function CustomRetoCreator() {
             <ComboDisplay combo={combo} color="violet" />
             <button
               onClick={() => setCombo(null)}
-              className="mt-3 w-full py-2 rounded-xl border border-zinc-800 text-xs text-zinc-500 hover:text-zinc-300 hover:border-zinc-700 transition-colors tap font-medium">
+              className="mt-3 w-full py-2 rounded-xl border border-white/[0.07] text-xs text-zinc-500 hover:text-zinc-300 hover:border-white/[0.12] transition-colors tap font-medium">
               Generar otro
             </button>
           </div>
@@ -551,7 +551,7 @@ function RetoCard({
       </div>
 
       {/* ── HERO: Benefit ─────────────────────────────────────────────────── */}
-      <div className={`mx-5 mt-4 rounded-2xl overflow-hidden bg-gradient-to-br ${col.heroBg} border border-white/5 px-5 py-4`}>
+      <div className={`mx-5 mt-4 rounded-2xl overflow-hidden bg-gradient-to-br ${col.heroBg} border border-white/[0.07] px-5 py-4`}>
         <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">
           💰 Simulación hipotética · {challenge.days} días
         </p>
@@ -581,7 +581,7 @@ function RetoCard({
               <ComboDisplay combo={challenge.daily_combo} color={color} />
             </div>
           ) : (
-            <div className="rounded-2xl border border-zinc-800/60 bg-zinc-950/50 px-4 py-3.5 flex items-center gap-3">
+            <div className="rounded-2xl border border-white/[0.07] bg-zinc-950/50 px-4 py-3.5 flex items-center gap-3">
               <span className="text-xl shrink-0">🔒</span>
               <div>
                 <p className="text-xs font-bold text-zinc-300">
@@ -594,7 +594,7 @@ function RetoCard({
             </div>
           )
         ) : (
-          <div className="rounded-2xl border border-zinc-800/60 bg-zinc-950/50 px-4 py-3.5">
+          <div className="rounded-2xl border border-white/[0.07] bg-zinc-950/50 px-4 py-3.5">
             <p className="text-xs font-semibold text-zinc-500">Sin picks válidos para hoy.</p>
             <p className="text-[11px] text-zinc-600 mt-0.5">
               El modelo no encontró combinaciones dentro del rango de este reto hoy.
@@ -621,7 +621,7 @@ function RetoCard({
                 {wins}✓ / {total - wins}✗ en {total} días
               </span>
             </div>
-            <div className="h-1.5 bg-zinc-800 rounded-full overflow-hidden">
+            <div className="h-1.5 bg-white/[0.06] rounded-full overflow-hidden">
               <div
                 className={`h-full ${col.bar} rounded-full transition-all`}
                 style={{ width: `${total > 0 ? Math.round((wins / total) * 100) : 0}%` }}
@@ -753,7 +753,7 @@ export default function RetosPage() {
       {milestones.length > 0 && (
         <div className="mb-5 space-y-2">
           {milestones.map((m, i) => (
-            <div key={i} className="flex items-center gap-3 rounded-2xl border border-zinc-800 bg-zinc-900/60 px-4 py-2.5">
+            <div key={i} className="flex items-center gap-3 rounded-2xl border border-white/[0.07] bg-zinc-900/60 px-4 py-2.5">
               <p className="text-sm text-zinc-300">{m}</p>
             </div>
           ))}
@@ -761,7 +761,7 @@ export default function RetosPage() {
       )}
 
       {!isPremium && (
-        <div className="mb-5 flex items-center gap-3 rounded-2xl border border-emerald-800/50 bg-emerald-500/5 px-4 py-3">
+        <div className="mb-5 flex items-center gap-3 rounded-2xl border border-emerald-700/40 bg-emerald-500/[0.05] px-4 py-3">
           <Icon name="crown" className="w-5 h-5 text-emerald-400 shrink-0" strokeWidth={2} />
           <div className="flex-1 min-w-0">
             <p className="text-sm font-black text-zinc-200">Los retos requieren Premium ⭐ o Pro 👑</p>
@@ -774,7 +774,7 @@ export default function RetosPage() {
       )}
 
       {isPremium && !isPro && (
-        <div className="mb-5 flex items-center gap-3 rounded-2xl border border-violet-800/50 bg-violet-500/5 px-4 py-3">
+        <div className="mb-5 flex items-center gap-3 rounded-2xl border border-violet-700/40 bg-violet-500/[0.05] px-4 py-3">
           <span className="text-xl shrink-0">👑</span>
           <div className="flex-1 min-w-0">
             <p className="text-sm font-black text-zinc-200">Reto PRO exclusivo para usuarios Pro 👑</p>

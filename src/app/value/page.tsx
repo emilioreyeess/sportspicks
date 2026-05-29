@@ -42,7 +42,7 @@ function ResultBadge({ result }: { result: ResultType }) {
     )
   if (result === "VOID")
     return (
-      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-zinc-500/20 text-zinc-400 border border-zinc-700/60">
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-zinc-500/20 text-zinc-400 border border-white/[0.07]">
         — VOID
       </span>
     )
@@ -86,10 +86,10 @@ function generateLossAnalysis(pick: YesterdayPick): string | null {
 
 function YesterdayPickCard({ pick, onClick }: { pick: YesterdayPick; onClick?: () => void }) {
   const resultBorder =
-    pick.result === "WIN"  ? "border-emerald-700/40 bg-emerald-900/10" :
-    pick.result === "LOSS" ? "border-red-700/40 bg-red-900/10" :
-    pick.result === "VOID" ? "border-zinc-700/40" :
-    "border-zinc-800"
+    pick.result === "WIN"  ? "border-emerald-700/40 bg-emerald-900/[0.12]" :
+    pick.result === "LOSS" ? "border-rose-700/40 bg-rose-900/[0.12]" :
+    pick.result === "VOID" ? "border-white/[0.07]" :
+    "border-white/[0.07]"
 
   return (
     <div
@@ -120,7 +120,7 @@ function YesterdayPickCard({ pick, onClick }: { pick: YesterdayPick; onClick?: (
       {/* Selection */}
       <div className="flex items-center gap-2 flex-wrap">
         <span className="text-xs text-zinc-500">{pick.market}</span>
-        <span className="px-2 py-0.5 rounded-md bg-zinc-800 text-xs font-semibold text-zinc-200">
+        <span className="px-2 py-0.5 rounded-[7px] bg-zinc-800/60 border border-white/[0.07] text-xs font-semibold text-zinc-200">
           {pick.selection}
         </span>
         {pick.best_odd && (
@@ -141,7 +141,7 @@ function YesterdayPickCard({ pick, onClick }: { pick: YesterdayPick; onClick?: (
       {pick.result === "LOSS" && (() => {
         const analysis = generateLossAnalysis(pick)
         return analysis ? (
-          <div className="rounded-lg bg-zinc-900/80 border border-zinc-800 px-3 py-2 mt-1">
+          <div className="rounded-[10px] bg-zinc-900/80 border border-white/[0.07] px-3 py-2 mt-1">
             <p className="text-[11px] text-zinc-500 leading-relaxed">
               <span className="text-zinc-400 font-semibold">Análisis: </span>{analysis}
             </p>
@@ -149,7 +149,7 @@ function YesterdayPickCard({ pick, onClick }: { pick: YesterdayPick; onClick?: (
         ) : null
       })()}
       {pick.result === "WIN" && (pick.value_edge ?? 0) >= 5 && (
-        <div className="rounded-lg bg-emerald-900/20 border border-emerald-800/30 px-3 py-2 mt-1">
+        <div className="rounded-[10px] bg-emerald-900/20 border border-emerald-800/30 px-3 py-2 mt-1">
           <p className="text-[11px] text-emerald-400/80 leading-relaxed">
             ✓ Pick de alto valor confirmado — edge +{(pick.value_edge ?? 0).toFixed(1)}% materializado.
           </p>
@@ -305,7 +305,7 @@ export default function ValuePage() {
         subtitle="Solo publicamos un pick cuando el modelo supera a la cuota real con respaldo de contexto." />
 
       {/* ¿Qué es un value pick? */}
-      <div className="mb-5 rounded-2xl border border-zinc-800 bg-zinc-900/60 p-4 sm:p-5 space-y-3">
+      <div className="mb-5 rounded-2xl border border-white/[0.07] bg-zinc-900/60 p-4 sm:p-5 space-y-3">
         <div className="flex items-center gap-2">
           <Icon name="value" className="w-4.5 h-4.5 text-emerald-400 shrink-0" strokeWidth={2} />
           <p className="text-sm font-black text-white">¿Qué es un value pick?</p>
@@ -319,7 +319,7 @@ export default function ValuePage() {
           Pueden incluir resultados con riesgo medio o alto. Un pick puede tener valor aunque el
           favorito no gane ese día. La clave es el <span className="text-white font-semibold">edge acumulado</span>, no el resultado individual.
         </p>
-        <div className="flex items-start gap-2 rounded-xl border border-zinc-700/60 bg-zinc-800/50 px-3.5 py-2.5">
+        <div className="flex items-start gap-2 rounded-xl border border-white/[0.08] bg-zinc-800/50 px-3.5 py-2.5">
           <Icon name="shield" className="w-4 h-4 text-zinc-500 shrink-0 mt-0.5" strokeWidth={2} />
           <p className="text-xs text-zinc-500 leading-relaxed">
             Recomendamos jugarlos de forma <span className="text-zinc-300 font-semibold">individual</span> con stake bajo.
@@ -329,14 +329,14 @@ export default function ValuePage() {
       </div>
 
       {/* Tabs Hoy / Ayer */}
-      <div className="flex gap-1 p-1 rounded-xl bg-zinc-900 border border-zinc-800 mb-5">
+      <div className="flex gap-1 p-1 rounded-xl bg-zinc-900/80 border border-white/[0.07] mb-5">
         {(["hoy", "ayer"] as const).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
             className={`flex-1 py-2 rounded-lg text-sm font-bold transition-all capitalize tap ${
               tab === t
-                ? "bg-zinc-800 text-white shadow"
+                ? "bg-white/[0.09] text-white shadow"
                 : "text-zinc-500 hover:text-zinc-300"
             }`}
           >
@@ -349,7 +349,7 @@ export default function ValuePage() {
       {tab === "hoy" && (
         <>
           {note && (
-            <div className="my-4 flex items-start gap-2 rounded-xl border border-amber-800/50 bg-amber-500/8 px-4 py-3">
+            <div className="my-4 flex items-start gap-2 rounded-xl border border-amber-700/40 bg-amber-500/[0.08] px-4 py-3">
               <Icon name="shield" className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
               <p className="text-sm text-amber-200/90 leading-snug">{note}</p>
             </div>
@@ -368,7 +368,7 @@ export default function ValuePage() {
               {TIERS.map((t) => (
                 <button key={t.value} onClick={() => setTier(t.value)}
                   className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-bold border tracking-wide transition-all tap ${
-                    tier === t.value ? t.color : "bg-zinc-900 text-zinc-500 border-zinc-800 hover:text-zinc-300"
+                    tier === t.value ? t.color : "bg-zinc-900/80 text-zinc-500 border-white/[0.07] hover:text-zinc-300"
                   }`}>
                   {t.label}
                 </button>
@@ -376,11 +376,11 @@ export default function ValuePage() {
             </div>
             <div className="flex gap-2">
               <select value={market} onChange={(e) => setMarket(e.target.value)}
-                className="flex-1 bg-zinc-900 border border-zinc-800 text-sm text-zinc-300 rounded-xl px-3 py-2.5 outline-none">
+                className="flex-1 bg-zinc-800/40 border border-white/[0.08] text-sm text-zinc-300 rounded-xl px-3 py-2.5 outline-none">
                 {MARKETS.map((m) => <option key={m}>{m}</option>)}
               </select>
               <select value={sortBy} onChange={(e) => setSortBy(e.target.value as any)}
-                className="flex-1 bg-zinc-900 border border-zinc-800 text-sm text-zinc-300 rounded-xl px-3 py-2.5 outline-none">
+                className="flex-1 bg-zinc-800/40 border border-white/[0.08] text-sm text-zinc-300 rounded-xl px-3 py-2.5 outline-none">
                 <option value="quality">Calidad</option>
                 <option value="edge">Edge</option>
                 <option value="odd">Cuota</option>

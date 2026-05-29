@@ -242,6 +242,10 @@ input[type="range"]::-webkit-slider-thumb:hover {
   from { transform: rotate(0deg); }
   to   { transform: rotate(360deg); }
 }
+@keyframes enter-right {
+  from { opacity: 0; transform: translateX(100%); }
+  to   { opacity: 1; transform: translateX(0); }
+}
 
 /* Animation utilities */
 .animate-fade-in    { animation: fade-in    0.35s cubic-bezier(0.22, 1, 0.36, 1) both; }
@@ -252,6 +256,7 @@ input[type="range"]::-webkit-slider-thumb:hover {
 .animate-count-up   { animation: count-up   0.5s  cubic-bezier(0.22, 1, 0.36, 1) both; }
 .animate-border-glow{ animation: border-glow 2s   ease-in-out infinite; }
 .animate-spin-slow  { animation: spin-slow  8s    linear infinite; }
+.animate-enter-right{ animation: enter-right 0.30s cubic-bezier(0.22, 1, 0.36, 1) both; }
 
 /* Stagger — applies fade-in with sequential delays on children */
 .stagger > * { animation: fade-in 0.4s cubic-bezier(0.22, 1, 0.36, 1) both; }
@@ -302,34 +307,55 @@ input[type="range"]::-webkit-slider-thumb:hover {
    ═══════════════════════════════════════════════════════════════════════════ */
 .glass {
   background: rgba(24, 24, 27, 0.72);
-  backdrop-filter: blur(14px) saturate(160%);
-  -webkit-backdrop-filter: blur(14px) saturate(160%);
+  backdrop-filter: saturate(180%) blur(16px);
+  -webkit-backdrop-filter: saturate(180%) blur(16px);
 }
 .glass-dark {
-  background: rgba(9, 9, 11, 0.85);
-  backdrop-filter: blur(20px) saturate(180%);
-  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  background: rgba(9, 9, 11, 0.88);
+  backdrop-filter: saturate(200%) blur(24px);
+  -webkit-backdrop-filter: saturate(200%) blur(24px);
 }
 .glass-surface {
-  background: rgba(24, 24, 27, 0.80);
-  backdrop-filter: blur(20px) saturate(160%);
-  -webkit-backdrop-filter: blur(20px) saturate(160%);
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: rgba(24, 24, 27, 0.82);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  border: 0.5px solid rgba(255, 255, 255, 0.08);
+}
+
+/* Apple HIG nav chrome — 200% saturate before blur, Apple's exact formula */
+.apple-chrome {
+  background: rgba(10, 10, 12, 0.86);
+  backdrop-filter: saturate(200%) blur(24px);
+  -webkit-backdrop-filter: saturate(200%) blur(24px);
+  border-color: rgba(255, 255, 255, 0.09);
+}
+/* iOS tab bar surface */
+.ios-tab-bar {
+  background: rgba(10, 10, 12, 0.90);
+  backdrop-filter: saturate(200%) blur(30px);
+  -webkit-backdrop-filter: saturate(200%) blur(30px);
 }
 
 [data-theme="light"] .glass {
-  background: rgba(255, 255, 255, 0.72);
-  backdrop-filter: blur(14px) saturate(140%);
-  -webkit-backdrop-filter: blur(14px) saturate(140%);
+  background: rgba(255, 255, 255, 0.74);
+  backdrop-filter: saturate(180%) blur(16px);
+  -webkit-backdrop-filter: saturate(180%) blur(16px);
 }
 [data-theme="light"] .glass-dark {
-  background: rgba(249, 249, 251, 0.92);
-  backdrop-filter: blur(20px) saturate(160%);
-  -webkit-backdrop-filter: blur(20px) saturate(160%);
+  background: rgba(250, 250, 252, 0.92);
+  backdrop-filter: saturate(200%) blur(24px);
+  -webkit-backdrop-filter: saturate(200%) blur(24px);
 }
 [data-theme="light"] .glass-surface {
-  background: rgba(255, 255, 255, 0.88);
-  border: 1px solid rgba(0, 0, 0, 0.06);
+  background: rgba(255, 255, 255, 0.90);
+  border: 0.5px solid rgba(0, 0, 0, 0.08);
+}
+[data-theme="light"] .apple-chrome {
+  background: rgba(248, 248, 250, 0.90);
+  border-color: rgba(0, 0, 0, 0.12);
+}
+[data-theme="light"] .ios-tab-bar {
+  background: rgba(248, 248, 250, 0.94);
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
@@ -347,19 +373,64 @@ input[type="range"]::-webkit-slider-thumb:hover {
    ═══════════════════════════════════════════════════════════════════════════ */
 /* Base premium card — glass + depth shadow + inset highlight */
 .card-premium {
-  background: rgba(24, 24, 27, 0.75);
-  backdrop-filter: blur(12px) saturate(150%);
-  -webkit-backdrop-filter: blur(12px) saturate(150%);
+  background: rgba(24, 24, 27, 0.78);
+  backdrop-filter: saturate(180%) blur(14px);
+  -webkit-backdrop-filter: saturate(180%) blur(14px);
   box-shadow:
     var(--shadow-md),
-    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+    inset 0 0.5px 0 rgba(255, 255, 255, 0.06);
 }
 [data-theme="light"] .card-premium {
-  background: rgba(255, 255, 255, 0.88);
+  background: rgba(255, 255, 255, 0.90);
   box-shadow:
     var(--shadow-md),
-    inset 0 1px 0 rgba(255, 255, 255, 0.80);
+    inset 0 0.5px 0 rgba(255, 255, 255, 0.85);
 }
+
+/* Apple HIG card — clean, elevated surface */
+.apple-card {
+  background: rgba(28, 28, 30, 0.90);
+  border-radius: 16px;
+  border: 0.5px solid rgba(255, 255, 255, 0.08);
+  box-shadow:
+    0 2px 16px rgba(0,0,0,0.36),
+    inset 0 0.5px 0 rgba(255,255,255,0.06);
+}
+[data-theme="light"] .apple-card {
+  background: #ffffff;
+  border: 0.5px solid rgba(0,0,0,0.08);
+  box-shadow: 0 2px 12px rgba(0,0,0,0.08), 0 0 0 0.5px rgba(0,0,0,0.04);
+}
+
+/* iOS grouped list container */
+.ios-list-group {
+  background: var(--surface);
+  border-radius: 12px;
+  overflow: hidden;
+  border: 0.5px solid rgba(255, 255, 255, 0.06);
+  box-shadow: 0 2px 8px rgba(0,0,0,0.22);
+}
+.ios-list-item {
+  padding: 11px 16px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  border-bottom: 0.5px solid rgba(255,255,255,0.05);
+  transition: background-color 0.15s ease;
+}
+.ios-list-item:last-child { border-bottom: none; }
+.ios-list-item:active,
+.ios-list-item:hover { background: rgba(255,255,255,0.03); }
+
+[data-theme="light"] .ios-list-group {
+  background: #fff;
+  border: 0.5px solid rgba(0,0,0,0.08);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+[data-theme="light"] .ios-list-item {
+  border-bottom: 0.5px solid rgba(0,0,0,0.07);
+}
+[data-theme="light"] .ios-list-item:hover { background: rgba(0,0,0,0.02); }
 
 /* Hover glow — attach to any .card-glow element */
 .card-glow {
@@ -452,7 +523,7 @@ input[type="range"]::-webkit-slider-thumb:hover {
 /* ═══════════════════════════════════════════════════════════════════════════
    NAVIGATION INDICATORS
    ═══════════════════════════════════════════════════════════════════════════ */
-/* Bottom nav item active — thin top glow line */
+/* Bottom nav item active — top glow line (legacy, kept for backward compat) */
 .nav-indicator { position: relative; }
 .nav-indicator::before {
   content: "";
@@ -464,15 +535,67 @@ input[type="range"]::-webkit-slider-thumb:hover {
   box-shadow: 0 0 8px rgba(52, 211, 153, 0.6);
 }
 
-/* Sidebar active pill */
-.nav-active-pill {
-  background: linear-gradient(90deg,
-    rgba(52,211,153,0.13) 0%,
-    rgba(52,211,153,0.03) 100%
-  );
-  border-left: 2px solid rgba(52,211,153,0.6);
-  box-shadow: inset 0 0 12px rgba(52,211,153,0.04);
+/* iOS tab pill — active state bubble behind icon+label */
+.ios-tab-active {
+  background: rgba(52, 211, 153, 0.12);
+  border-radius: 18px;
+  transition: background 0.2s ease;
 }
+.ios-tab-active-amber { background: rgba(251, 191, 36, 0.12); border-radius: 18px; }
+.ios-tab-active-rose  { background: rgba(251, 113, 133, 0.12); border-radius: 18px; }
+
+/* Sidebar active pill — macOS Sonoma/Ventura style */
+.nav-active-pill {
+  background: rgba(52,211,153,0.10);
+  border-radius: 8px;
+  box-shadow: none;
+}
+[data-theme="light"] .nav-active-pill {
+  background: rgba(5,150,105,0.10);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   APPLE HIG BUTTONS
+   ═══════════════════════════════════════════════════════════════════════════ */
+/* Primary filled button */
+.apple-btn-primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  background: var(--accent);
+  color: #09090b;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+  padding: 0.8125rem 1.5rem;
+  border-radius: 14px;
+  transition: opacity 0.15s ease, transform 0.12s cubic-bezier(0.22,1,0.36,1);
+  -webkit-tap-highlight-color: transparent;
+  box-shadow: 0 4px 16px -4px rgba(52,211,153,0.40);
+}
+.apple-btn-primary:hover  { opacity: 0.92; }
+.apple-btn-primary:active { transform: scale(0.98); opacity: 0.85; }
+
+/* Secondary tinted button */
+.apple-btn-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  background: var(--surface-2);
+  color: var(--text-primary);
+  font-size: 0.9375rem;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  padding: 0.8125rem 1.5rem;
+  border-radius: 14px;
+  border: 0.5px solid var(--border-2);
+  transition: background-color 0.15s ease, transform 0.12s cubic-bezier(0.22,1,0.36,1);
+  -webkit-tap-highlight-color: transparent;
+}
+.apple-btn-secondary:hover  { background: var(--surface-3); }
+.apple-btn-secondary:active { transform: scale(0.98); }
 
 /* ═══════════════════════════════════════════════════════════════════════════
    FORM ELEMENTS
@@ -525,6 +648,28 @@ input[type="range"]::-webkit-slider-thumb:hover {
   letter-spacing: 0.1em;
   color: var(--text-faint);
 }
+
+/* Apple HIG — SF Pro style section header (more readable than section-label) */
+.apple-section {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--text-secondary);
+  margin-bottom: 8px;
+}
+
+/* Apple HIG — display scale */
+.apple-display   { font-size: 2.125rem; font-weight: 800; letter-spacing: -0.03em; line-height: 1.05; }
+.apple-title-1   { font-size: 1.75rem;  font-weight: 800; letter-spacing: -0.025em; line-height: 1.1; }
+.apple-title-2   { font-size: 1.375rem; font-weight: 700; letter-spacing: -0.02em; line-height: 1.2; }
+.apple-headline  { font-size: 1.0625rem; font-weight: 600; letter-spacing: -0.01em; line-height: 1.3; }
+.apple-body      { font-size: 1.0625rem; font-weight: 400; letter-spacing: -0.01em; line-height: 1.5; }
+.apple-callout   { font-size: 1rem;     font-weight: 400; letter-spacing: -0.01em; line-height: 1.5; }
+.apple-subhead   { font-size: 0.9375rem; font-weight: 400; letter-spacing: -0.008em; line-height: 1.45; }
+.apple-footnote  { font-size: 0.8125rem; font-weight: 400; letter-spacing: -0.003em; line-height: 1.45; }
+.apple-caption   { font-size: 0.75rem;  font-weight: 400; letter-spacing: 0; line-height: 1.4; }
+.apple-caption2  { font-size: 0.6875rem; font-weight: 400; letter-spacing: 0.01em; line-height: 1.35; }
+.apple-eyebrow   { font-size: 0.6875rem; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; }
 
 /* ═══════════════════════════════════════════════════════════════════════════
    REDUCED MOTION

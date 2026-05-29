@@ -15,7 +15,7 @@ export default function GdprPage() {
             { right: "Limitación", desc: "Solicita que limitemos el tratamiento de tus datos" },
             { right: "Oposición", desc: "Oponte al tratamiento por interés legítimo" },
           ].map((r) => (
-            <div key={r.right} className="bg-zinc-900 border border-zinc-800 rounded-xl p-3">
+            <div key={r.right} className="bg-zinc-900/60 border border-white/[0.07] rounded-xl p-3">
               <p className="text-sm font-bold text-emerald-400">{r.right}</p>
               <p className="text-xs text-zinc-500 mt-0.5">{r.desc}</p>
             </div>

@@ -43,7 +43,7 @@ function ForumPost({ msg, isMe }: { msg: ForumMessage; isMe: boolean }) {
   return (
     <div className={`flex gap-3 ${isMe ? "flex-row-reverse" : ""}`}>
       {/* Avatar */}
-      <div className="w-8 h-8 rounded-full bg-zinc-800 border border-zinc-700/50 grid place-items-center text-xs font-bold shrink-0 overflow-hidden mt-0.5">
+      <div className="w-8 h-8 rounded-full bg-zinc-800 border border-white/[0.07] grid place-items-center text-xs font-bold shrink-0 overflow-hidden mt-0.5">
         {msg.sender_avatar
           ? <img src={msg.sender_avatar} className="w-full h-full object-cover" alt="" />
           : initial}
@@ -63,7 +63,7 @@ function ForumPost({ msg, isMe }: { msg: ForumMessage; isMe: boolean }) {
           <img
             src={msg.image_url}
             alt="imagen"
-            className="max-w-[220px] rounded-xl border border-zinc-700/50 cursor-pointer"
+            className="max-w-[220px] rounded-xl border border-white/[0.07] cursor-pointer"
             onClick={() => window.open(msg.image_url!, "_blank")}
           />
         )}
@@ -147,7 +147,7 @@ export default function ForumPage() {
   return (
     <div className="flex flex-col h-[calc(100dvh-4rem)] bg-zinc-950">
       {/* Header */}
-      <div className="shrink-0 px-4 py-3 border-b border-zinc-800/60 bg-zinc-950/90 backdrop-blur-sm">
+      <div className="shrink-0 px-4 py-3 border-b border-white/[0.07] bg-zinc-950/90 backdrop-blur-sm">
         <div className="flex items-center gap-2">
           <Icon name="groups" className="w-5 h-5 text-emerald-400" strokeWidth={2} />
           <div>
@@ -179,17 +179,17 @@ export default function ForumPage() {
 
       {/* Pending image preview */}
       {pendingImg && (
-        <div className="shrink-0 px-4 py-2 border-t border-zinc-800/40 bg-zinc-950/80 flex items-center gap-2">
-          <img src={pendingImg} alt="" className="h-14 w-14 rounded-lg object-cover border border-zinc-700" />
+        <div className="shrink-0 px-4 py-2 border-t border-white/[0.07] bg-zinc-950/80 flex items-center gap-2">
+          <img src={pendingImg} alt="" className="h-14 w-14 rounded-lg object-cover border border-white/[0.07]" />
           <button onClick={() => setPendingImg(null)} className="text-xs text-red-400 hover:text-red-300">✕ Quitar</button>
         </div>
       )}
 
       {/* Input */}
-      <div className="shrink-0 px-4 py-3 border-t border-zinc-800/60 bg-zinc-950/90 backdrop-blur-sm pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+      <div className="shrink-0 px-4 py-3 border-t border-white/[0.07] bg-zinc-950/90 backdrop-blur-sm pb-[max(0.75rem,env(safe-area-inset-bottom))]">
         <div className="flex items-center gap-2">
           {/* Image upload */}
-          <label className={`shrink-0 tap p-2.5 rounded-xl border border-zinc-800 hover:border-zinc-700 text-zinc-500 hover:text-zinc-300 transition-all cursor-pointer ${uploadingImg ? "opacity-40 pointer-events-none" : ""}`}>
+          <label className={`shrink-0 tap p-2.5 rounded-xl border border-white/[0.07] hover:border-white/[0.14] text-zinc-500 hover:text-zinc-300 transition-all cursor-pointer ${uploadingImg ? "opacity-40 pointer-events-none" : ""}`}>
             <input type="file" accept="image/*" className="sr-only" onChange={handleImageUpload} disabled={uploadingImg} />
             {uploadingImg
               ? <span className="inline-block w-4 h-4 rounded-full border-2 border-zinc-500 border-t-transparent animate-spin" />
@@ -202,7 +202,7 @@ export default function ForumPage() {
             onKeyDown={e => e.key === "Enter" && !e.shiftKey && handleSend()}
             placeholder="Escribe algo al foro…"
             maxLength={1000}
-            className="flex-1 bg-zinc-900 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-zinc-700 resize-none"
+            className="flex-1 bg-zinc-800/40 border border-white/[0.08] rounded-xl px-3.5 py-2.5 text-sm text-white placeholder:text-zinc-600 focus:outline-none focus:border-white/[0.16] resize-none"
           />
           <button
             onClick={handleSend}

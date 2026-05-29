@@ -15,7 +15,7 @@ export function MarkdownMessage({ content }: { content: string }) {
 
     // Horizontal rule
     if (/^---+$/.test(line.trim())) {
-      elements.push(<hr key={i} className="border-zinc-700 my-3" />)
+      elements.push(<hr key={i} className="border-white/[0.07] my-3" />)
       i++
       continue
     }

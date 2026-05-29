@@ -136,7 +136,7 @@ export function SafariInstallBanner() {
           <button
             id="sp-copy-url-btn"
             onClick={copyUrl}
-            className="w-full py-2.5 rounded-xl bg-zinc-800 text-sm text-zinc-200 font-semibold border border-zinc-700 active:scale-[0.98] transition-all"
+            className="w-full py-2.5 rounded-xl bg-zinc-800/60 text-sm text-zinc-200 font-semibold border border-white/[0.07] active:scale-[0.98] transition-all"
           >
             📋 Copiar URL para abrir en Safari
           </button>
@@ -148,14 +148,14 @@ export function SafariInstallBanner() {
   // ── Safari proper: instrucciones de "Añadir a pantalla de inicio" ──────
   return (
     <div className="fixed bottom-20 inset-x-3 z-50 animate-slide-up">
-      <div className="relative rounded-2xl border border-zinc-700/80 bg-zinc-900/95 backdrop-blur-md shadow-2xl p-4">
+      <div className="relative rounded-2xl border border-white/[0.07]/80 bg-zinc-900/95 backdrop-blur-md shadow-2xl p-4">
         <button onClick={dismiss} aria-label="Cerrar"
           className="absolute top-3 right-3 w-6 h-6 flex items-center justify-center rounded-full bg-zinc-800 text-zinc-400 hover:text-white text-xs font-bold">
           ✕
         </button>
 
         <div className="flex items-center gap-3 mb-3 pr-6">
-          <div className="w-11 h-11 rounded-xl bg-zinc-800 border border-zinc-700 flex items-center justify-center shrink-0 overflow-hidden">
+          <div className="w-11 h-11 rounded-xl bg-zinc-800 border border-white/[0.07] flex items-center justify-center shrink-0 overflow-hidden">
             <img src="/icon.svg" alt="SportsPicks" className="w-8 h-8" />
           </div>
           <div>
@@ -177,7 +177,7 @@ export function SafariInstallBanner() {
         </ol>
 
         <button onClick={dismiss}
-          className="w-full py-2.5 rounded-xl bg-zinc-800 text-sm text-zinc-300 font-semibold border border-zinc-700 active:scale-[0.98] transition-all">
+          className="w-full py-2.5 rounded-xl bg-zinc-800/60 text-sm text-zinc-300 font-semibold border border-white/[0.07] active:scale-[0.98] transition-all">
           Ya lo tengo instalado
         </button>
       </div>

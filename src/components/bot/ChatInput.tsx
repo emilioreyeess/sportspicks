@@ -70,8 +70,8 @@ export function ChatInput({ onSend, disabled, placeholder }: Props) {
 
   return (
     <div
-      className="rounded-2xl bg-zinc-900 border border-zinc-700 p-3 space-y-2
-        focus-within:border-zinc-500 transition-colors"
+      className="rounded-2xl bg-zinc-900/60 border border-white/[0.07] p-3 space-y-2
+        focus-within:border-white/[0.14] transition-colors"
       onDrop={handleDrop}
       onDragOver={(e) => e.preventDefault()}
     >

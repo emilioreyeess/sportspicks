@@ -93,7 +93,7 @@ export function PickDetail({ pick, onClose }: Props) {
     <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm"
       onClick={onClose}>
       <div
-        className="w-full sm:w-[560px] max-h-[92vh] overflow-y-auto bg-zinc-900 border border-zinc-700 rounded-t-3xl sm:rounded-2xl p-6 space-y-5"
+        className="w-full sm:w-[560px] max-h-[92vh] overflow-y-auto bg-zinc-900/95 border border-white/[0.07] rounded-t-3xl sm:rounded-2xl p-6 space-y-5"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -113,7 +113,7 @@ export function PickDetail({ pick, onClose }: Props) {
         </div>
 
         {/* Pick summary */}
-        <div className="flex items-center justify-between bg-zinc-800 rounded-xl p-4">
+        <div className="flex items-center justify-between bg-zinc-800/60 border border-white/[0.07] rounded-xl p-4">
           <div className="min-w-0">
             <p className="text-xs text-zinc-400 uppercase">{p.market}</p>
             <p className="text-xl font-bold text-white mt-0.5">{p.selection}</p>
@@ -137,7 +137,7 @@ export function PickDetail({ pick, onClose }: Props) {
 
         {/* Qué cambió (si es segunda opinión) */}
         {lastChange && (
-          <div className="rounded-xl border border-blue-800/60 bg-blue-500/8 p-3.5 space-y-2">
+          <div className="rounded-xl border border-blue-800/60 bg-blue-500/[0.08] p-3.5 space-y-2">
             <p className="text-[10px] font-bold uppercase tracking-wider text-blue-300">Qué cambió</p>
             <p className="text-sm text-zinc-200 leading-snug">{lastChange.why_changed}</p>
             <div className="grid grid-cols-3 gap-2 pt-1 text-[11px]">
@@ -150,7 +150,7 @@ export function PickDetail({ pick, onClose }: Props) {
 
         {/* Value reason */}
         {p.value_reason && (
-          <div className="bg-emerald-500/10 border border-emerald-800 rounded-xl p-3">
+          <div className="bg-emerald-500/[0.08] border border-emerald-700/40 rounded-xl p-3">
             <p className="text-[10px] text-emerald-500 uppercase tracking-wider font-bold mb-1">Por qué hay valor</p>
             <p className="text-sm text-zinc-200 leading-snug">{p.value_reason}</p>
           </div>
@@ -172,7 +172,7 @@ export function PickDetail({ pick, onClose }: Props) {
 
         {/* Motor de decisión — transparencia */}
         {engine && (
-          <div className="rounded-xl border border-zinc-800 bg-zinc-950/60 p-4 space-y-3">
+          <div className="rounded-xl border border-white/[0.07] bg-zinc-950/60 p-4 space-y-3">
             <div className="flex items-center justify-between">
               <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">
                 🧠 Motor de decisión
@@ -195,7 +195,7 @@ export function PickDetail({ pick, onClose }: Props) {
                 {engine.models.map((m: any) => (
                   <div key={m.name} className="flex items-center gap-2 text-[11px]">
                     <span className="w-16 text-zinc-500 uppercase font-bold">{LABEL[m.name] ?? m.name}</span>
-                    <div className="flex-1 h-1.5 rounded-full bg-zinc-800 overflow-hidden">
+                    <div className="flex-1 h-1.5 rounded-full bg-white/[0.06] overflow-hidden">
                       <div className="h-full bg-gradient-to-r from-blue-500 to-emerald-400" style={{ width: `${m.prob}%` }} />
                     </div>
                     <span className="text-zinc-300 font-semibold w-10 text-right">{m.prob.toFixed(0)}%</span>
@@ -221,7 +221,7 @@ export function PickDetail({ pick, onClose }: Props) {
         </div>
 
         {/* Second Opinion CTA */}
-        <div className="pt-2 border-t border-zinc-800">
+        <div className="pt-2 border-t border-white/[0.07]">
           {errorMsg && (
             <p className="text-xs text-amber-400 mb-2 text-center">{errorMsg}</p>
           )}
@@ -230,10 +230,10 @@ export function PickDetail({ pick, onClose }: Props) {
             disabled={remaining <= 0 || loading}
             className={`w-full py-3 rounded-xl text-sm font-bold border tap transition-all flex items-center justify-center gap-2 ${
               remaining <= 0
-                ? "bg-zinc-900 text-zinc-600 border-zinc-800 cursor-not-allowed"
+                ? "bg-zinc-900/60 text-zinc-600 border-white/[0.05] cursor-not-allowed"
                 : loading
-                  ? "bg-zinc-800 text-zinc-400 border-zinc-700"
-                  : "bg-zinc-800 hover:bg-zinc-700 text-white border-zinc-600"
+                  ? "bg-zinc-800/60 text-zinc-400 border-white/[0.07]"
+                  : "bg-zinc-800/60 hover:bg-zinc-700/60 text-white border-white/[0.10]"
             }`}
           >
             {loading ? (
@@ -272,7 +272,7 @@ const LABEL: Record<string, string> = {
 function MiniScore({ label, value, good, invert }: { label: string; value: string; good: boolean; invert?: boolean }) {
   const color = good ? "text-emerald-400" : invert ? "text-amber-400" : "text-zinc-400"
   return (
-    <div className="rounded-lg bg-zinc-900 border border-zinc-800 px-2 py-2">
+    <div className="rounded-lg bg-zinc-900/60 border border-white/[0.07] px-2 py-2">
       <p className="text-[9px] text-zinc-600 uppercase font-bold">{label}</p>
       <p className={`text-base font-black ${color}`}>{value}</p>
     </div>
@@ -281,7 +281,7 @@ function MiniScore({ label, value, good, invert }: { label: string; value: strin
 
 function DiffCell({ label, from, to }: { label: string; from: string; to: string }) {
   return (
-    <div className="rounded-lg bg-zinc-900/60 border border-zinc-800 px-2 py-1.5">
+    <div className="rounded-lg bg-zinc-900/60 border border-white/[0.07] px-2 py-1.5">
       <p className="text-[9px] text-zinc-600 uppercase">{label}</p>
       <p className="text-zinc-500 line-through text-[10px] truncate">{from}</p>
       <p className="text-emerald-300 font-bold text-[11px] truncate">{to}</p>

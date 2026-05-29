@@ -57,7 +57,7 @@ export function DarkHorsesSection() {
       )}
 
       {data && !loading && data.darkHorses.length === 0 && (
-        <div className="rounded-2xl border border-zinc-800/60 bg-zinc-900/60 px-5 py-6 text-center">
+        <div className="rounded-2xl border border-white/[0.07] bg-zinc-900/60 px-5 py-6 text-center">
           <p className="text-sm font-bold text-zinc-400">Sin valor detectable hoy</p>
           <p className="text-[11px] text-zinc-600 mt-1">El motor no encontró equipos con edge ≥4pp vs su baseline.</p>
         </div>
@@ -84,11 +84,11 @@ function DarkHorseCard({ dh, rank }: { dh: DarkHorse; rank: number }) {
   return (
     <div className={`relative rounded-2xl border ${cfg.border} bg-zinc-900/70 backdrop-blur-sm overflow-hidden shadow-xl transition-all`}>
       {/* Rank badge */}
-      <span className="absolute top-3 right-3 grid place-items-center w-7 h-7 rounded-lg bg-zinc-950/70 border border-zinc-800 text-xs font-black text-zinc-400">
+      <span className="absolute top-3 right-3 grid place-items-center w-7 h-7 rounded-lg bg-zinc-950/70 border border-white/[0.07] text-xs font-black text-zinc-400">
         #{rank}
       </span>
 
-      <div className={`bg-gradient-to-br ${cfg.color}/10 px-4 py-3 border-b border-zinc-800/60`}>
+      <div className={`bg-gradient-to-br ${cfg.color}/10 px-4 py-3 border-b border-white/[0.07]`}>
         <div className="flex items-center gap-3">
           <span className="text-3xl leading-none">{team?.flagEmoji ?? "🏳️"}</span>
           <div className="min-w-0">
@@ -109,7 +109,7 @@ function DarkHorseCard({ dh, rank }: { dh: DarkHorse; rank: number }) {
 
         {/* Prob comparison */}
         <div className="grid grid-cols-2 gap-2 mb-3">
-          <div className="rounded-lg bg-zinc-950/60 border border-zinc-800/60 px-2.5 py-1.5">
+          <div className="rounded-lg bg-zinc-950/60 border border-white/[0.07] px-2.5 py-1.5">
             <p className="text-[9px] font-black uppercase tracking-wider text-zinc-600">Implícita</p>
             <p className="text-sm font-black text-zinc-300">{(dh.marketImpliedProb * 100).toFixed(1)}%</p>
           </div>
@@ -130,7 +130,7 @@ function DarkHorseCard({ dh, rank }: { dh: DarkHorse; rank: number }) {
         </ul>
 
         {/* Risk pill */}
-        <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-zinc-800/60">
+        <div className="flex items-center justify-between mt-3 pt-2.5 border-t border-white/[0.07]">
           <span className="text-[10px] text-zinc-600 font-bold uppercase tracking-wider">{dh.marketType}</span>
           <span className={`text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-zinc-950/70 border ${cfg.border} ${cfg.text}`}>
             Riesgo {cfg.label}

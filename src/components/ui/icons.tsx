@@ -45,6 +45,10 @@ const PATHS: Record<string, ReactNode> = {
   ticket:  <><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z" /><path d="M13 5v2M13 17v2M13 11v2" /></>,
   leaderboard: <><path d="M8 6h4" /><path d="M6 12h8" /><path d="M4 18h12" /><path d="M20 4v16" /></>,
   twitter: <><path d="M22 4s-.7 2.1-2 3.4c1.6 10-9.4 17.3-18 11.6 2.2.1 4.4-.6 6-2C3 15.5.5 9.6 3 5c2.2 2.7 5.5 4.4 9 4.5-.9-4.2 4-6.6 7-3.8 1.1 0 3-1.2 3-1.7z" /></>,
+  search: <><circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3" /></>,
+  clock: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>,
+  refresh: <><path d="M21 12a9 9 0 1 1-2.6-6.4M21 4v4h-4" /></>,
+  activity: <><path d="M22 12h-4l-3 9L9 3l-3 9H2" /></>,
 }
 
 export function Icon({ name, className = "w-5 h-5", strokeWidth = 1.8 }: {

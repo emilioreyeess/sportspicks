@@ -243,7 +243,7 @@ export default function AccountPage() {
             <div className={`grid place-items-center w-16 h-16 rounded-2xl border-2 text-xl font-black shadow-lg ${
               isPro      ? "bg-zinc-900 border-violet-700/60 text-violet-400"  :
               isPremium  ? "bg-zinc-900 border-emerald-700/60 text-emerald-400":
-                           "bg-zinc-900 border-zinc-700 text-zinc-300"
+                           "bg-zinc-900 border-white/[0.10] text-zinc-300"
             }`}>{initial}</div>
             <PremiumBadge plan={plan} />
           </div>
@@ -262,7 +262,7 @@ export default function AccountPage() {
                 type="button"
                 onClick={persistName}
                 disabled={nameSaving || !name.trim()}
-                className="px-3 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white text-xs font-bold transition-colors"
+                className="px-3 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 disabled:opacity-40 text-zinc-950 text-xs font-bold transition-colors"
               >
                 {nameSaving ? "…" : "Guardar"}
               </button>
@@ -274,12 +274,12 @@ export default function AccountPage() {
 
           {/* Public profile link */}
           {profileId && (
-            <div className="mt-4 pt-4 border-t border-zinc-800/60">
+            <div className="mt-4 pt-4 border-t border-white/[0.07]">
               <span className="section-label block mb-1.5">Tu perfil público</span>
               <div className="flex items-center gap-2">
                 <Link
                   href={`/profile/${profileId}`}
-                  className="flex-1 truncate text-xs text-zinc-400 hover:text-white bg-zinc-800 rounded-xl px-3 py-2 transition"
+                  className="flex-1 truncate text-xs text-zinc-400 hover:text-white bg-zinc-800/60 border border-white/[0.07] rounded-xl px-3 py-2 transition"
                 >
                   sportspicks.app/profile/{profileId}
                 </Link>
@@ -291,7 +291,7 @@ export default function AccountPage() {
                       setTimeout(() => setProfileLinkCopied(false), 2000)
                     })
                   }}
-                  className="shrink-0 px-3 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 border border-zinc-700/40 text-xs font-bold text-zinc-300 tap transition"
+                  className="shrink-0 px-3 py-2 rounded-xl bg-zinc-800/60 hover:bg-zinc-700/60 border border-white/[0.07] text-xs font-bold text-zinc-300 tap transition"
                 >
                   {profileLinkCopied ? "✓ Copiado" : "Copiar"}
                 </button>
@@ -307,7 +307,7 @@ export default function AccountPage() {
         <SectionTitle icon="crown" title="Suscripción" />
 
         <div className={`rounded-xl border p-4 mb-4 ${
-          isPremium ? "border-emerald-800/50 bg-emerald-500/5" : "border-zinc-800 bg-zinc-950/60"
+          isPremium ? "border-emerald-700/40 bg-emerald-500/[0.05]" : "border-white/[0.07] bg-zinc-950/60"
         }`}>
           <div className="flex items-center justify-between">
             <div>
@@ -351,7 +351,7 @@ export default function AccountPage() {
         {isPremium && sub?.customerId ? (
           <div className="space-y-2">
             <button onClick={openPortal} disabled={portalLoading}
-              className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-zinc-800 hover:bg-zinc-700 disabled:opacity-50 text-white font-semibold text-sm tap transition-colors">
+              className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-zinc-800/60 border border-white/[0.07] hover:bg-zinc-700/60 disabled:opacity-50 text-white font-semibold text-sm tap transition-colors">
               {portalLoading
                 ? <><Icon name="settings" className="w-4 h-4 animate-spin" /> Abriendo portal…</>
                 : <><Icon name="settings" className="w-4 h-4" strokeWidth={2} /> Gestionar suscripción / Cancelar</>}
@@ -362,7 +362,7 @@ export default function AccountPage() {
           </div>
         ) : isPremium ? (
           <Link href="/pricing"
-            className="flex items-center justify-center gap-2 w-full py-3 rounded-xl border border-zinc-700 text-zinc-300 font-semibold text-sm tap hover:bg-zinc-800 transition-colors">
+            className="flex items-center justify-center gap-2 w-full py-3 rounded-xl border border-white/[0.07] text-zinc-300 font-semibold text-sm tap hover:bg-zinc-800/60 transition-colors">
             Ver planes y gestionar
           </Link>
         ) : (
@@ -381,8 +381,8 @@ export default function AccountPage() {
         {verifyMsg && (
           <div className={`mt-2 flex items-start gap-2 rounded-xl px-3.5 py-2.5 text-xs leading-snug ${
             verifyMsg.ok
-              ? "bg-emerald-500/10 border border-emerald-800/50 text-emerald-300"
-              : "bg-amber-500/10 border border-amber-800/50 text-amber-300"
+              ? "bg-emerald-500/10 border border-emerald-700/40 text-emerald-300"
+              : "bg-amber-500/10 border border-amber-700/40 text-amber-300"
           }`}>
             <Icon name={verifyMsg.ok ? "check" : "shield"} className="w-3.5 h-3.5 shrink-0 mt-0.5" strokeWidth={2.5} />
             {verifyMsg.text}
@@ -433,7 +433,7 @@ export default function AccountPage() {
           {!showPwdForm ? (
             <button
               onClick={() => { setShowPwdForm(true); setPwdMsg(null) }}
-              className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-zinc-700 bg-zinc-900/60 hover:bg-zinc-800 text-zinc-300 font-semibold text-sm tap transition-all"
+              className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-white/[0.07] bg-zinc-900/60 hover:bg-zinc-800/60 text-zinc-300 font-semibold text-sm tap transition-all"
             >
               <Icon name="shield" className="w-4 h-4" strokeWidth={2} />
               Cambiar contraseña
@@ -446,7 +446,7 @@ export default function AccountPage() {
                 value={currentPwd}
                 onChange={e => setCurrentPwd(e.target.value)}
                 required
-                className="w-full h-11 px-3.5 rounded-xl bg-zinc-900 border border-zinc-700/60 text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-emerald-600/60 transition-colors"
+                className="w-full h-11 px-3.5 rounded-xl bg-zinc-800/40 border border-white/[0.08] text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-white/[0.16] transition-colors"
               />
               <input
                 type="password"
@@ -455,7 +455,7 @@ export default function AccountPage() {
                 onChange={e => setNewPwd(e.target.value)}
                 required
                 minLength={8}
-                className="w-full h-11 px-3.5 rounded-xl bg-zinc-900 border border-zinc-700/60 text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-emerald-600/60 transition-colors"
+                className="w-full h-11 px-3.5 rounded-xl bg-zinc-800/40 border border-white/[0.08] text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-white/[0.16] transition-colors"
               />
               <input
                 type="password"
@@ -463,18 +463,18 @@ export default function AccountPage() {
                 value={confirmPwd}
                 onChange={e => setConfirmPwd(e.target.value)}
                 required
-                className="w-full h-11 px-3.5 rounded-xl bg-zinc-900 border border-zinc-700/60 text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-emerald-600/60 transition-colors"
+                className="w-full h-11 px-3.5 rounded-xl bg-zinc-800/40 border border-white/[0.08] text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-white/[0.16] transition-colors"
               />
               {pwdMsg && (
                 <p className={`text-xs ${pwdMsg.ok ? "text-emerald-400" : "text-red-400"}`}>{pwdMsg.text}</p>
               )}
               <div className="flex gap-2">
                 <button type="button" onClick={() => { setShowPwdForm(false); setPwdMsg(null) }}
-                  className="flex-1 py-2.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-sm text-zinc-300 transition-colors">
+                  className="flex-1 py-2.5 rounded-xl bg-zinc-800/60 border border-white/[0.07] hover:bg-zinc-700/60 text-sm text-zinc-300 transition-colors">
                   Cancelar
                 </button>
                 <button type="submit" disabled={pwdSaving}
-                  className="flex-1 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-40 text-white font-bold text-sm transition-colors">
+                  className="flex-1 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 disabled:opacity-40 text-zinc-950 font-bold text-sm transition-colors">
                   {pwdSaving ? "Guardando…" : "Actualizar"}
                 </button>
               </div>
@@ -495,7 +495,7 @@ export default function AccountPage() {
           <button
             onClick={handleSignOut}
             disabled={signingOut}
-            className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-rose-800/60 bg-rose-500/8 hover:bg-rose-500/15 text-rose-400 font-bold text-sm tap transition-all disabled:opacity-50"
+            className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-rose-800/60 bg-rose-500/[0.08] hover:bg-rose-500/[0.15] text-rose-400 font-bold text-sm tap transition-all disabled:opacity-50"
           >
             {signingOut ? (
               <>
@@ -526,7 +526,7 @@ function SectionTitle({ icon, title }: { icon: string; title: string }) {
   return (
     <div className="flex items-center gap-2 mb-4">
       <Icon name={icon} className="w-4.5 h-4.5 text-emerald-400" />
-      <h2 className="text-sm font-black text-white uppercase tracking-wide">{title}</h2>
+      <h2 className="apple-eyebrow text-white/70">{title}</h2>
     </div>
   )
 }
@@ -548,7 +548,7 @@ function ToggleRow({ label, hint, on, onChange }: { label: string; hint: string;
 
 function UsageStat({ label, value, color }: { label: string; value: string; color: string }) {
   return (
-    <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-3 text-center">
+    <div className="rounded-xl border border-white/[0.07] bg-zinc-900/60 p-3 text-center">
       <p className={`text-sm font-black ${color}`}>{value}</p>
       <p className="text-[10px] text-zinc-600 mt-0.5">{label}</p>
     </div>

@@ -41,7 +41,7 @@ export function LegalPage({ title, subtitle, lastUpdated, children }: Props) {
       </div>
 
       {/* Footer nav */}
-      <div className="mt-12 pt-6 border-t border-zinc-800 flex flex-wrap gap-3 text-xs text-zinc-600">
+      <div className="mt-12 pt-6 border-t border-white/[0.07] flex flex-wrap gap-3 text-xs text-zinc-600">
         {[
           ["Términos", "/legal/terms"],
           ["Privacidad", "/legal/privacy"],
@@ -64,7 +64,7 @@ export function LegalPage({ title, subtitle, lastUpdated, children }: Props) {
 export function LegalSection({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <section className="space-y-3">
-      <h2 className="text-base font-bold text-white border-b border-zinc-800 pb-2">{title}</h2>
+      <h2 className="text-base font-bold text-white border-b border-white/[0.07] pb-2">{title}</h2>
       <div className="text-sm text-zinc-400 leading-relaxed space-y-2">{children}</div>
     </section>
   )

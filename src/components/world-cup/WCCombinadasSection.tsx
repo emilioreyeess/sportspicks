@@ -83,7 +83,7 @@ function LegCard({ leg, tier }: { leg: WCCombinadaLeg; tier: RiskTier }) {
   const time = new Date(leg.kickoffISO).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })
 
   return (
-    <div className="rounded-xl border border-zinc-800/60 bg-zinc-900/40 p-3.5 space-y-2.5">
+    <div className="rounded-xl border border-white/[0.07] bg-zinc-900/40 p-3.5 space-y-2.5">
       {/* Match header */}
       <div className="flex items-center justify-between gap-2">
         <span className="text-xs font-black text-white">
@@ -141,7 +141,7 @@ function CombinadaCard({ combinada }: { combinada: WCCombinada }) {
   return (
     <div className={`rounded-2xl border ${s.border} overflow-hidden`}>
       {/* Header */}
-      <div className={`bg-gradient-to-br ${s.header} px-5 pt-4 pb-3.5 border-b border-zinc-800/50`}>
+      <div className={`bg-gradient-to-br ${s.header} px-5 pt-4 pb-3.5 border-b border-white/[0.07]`}>
         <div className="flex items-start justify-between gap-3">
           <div className="flex items-center gap-2.5">
             <span className={`grid place-items-center w-8 h-8 rounded-xl ${s.iconBg} shrink-0`}>
@@ -166,7 +166,7 @@ function CombinadaCard({ combinada }: { combinada: WCCombinada }) {
           <span className={`inline-flex items-center gap-1 rounded-lg border ${s.badge} px-2 py-0.5 text-[10px] font-black`}>
             Cuota impl. {combinada.combinedImpliedOdds.toFixed(2)}
           </span>
-          <span className="inline-flex items-center gap-1 rounded-lg border border-zinc-800 bg-zinc-900/50 px-2 py-0.5 text-[10px] text-zinc-500">
+          <span className="inline-flex items-center gap-1 rounded-lg border border-white/[0.07] bg-zinc-900/50 px-2 py-0.5 text-[10px] text-zinc-500">
             Confianza {combinada.totalConfidence}/100
           </span>
         </div>
@@ -180,7 +180,7 @@ function CombinadaCard({ combinada }: { combinada: WCCombinada }) {
       {/* Toggle legs */}
       <button
         onClick={() => setExpanded(!expanded)}
-        className="w-full flex items-center justify-between px-5 py-2.5 border-t border-zinc-800/50 hover:bg-zinc-800/30 transition-colors tap"
+        className="w-full flex items-center justify-between px-5 py-2.5 border-t border-white/[0.07] hover:bg-zinc-800/30 transition-colors tap"
       >
         <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500">
           {expanded ? "Ocultar selecciones" : "Ver selecciones"}
@@ -194,7 +194,7 @@ function CombinadaCard({ combinada }: { combinada: WCCombinada }) {
 
       {/* Legs */}
       {expanded && (
-        <div className="px-4 pb-4 space-y-2.5 border-t border-zinc-800/50 pt-3">
+        <div className="px-4 pb-4 space-y-2.5 border-t border-white/[0.07] pt-3">
           {combinada.legs.map((leg, i) => (
             <LegCard key={`${leg.matchId}-${leg.market}-${i}`} leg={leg} tier={combinada.tier} />
           ))}
@@ -232,7 +232,7 @@ export function WCCombinadasSection() {
         <button
           onClick={refresh}
           disabled={loading}
-          className="grid place-items-center w-8 h-8 rounded-xl border border-zinc-800 hover:border-zinc-700 bg-zinc-900/60 hover:bg-zinc-800/60 tap transition-all disabled:opacity-40"
+          className="grid place-items-center w-8 h-8 rounded-xl border border-white/[0.07] hover:border-white/[0.14] bg-zinc-900/60 hover:bg-zinc-800/60 tap transition-all disabled:opacity-40"
           aria-label="Actualizar combinadas"
         >
           <Icon
@@ -246,7 +246,7 @@ export function WCCombinadasSection() {
       {loading && <CombSkeleton />}
 
       {error && !loading && (
-        <div className="rounded-2xl border border-rose-700/40 bg-rose-500/8 p-4">
+        <div className="rounded-2xl border border-rose-700/40 bg-rose-500/[0.08] p-4">
           <p className="text-sm font-black text-rose-300">No se pudieron generar las combinadas</p>
           <p className="text-[11px] text-zinc-500 mt-1">{error}</p>
           <button
@@ -261,7 +261,7 @@ export function WCCombinadasSection() {
       {data && !loading && (
         <>
           {data.matchesAnalyzed === 0 ? (
-            <div className="rounded-2xl border border-zinc-800/60 bg-zinc-900/40 p-6 text-center">
+            <div className="rounded-2xl border border-white/[0.07] bg-zinc-900/40 p-6 text-center">
               <Icon name="bell" className="w-8 h-8 text-zinc-600 mx-auto mb-2" strokeWidth={1.5} />
               <p className="text-sm font-black text-zinc-300">Sin partidos próximos</p>
               <p className="text-[11px] text-zinc-500 mt-1">Las combinadas se generarán cuando haya fixtures programados.</p>
@@ -272,7 +272,7 @@ export function WCCombinadasSection() {
               {data.balanceada && <CombinadaCard combinada={data.balanceada} />}
               {data.soñadora   && <CombinadaCard combinada={data.soñadora}   />}
 
-              <div className="rounded-xl border border-zinc-800/50 bg-zinc-900/30 p-3.5">
+              <div className="rounded-xl border border-white/[0.07] bg-zinc-900/30 p-3.5">
                 <p className="text-[9px] text-zinc-600 leading-relaxed">{data.disclaimer}</p>
               </div>
             </div>

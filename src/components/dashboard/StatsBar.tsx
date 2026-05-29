@@ -69,7 +69,7 @@ function StatsBarSkeleton() {
   return (
     <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
       {[...Array(4)].map((_, i) => (
-        <div key={i} className="h-24 rounded-2xl bg-zinc-900 border border-zinc-800 animate-pulse" />
+        <div key={i} className="h-24 rounded-2xl bg-zinc-900/60 border border-white/[0.07] animate-pulse" />
       ))}
     </div>
   )

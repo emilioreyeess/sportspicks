@@ -98,7 +98,7 @@ function DetailPanel({
   onClose: () => void
 }) {
   return (
-    <div className="rounded-2xl border border-zinc-700/60 bg-zinc-900/80 backdrop-blur-sm p-4 space-y-3">
+    <div className="rounded-2xl border border-white/[0.07] bg-zinc-900/80 backdrop-blur-sm p-4 space-y-3">
       <div className="flex items-center justify-between">
         <p className="text-sm font-black text-white">{result.title}</p>
         <button onClick={onClose} className="grid place-items-center w-6 h-6 rounded-lg hover:bg-zinc-800 tap">
@@ -108,7 +108,7 @@ function DetailPanel({
       <p className="text-[11px] text-zinc-500">{result.subtitle}</p>
       <div className="grid grid-cols-2 gap-2">
         {Object.entries(result.meta).filter(([, v]) => v !== null && v !== "—").map(([k, v]) => (
-          <div key={k} className="rounded-lg border border-zinc-800/60 bg-zinc-950/60 px-3 py-2">
+          <div key={k} className="rounded-lg border border-white/[0.07] bg-zinc-950/60 px-3 py-2">
             <p className="text-[9px] font-black uppercase tracking-widest text-zinc-600 mb-0.5">
               {k.replace(/_/g, " ")}
             </p>
@@ -134,7 +134,7 @@ function GroupPills({ selected, onChange }: { selected: WCGroup | ""; onChange: 
           className={`shrink-0 px-2.5 py-1 rounded-lg text-[11px] font-black transition-all tap ${
             selected === g
               ? "bg-amber-500 text-zinc-950"
-              : "border border-zinc-800 text-zinc-500 hover:border-zinc-700 hover:text-zinc-300"
+              : "border border-white/[0.07] text-zinc-500 hover:border-white/[0.14] hover:text-zinc-300"
           }`}
         >
           {g || "Todos"}
@@ -233,7 +233,7 @@ export function WCSearchSection() {
             className={`px-3 py-1 rounded-full text-[11px] font-black transition-all tap ${
               typeFilter === opt.value
                 ? "bg-amber-500/20 border border-amber-500/50 text-amber-300"
-                : "border border-zinc-800 text-zinc-500 hover:text-zinc-300 hover:border-zinc-700"
+                : "border border-white/[0.07] text-zinc-500 hover:text-zinc-300 hover:border-white/[0.14]"
             }`}
           >
             {opt.label}
@@ -250,7 +250,7 @@ export function WCSearchSection() {
       {searched && !loading && (
         <div className="space-y-2">
           {results.length === 0 ? (
-            <div className="rounded-2xl border border-zinc-800/60 bg-zinc-900/40 p-5 text-center">
+            <div className="rounded-2xl border border-white/[0.07] bg-zinc-900/40 p-5 text-center">
               <p className="text-sm font-black text-zinc-400">Sin resultados para "{query}"</p>
               <p className="text-[11px] text-zinc-600 mt-1">Prueba con un código de equipo (ESP, ARG) o nombre completo.</p>
             </div>
@@ -273,7 +273,7 @@ export function WCSearchSection() {
             <button
               key={s.q}
               onClick={() => setQuery(s.q)}
-              className="rounded-xl border border-zinc-800/60 bg-zinc-900/40 px-3 py-2.5 text-left tap hover:border-zinc-700 transition-colors"
+              className="rounded-xl border border-white/[0.07] bg-zinc-900/40 px-3 py-2.5 text-left tap hover:border-white/[0.14] transition-colors"
             >
               <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">{s.hint}</p>
               <p className="text-xs font-bold text-zinc-300 mt-0.5">{s.q}</p>
@@ -281,7 +281,7 @@ export function WCSearchSection() {
           ))}
           <button
             onClick={() => setGroupFilter("A")}
-            className="rounded-xl border border-zinc-800/60 bg-zinc-900/40 px-3 py-2.5 text-left tap hover:border-zinc-700 transition-colors"
+            className="rounded-xl border border-white/[0.07] bg-zinc-900/40 px-3 py-2.5 text-left tap hover:border-white/[0.14] transition-colors"
           >
             <p className="text-[10px] font-black text-zinc-500 uppercase tracking-widest">Grupo A</p>
             <p className="text-xs font-bold text-zinc-300 mt-0.5">MEX · KOR · RSA · CZE</p>
