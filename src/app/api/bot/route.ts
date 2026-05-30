@@ -4,6 +4,8 @@ import { authOptions } from "@/lib/auth-options"
 import { fetchStandings, classifyMotivation } from "@/lib/engine"
 import { consume, getClientIp, tooManyRequests } from "@/lib/rate-limit"
 import { getStore } from "@/lib/store"
+import { createServiceClient } from "@/lib/supabase/client"
+import { getGrantedPlan } from "@/lib/plan-grants"
 
 export const runtime = "nodejs"
 export const maxDuration = 60
@@ -634,7 +636,7 @@ type ContentBlock = { type: string; text?: string; id?: string; name?: string; i
 const MAX_MESSAGE_LEN = 4000          // 4k chars de mensaje
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024  // 5 MB de imagen (Anthropic limit)
 const ALLOWED_IMAGE_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"])
-const MAX_HISTORY_ITEMS = 10
+const MAX_HISTORY_ITEMS = 5
 const MAX_HISTORY_RAW_BYTES = 50_000  // 50 KB de history
 
 export async function POST(req: Request) {
@@ -648,6 +650,35 @@ export async function POST(req: Request) {
   // Ráfaga 3 simultáneas · ritmo 10 / 5 min (~2/min sostenido)
   const ip = getClientIp(req)
   if (!consume(`bot:${ip}`, 3, 2)) return tooManyRequests(60)
+
+  // ── Plan check: free users get 1 message total ─────────────────────────────
+  const userEmail = session.user.email!.trim().toLowerCase()
+  const hasPremiumGrant = !!getGrantedPlan(userEmail)
+  const sessionPlan = (session.user as any).plan as string | undefined
+  const isPremium = hasPremiumGrant || sessionPlan === "premium" || sessionPlan === "pro"
+
+  if (!isPremium) {
+    const sb = createServiceClient()
+    const { data: userLog } = await sb
+      .from("users_log")
+      .select("bot_free_uses")
+      .eq("email", userEmail)
+      .maybeSingle()
+
+    const uses = userLog?.bot_free_uses ?? 0
+    if (uses >= 1) {
+      return new Response(JSON.stringify({
+        error: "free_limit",
+        message: "Has usado tu mensaje gratuito con el bot. Hazte Premium para acceso ilimitado. 🚀",
+      }), { status: 403, headers: { "Content-Type": "application/json" } })
+    }
+
+    // Incrementar ANTES de ejecutar — evita doble uso aunque el stream falle
+    await sb
+      .from("users_log")
+      .upsert({ email: userEmail, bot_free_uses: uses + 1 }, { onConflict: "email" })
+  }
+  // ─────────────────────────────────────────────────────────────────────────────
 
   try {
     const formData = await req.formData()
@@ -706,7 +737,7 @@ export async function POST(req: Request) {
     }
 
     const messages: Anthropic.MessageParam[] = [
-      ...history.slice(-10),
+      ...history.slice(-5),
       { role: "user", content: userContent as any },
     ]
 
@@ -721,10 +752,11 @@ export async function POST(req: Request) {
           while (iteration < 10) {
             iteration++
             const response = await client.messages.create({
-              model: "claude-opus-4-5",
+              model: "claude-sonnet-4-5-20251001",
               max_tokens: 2500,
-              system: SYSTEM_PROMPT + buildTodayContext(),
-              tools: TOOLS,
+              // Prompt caching: system prompt + tools se cachean 5 min → ~80% ahorro en tokens de entrada
+              system: [{ type: "text", text: SYSTEM_PROMPT + buildTodayContext(), cache_control: { type: "ephemeral" } }] as any,
+              tools: [...TOOLS.slice(0, -1), { ...TOOLS[TOOLS.length - 1], cache_control: { type: "ephemeral" } }] as any,
               messages: currentMessages,
             })
             const toolUseBlocks = response.content.filter(b => b.type === "tool_use")

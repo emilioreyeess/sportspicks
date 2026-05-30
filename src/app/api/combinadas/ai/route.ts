@@ -178,7 +178,7 @@ Devuelve el JSON.`
 
   try {
     const response = await client.messages.create({
-      model: "claude-opus-4-5",
+      model: "claude-sonnet-4-5-20251001",
       max_tokens: 1500,
       system: sys,
       messages: [{ role: "user", content: userMsg }],

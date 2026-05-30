@@ -143,7 +143,7 @@ Recuerda: solo razona sobre estos números. Nada fuera de ellos.`
 
       try {
         const stream = await client.messages.stream({
-          model: "claude-opus-4-5",
+          model: "claude-sonnet-4-5-20251001",
           max_tokens: 1200,
           system,
           messages: [{ role: "user", content: userMsg }],

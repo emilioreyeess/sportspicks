@@ -9,7 +9,8 @@ import { ChatInput } from "@/components/bot/ChatInput"
 import { Icon } from "@/components/ui/icons"
 import { usePlan } from "@/lib/plan"
 
-const FREE_LIMIT = 3
+const FREE_LIMIT = 1
+const FREE_USED_KEY = "sp_bot_used" // clave permanente (no diaria)
 
 const WELCOME: BotMessage = {
   id: "welcome",
@@ -28,27 +29,29 @@ Para cada selección consulto clasificación, forma reciente y H2H reales. Nunca
   timestamp: new Date(),
 }
 
-function todayKey() {
-  return "sp_bot_" + new Date().toISOString().split("T")[0]
-}
-
 export default function BotPage() {
   const { isPremium } = usePlan()
   const [messages, setMessages] = useState<BotMessage[]>([WELCOME])
   const [history, setHistory] = useState<HistoryEntry[]>([])
   const [isStreaming, setIsStreaming] = useState(false)
-  const [usedToday, setUsedToday] = useState(0)
+  const [usedFree, setUsedFree] = useState(0)
   const bottomRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
-    try { setUsedToday(Number(localStorage.getItem(todayKey()) || 0)) } catch {}
+    try { setUsedFree(Number(localStorage.getItem(FREE_USED_KEY) || 0)) } catch {}
   }, [])
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" })
   }, [messages])
 
-  const limitReached = !isPremium && usedToday >= FREE_LIMIT
+  const limitReached = !isPremium && usedFree >= FREE_LIMIT
+
+  const markFreeUsed = () => {
+    const n = usedFree + 1
+    setUsedFree(n)
+    try { localStorage.setItem(FREE_USED_KEY, String(n)) } catch {}
+  }
 
   const handleSend = useCallback(
     async (text: string, image?: File) => {
@@ -74,19 +77,23 @@ export default function BotPage() {
         onDone: () => {
           setHistory((prev) => [...prev, { role: "user", content: text }, { role: "assistant", content: accumulated }])
           setIsStreaming(false)
-          if (!isPremium) {
-            const n = usedToday + 1
-            setUsedToday(n)
-            try { localStorage.setItem(todayKey(), String(n)) } catch {}
-          }
+          if (!isPremium) markFreeUsed()
         },
         onError: (err) => {
+          if (err === "free_limit") {
+            // El servidor bloqueó — sincronizar estado local y mostrar paywall
+            markFreeUsed()
+            setMessages((prev) => prev.filter((m) => m.id !== assistantId))
+            setIsStreaming(false)
+            return
+          }
           setMessages((prev) => prev.map((m) => m.id === assistantId ? { ...m, content: `❌ Error: ${err}` } : m))
           setIsStreaming(false)
         },
       })
     },
-    [history, isStreaming, isPremium, usedToday, limitReached],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [history, isStreaming, isPremium, usedFree, limitReached],
   )
 
   function newConversation() {
@@ -139,8 +146,8 @@ export default function BotPage() {
           {limitReached ? (
             <div className="rounded-2xl border border-emerald-800/50 bg-gradient-to-r from-emerald-500/10 to-cyan-500/5 p-4 text-center">
               <Icon name="crown" className="w-6 h-6 text-emerald-400 mx-auto mb-1.5" />
-              <p className="text-sm font-bold text-white">Has usado tus 3 análisis gratis de hoy</p>
-              <p className="text-xs text-zinc-400 mt-0.5 mb-3">Con Premium el Bot IA es ilimitado.</p>
+              <p className="text-sm font-bold text-white">Has usado tu análisis gratuito</p>
+              <p className="text-xs text-zinc-400 mt-0.5 mb-3">El bot es ilimitado con Premium. ¡Hazte Premium!</p>
               <Link href="/pricing"
                 className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-cyan-500 text-zinc-950 font-bold text-sm tap">
                 Desbloquear Bot ilimitado
@@ -152,8 +159,8 @@ export default function BotPage() {
                 placeholder="Sube tu boleto 📸 o pregunta algo…" />
               <div className="flex items-center justify-between mt-2 px-1">
                 <p className="text-[10px] text-zinc-700">Arrastra una imagen · Ctrl+V para pegar</p>
-                {!isPremium && (
-                  <p className="text-[10px] text-zinc-600">{Math.max(0, FREE_LIMIT - usedToday)} análisis gratis hoy</p>
+                {!isPremium && usedFree < FREE_LIMIT && (
+                  <p className="text-[10px] text-zinc-600">1 análisis gratuito disponible</p>
                 )}
               </div>
             </>

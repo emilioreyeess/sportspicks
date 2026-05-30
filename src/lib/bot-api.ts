@@ -37,6 +37,15 @@ export async function streamChat(opts: {
   }
 
   if (!res.ok) {
+    if (res.status === 403) {
+      try {
+        const json = await res.json()
+        if (json.error === "free_limit") {
+          opts.onError("free_limit")
+          return
+        }
+      } catch {}
+    }
     const text = await res.text().catch(() => `${res.status}`)
     opts.onError(`Error ${res.status}: ${text}`)
     return
