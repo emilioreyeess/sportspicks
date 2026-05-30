@@ -23,11 +23,11 @@
     },
     {
       "path": "/api/cron/ml-settle",
-      "schedule": "0 0,12 * * *"
+      "schedule": "0 3 * * *"
     },
     {
       "path": "/api/cron/live-sync",
-      "schedule": "* * * * *"
+      "schedule": "0 11 * * *"
     }
   ]
 }
