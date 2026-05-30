@@ -7,24 +7,9 @@ import { NAV_MAIN, isActive } from "@/components/ui/nav-items"
 
 /** Color config por ruta activa */
 function tabConfig(href: string) {
-  if (href === "/world-cup-2026") return {
-    text:    "text-amber-400",
-    glow:    "drop-shadow-[0_0_5px_rgba(251,191,36,0.65)]",
-    pill:    "ios-tab-active-amber",
-    stroke:  2.2,
-  }
-  if (href === "/retos") return {
-    text:    "text-rose-400",
-    glow:    "drop-shadow-[0_0_5px_rgba(251,113,133,0.65)]",
-    pill:    "ios-tab-active-rose",
-    stroke:  2.2,
-  }
-  return {
-    text:    "text-emerald-400",
-    glow:    "drop-shadow-[0_0_5px_rgba(52,211,153,0.65)]",
-    pill:    "ios-tab-active",
-    stroke:  2.2,
-  }
+  if (href === "/world-cup-2026") return { text: "text-amber-400/90",   glow: "", pill: "ios-tab-active-amber", stroke: 2.2 }
+  if (href === "/retos")          return { text: "text-rose-400/90",    glow: "", pill: "ios-tab-active-rose",  stroke: 2.2 }
+  return { text: "text-emerald-400/90", glow: "", pill: "ios-tab-active", stroke: 2.2 }
 }
 
 export function BottomNav() {
@@ -46,12 +31,12 @@ export function BottomNav() {
                 <span className={[
                   "grid place-items-center w-11 h-11 -mt-5 rounded-full shadow-lg transition-all duration-200",
                   active
-                    ? "bg-emerald-400 text-zinc-950 shadow-[0_4px_16px_rgba(52,211,153,0.40)] scale-[1.06]"
-                    : "bg-emerald-500 text-zinc-950 shadow-[0_4px_16px_rgba(52,211,153,0.22)] hover:scale-105",
+                    ? "bg-emerald-400 text-zinc-950 shadow-[0_4px_16px_-4px_rgba(82,181,145,0.35)] scale-[1.06]"
+                    : "bg-emerald-500 text-zinc-950 shadow-[0_4px_16px_-4px_rgba(82,181,145,0.20)] hover:scale-105",
                 ].join(" ")}>
                   <Icon name="bot" className="w-5.5 h-5.5" strokeWidth={2.2} />
                 </span>
-                <span className={`text-[10px] font-bold leading-none ${active ? "text-emerald-400" : "text-zinc-500"}`}>
+                <span className={`text-[10px] font-medium leading-none ${active ? "text-emerald-400" : "text-zinc-500"}`}>
                   {item.short}
                 </span>
               </Link>
@@ -75,7 +60,7 @@ export function BottomNav() {
                 }`}
                 strokeWidth={active ? c.stroke : 1.8}
               />
-              <span className={`relative text-[10px] leading-none font-bold transition-colors duration-200 ${
+              <span className={`relative text-[10px] leading-none font-medium transition-colors duration-200 ${
                 active ? c.text : "text-zinc-500"
               }`}>{item.short}</span>
             </Link>

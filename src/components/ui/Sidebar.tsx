@@ -49,11 +49,11 @@ export function Sidebar() {
 
       {/* Brand */}
       <Link href="/" className="relative flex items-center gap-2.5 px-4 h-[56px] border-b border-white/[0.07] group">
-        <span className="grid place-items-center w-8 h-8 rounded-[10px] bg-gradient-to-br from-emerald-500/22 to-cyan-500/12 border border-emerald-600/35 text-emerald-400 group-hover:border-emerald-500/55 group-hover:shadow-[0_0_12px_rgba(52,211,153,0.18)] transition-all duration-200 shrink-0">
+        <span className="grid place-items-center w-8 h-8 rounded-[10px] bg-emerald-400/10 border border-emerald-400/15 text-emerald-400/90 group-hover:border-emerald-400/25 transition-all duration-200 shrink-0">
           <Icon name="value" className="w-4 h-4" strokeWidth={2.2} />
         </span>
         <div className="min-w-0">
-          <p className="text-[14px] font-black text-white tracking-tight leading-none">SportsPicks</p>
+          <p className="text-[14px] font-bold text-white tracking-tight leading-none">SportsPicks</p>
           <p className="text-[10px] text-emerald-400/75 font-semibold mt-[3px] tracking-wide leading-none">Analytics Engine</p>
         </div>
       </Link>
@@ -93,7 +93,7 @@ export function Sidebar() {
               {userImage ? (
                 <Image src={userImage} alt={userName ?? "Perfil"} fill sizes="28px" className="object-cover" />
               ) : (
-                <div className={`w-full h-full flex items-center justify-center text-[11px] font-black bg-zinc-800 ${planInitialColor}`}>
+                <div className={`w-full h-full flex items-center justify-center text-[11px] font-bold bg-zinc-800 ${planInitialColor}`}>
                   {initial}
                 </div>
               )}
@@ -117,12 +117,12 @@ export function Sidebar() {
         <Link
           href={plan === "free" ? "/pricing" : "/account"}
           className={[
-            "relative block overflow-hidden rounded-[12px] border px-3.5 py-2.5 tap transition-all duration-200",
+            "relative block overflow-hidden rounded-2xl px-3.5 py-3 tap transition-all duration-200",
             plan === "free"
-              ? "border-emerald-800/55 bg-emerald-500/[0.05] hover:border-emerald-700/75 hover:bg-emerald-500/[0.08]"
+              ? "bg-emerald-400/[0.07] hover:bg-emerald-400/[0.11]"
               : plan === "pro"
-                ? "border-violet-800/55 bg-violet-500/[0.05] hover:border-violet-700/75"
-                : "border-white/[0.08] bg-white/[0.03] hover:border-white/[0.12]",
+                ? "bg-violet-400/[0.07] hover:bg-violet-400/[0.11]"
+                : "bg-white/[0.03] hover:bg-white/[0.05]",
           ].join(" ")}>
           {/* Ambient dot */}
           {plan !== "free" && (
@@ -134,7 +134,7 @@ export function Sidebar() {
           <div className="relative flex items-center justify-between">
             <span className="apple-eyebrow text-zinc-600">Tu plan</span>
             <span className={[
-              "text-[10px] font-black uppercase tracking-wide",
+              "text-[10px] font-bold uppercase tracking-wide",
               plan === "free" ? "text-zinc-500" : plan === "pro" ? "text-violet-400" : "text-emerald-400",
             ].join(" ")}>{planDef.name}</span>
           </div>
@@ -172,7 +172,7 @@ function SideLink({
         name={item.icon}
         className={[
           "w-[16px] h-[16px] transition-all duration-200 shrink-0",
-          active ? "text-emerald-400 drop-shadow-[0_0_4px_rgba(52,211,153,0.55)]" : "text-zinc-500",
+          active ? "text-emerald-400 drop-shadow-[0_0_4px_rgba(82,181,145,0.55)]" : "text-zinc-500",
         ].join(" ")}
         strokeWidth={active ? 2.2 : 1.8}
       />
@@ -180,7 +180,7 @@ function SideLink({
       {badge ? (
         <span className="stat-badge">{badge}</span>
       ) : active ? (
-        <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_5px_rgba(52,211,153,0.75)]" />
+        <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_5px_rgba(82,181,145,0.75)]" />
       ) : null}
     </Link>
   )

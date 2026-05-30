@@ -752,7 +752,7 @@ export async function POST(req: Request) {
           while (iteration < 10) {
             iteration++
             const response = await client.messages.create({
-              model: "claude-sonnet-4-5-20251001",
+              model: "claude-sonnet-4-5-20250929",
               max_tokens: 2500,
               // Prompt caching: system prompt + tools se cachean 5 min → ~80% ahorro en tokens de entrada
               system: [{ type: "text", text: SYSTEM_PROMPT + buildTodayContext(), cache_control: { type: "ephemeral" } }] as any,

@@ -19,6 +19,50 @@ const config: Config = {
         border:       "var(--border)",
         accent:       "var(--accent)",
         "accent-cyan":"var(--accent-cyan)",
+
+        // ─── Desaturated brand ramps ────────────────────────────────────────
+        // Same hue + lightness as Tailwind defaults, lower saturation — a
+        // calmer, more elegant palette that propagates to every utility
+        // (bg-emerald-500, text-cyan-400, border-violet-700/40, …) at once.
+        emerald: {
+          50: "#effaf5",
+          100: "#d9f2e5",
+          200: "#b5e5cf",
+          300: "#85d0b2",
+          400: "#52b591",
+          500: "#309976",
+          600: "#217a5f",
+          700: "#1a624e",
+          800: "#174e3f",
+          900: "#144035",
+          950: "#0a241e",
+        },
+        cyan: {
+          50: "#f0fafb",
+          100: "#d9f2f4",
+          200: "#b7e5ea",
+          300: "#86d0da",
+          400: "#4db3c3",
+          500: "#3197a9",
+          600: "#2c7b8e",
+          700: "#296475",
+          800: "#295461",
+          900: "#264753",
+          950: "#152e37",
+        },
+        violet: {
+          50: "#f6f5fd",
+          100: "#efedfa",
+          200: "#e2ddf7",
+          300: "#ccc2f0",
+          400: "#b19fe6",
+          500: "#9678da",
+          600: "#845acd",
+          700: "#7448b9",
+          800: "#613c9b",
+          900: "#51337f",
+          950: "#331f56",
+        },
       },
 
       // ─── Spacing: 4pt base grid, with named helpers ───────────────────────
@@ -52,23 +96,23 @@ const config: Config = {
 
       // ─── Elevation-based shadow system ────────────────────────────────────
       boxShadow: {
-        // Surfaces
-        "card":         "0 1px 3px rgba(0,0,0,0.45), 0 1px 2px -1px rgba(0,0,0,0.25)",
-        "card-md":      "0 4px 12px -2px rgba(0,0,0,0.5), 0 2px 6px -2px rgba(0,0,0,0.3)",
-        "card-hover":   "0 8px 32px -4px rgba(0,0,0,0.6), 0 4px 12px -4px rgba(0,0,0,0.4)",
-        "dialog":       "0 24px 80px -12px rgba(0,0,0,0.85), 0 8px 32px -4px rgba(0,0,0,0.5)",
+        // Surfaces — soft, diffuse, almost-invisible elevation
+        "card":         "0 1px 3px rgba(0,0,0,0.20)",
+        "card-md":      "0 6px 24px -8px rgba(0,0,0,0.30)",
+        "card-hover":   "0 12px 40px -12px rgba(0,0,0,0.38)",
+        "dialog":       "0 28px 90px -20px rgba(0,0,0,0.55)",
         "topbar":       "0 1px 0 rgba(255,255,255,0.04)",
-        // Glow variants
-        "glow-emerald": "0 0 0 1px rgba(52,211,153,0.18), 0 8px 40px -8px rgba(52,211,153,0.28)",
-        "glow-cyan":    "0 0 0 1px rgba(34,211,238,0.18), 0 8px 40px -8px rgba(34,211,238,0.28)",
-        "glow-violet":  "0 0 0 1px rgba(167,139,250,0.18), 0 8px 40px -8px rgba(167,139,250,0.28)",
-        "glow-amber":   "0 0 0 1px rgba(251,191,36,0.18), 0 8px 40px -8px rgba(251,191,36,0.22)",
-        "glow-rose":    "0 0 0 1px rgba(251,113,133,0.18), 0 8px 40px -8px rgba(251,113,133,0.25)",
-        // Button glow
-        "btn-emerald":  "0 4px 20px -4px rgba(52,211,153,0.40)",
-        "btn-violet":   "0 4px 20px -4px rgba(167,139,250,0.40)",
+        // Glow variants — desaturated, no hard ring, just a faint halo
+        "glow-emerald": "0 8px 40px -12px rgba(82,181,145,0.20)",
+        "glow-cyan":    "0 8px 40px -12px rgba(77,179,195,0.18)",
+        "glow-violet":  "0 8px 40px -12px rgba(177,159,230,0.20)",
+        "glow-amber":   "0 8px 40px -12px rgba(251,191,36,0.16)",
+        "glow-rose":    "0 8px 40px -12px rgba(251,113,133,0.18)",
+        // Button glow — subtle lift, not neon
+        "btn-emerald":  "0 4px 18px -6px rgba(82,181,145,0.30)",
+        "btn-violet":   "0 4px 18px -6px rgba(177,159,230,0.30)",
         // Inner highlights
-        "inner-highlight": "inset 0 1px 0 rgba(255,255,255,0.06)",
+        "inner-highlight": "inset 0 1px 0 rgba(255,255,255,0.05)",
       },
 
       // ─── Easing functions ─────────────────────────────────────────────────

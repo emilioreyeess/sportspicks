@@ -70,14 +70,14 @@ function ProbBar({ label, value, tone = "emerald" }: { label: string; value: num
 function FormChips({ form }: { form: string[] }) {
   if (!form || form.length === 0) return <span className="text-[12px] text-zinc-600">N/A</span>
   const c: Record<string, string> = {
-    W: "bg-emerald-500/15 text-emerald-400 border-emerald-700/40",
-    D: "bg-zinc-700/40 text-zinc-300 border-white/[0.08]",
-    L: "bg-rose-500/15 text-rose-400 border-rose-700/40",
+    W: "bg-emerald-400/10 text-emerald-400/90",
+    D: "bg-white/[0.05] text-zinc-300",
+    L: "bg-rose-400/10 text-rose-400/90",
   }
   return (
-    <div className="flex gap-1">
+    <div className="flex gap-1.5">
       {form.map((r, i) => (
-        <span key={i} className={`grid place-items-center w-5 h-5 rounded-[6px] border text-[10px] font-black ${c[r] ?? c.D}`}>{r}</span>
+        <span key={i} className={`grid place-items-center w-5 h-5 rounded-md text-[10px] font-semibold ${c[r] ?? c.D}`}>{r}</span>
       ))}
     </div>
   )
@@ -125,7 +125,7 @@ function AnalysisModal({ match, onClose }: { match: TodayMatch; onClose: () => v
         {loading ? (
           <div className="flex items-center justify-center py-16"><Spinner className="w-6 h-6" /></div>
         ) : error || noIds ? (
-          <div className="rounded-xl border border-amber-800/40 bg-amber-500/[0.06] p-4 text-[13px] text-amber-300">
+          <div className="rounded-xl bg-amber-400/[0.08] p-4 text-[13px] text-amber-300/90">
             {noIds
               ? "No hay identificadores de equipo para este partido — análisis no disponible."
               : "No se pudo cargar el análisis en este momento."}
@@ -134,7 +134,7 @@ function AnalysisModal({ match, onClose }: { match: TodayMatch; onClose: () => v
           <>
             {/* Resultado 1X2 */}
             <section>
-              <p className="text-[11px] font-black uppercase tracking-wide text-zinc-500 mb-2.5">Resultado (1X2)</p>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500 mb-2.5">Resultado (1X2)</p>
               <div className="space-y-2.5">
                 <ProbBar label={`1 · ${match.home_team}`} value={a.prob1} tone="emerald" />
                 <ProbBar label="X · Empate" value={a.probX} tone="amber" />
@@ -144,7 +144,7 @@ function AnalysisModal({ match, onClose }: { match: TodayMatch; onClose: () => v
 
             {/* Goles */}
             <section>
-              <p className="text-[11px] font-black uppercase tracking-wide text-zinc-500 mb-2.5">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500 mb-2.5">
                 Goles {a.goalsEstimate != null && <span className="text-zinc-600 normal-case font-medium">· est. {a.goalsEstimate}</span>}
               </p>
               <div className="grid grid-cols-2 gap-x-5 gap-y-2.5">
@@ -157,7 +157,7 @@ function AnalysisModal({ match, onClose }: { match: TodayMatch; onClose: () => v
 
             {/* BTTS */}
             <section>
-              <p className="text-[11px] font-black uppercase tracking-wide text-zinc-500 mb-2.5">Ambos marcan (BTTS)</p>
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500 mb-2.5">Ambos marcan (BTTS)</p>
               <div className="grid grid-cols-2 gap-5">
                 <ProbBar label="Sí" value={a.bttsYes} tone="violet" />
                 <ProbBar label="No" value={a.bttsNo} tone="zinc" />
@@ -166,7 +166,7 @@ function AnalysisModal({ match, onClose }: { match: TodayMatch; onClose: () => v
 
             {/* Corners */}
             <section>
-              <p className="text-[11px] font-black uppercase tracking-wide text-zinc-500 mb-2.5">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500 mb-2.5">
                 Corners {a.corners?.line != null && <span className="text-zinc-600 normal-case font-medium">· línea {a.corners.line} · est. {a.corners.estimate}</span>}
               </p>
               {a.corners ? (
@@ -179,7 +179,7 @@ function AnalysisModal({ match, onClose }: { match: TodayMatch; onClose: () => v
 
             {/* Tarjetas */}
             <section>
-              <p className="text-[11px] font-black uppercase tracking-wide text-zinc-500 mb-2.5">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500 mb-2.5">
                 Tarjetas {a.cards?.line != null && <span className="text-zinc-600 normal-case font-medium">· línea {a.cards.line} · est. {a.cards.estimate}</span>}
               </p>
               {a.cards ? (
@@ -193,11 +193,11 @@ function AnalysisModal({ match, onClose }: { match: TodayMatch; onClose: () => v
             {/* Forma */}
             <section className="grid grid-cols-2 gap-5">
               <div>
-                <p className="text-[11px] font-black uppercase tracking-wide text-zinc-500 mb-2">Forma {match.home_team}</p>
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500 mb-2">Forma {match.home_team}</p>
                 <FormChips form={a.home?.form ?? []} />
               </div>
               <div>
-                <p className="text-[11px] font-black uppercase tracking-wide text-zinc-500 mb-2">Forma {match.away_team}</p>
+                <p className="text-[11px] font-semibold uppercase tracking-wide text-zinc-500 mb-2">Forma {match.away_team}</p>
                 <FormChips form={a.away?.form ?? []} />
               </div>
             </section>
@@ -225,24 +225,24 @@ function MatchCard({ match, live, onClick }: { match: TodayMatch; live?: any; on
   return (
     <button
       onClick={onClick}
-      className="group w-full text-left rounded-2xl border border-white/[0.08] bg-white/[0.03] backdrop-blur-xl p-4 transition-all duration-200 hover:border-white/[0.16] hover:bg-white/[0.05] active:scale-[0.99] tap"
+      className="group w-full text-left rounded-2xl border border-white/[0.05] bg-zinc-900/40 p-5 transition-all duration-200 hover:border-white/[0.10] hover:bg-zinc-900/60 active:scale-[0.99] tap"
     >
       {/* top: liga + estado */}
-      <div className="flex items-center justify-between mb-3">
-        <span className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-zinc-400">
+      <div className="flex items-center justify-between mb-3.5">
+        <span className="inline-flex items-center gap-1.5 text-[11px] font-medium text-zinc-400">
           <span>{match.flag}</span>{match.league_name}
         </span>
         {isLive ? (
-          <span className="inline-flex items-center gap-1.5 rounded-full border border-rose-700/45 bg-rose-500/10 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-rose-400">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-rose-400/10 px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-rose-400/90">
             <span className="h-1.5 w-1.5 rounded-full bg-rose-400 animate-pulse" />
             {clock || "EN VIVO"}
           </span>
         ) : isPost ? (
-          <span className="rounded-full border border-white/[0.08] bg-white/[0.04] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-zinc-400">
+          <span className="rounded-full bg-white/[0.04] px-2.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-zinc-400">
             {detail || "Final"}
           </span>
         ) : (
-          <span className="rounded-full border border-white/[0.08] bg-white/[0.04] px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide text-zinc-400">
+          <span className="rounded-full bg-white/[0.04] px-2.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-zinc-400">
             {kickoffLabel(match.kickoff_iso)}
           </span>
         )}
@@ -265,15 +265,15 @@ function MatchCard({ match, live, onClick }: { match: TodayMatch; live?: any; on
       </div>
 
       {/* footer: cuotas (si hay) + CTA */}
-      <div className="flex items-center justify-between mt-3 pt-3 border-t border-white/[0.06]">
+      <div className="flex items-center justify-between mt-4">
         {match.odds_home != null && match.odds_away != null ? (
           <div className="flex items-center gap-1.5 text-[11px]">
-            <span className="rounded-md bg-white/[0.05] px-1.5 py-0.5 font-bold text-zinc-300 tabular-nums">{match.odds_home.toFixed(2)}</span>
-            {match.odds_draw != null && <span className="rounded-md bg-white/[0.05] px-1.5 py-0.5 font-bold text-zinc-300 tabular-nums">{match.odds_draw.toFixed(2)}</span>}
-            <span className="rounded-md bg-white/[0.05] px-1.5 py-0.5 font-bold text-zinc-300 tabular-nums">{match.odds_away.toFixed(2)}</span>
+            <span className="rounded-md bg-white/[0.04] px-2 py-0.5 font-medium text-zinc-300 tabular-nums">{match.odds_home.toFixed(2)}</span>
+            {match.odds_draw != null && <span className="rounded-md bg-white/[0.04] px-2 py-0.5 font-medium text-zinc-300 tabular-nums">{match.odds_draw.toFixed(2)}</span>}
+            <span className="rounded-md bg-white/[0.04] px-2 py-0.5 font-medium text-zinc-300 tabular-nums">{match.odds_away.toFixed(2)}</span>
           </div>
         ) : <span className="text-[11px] text-zinc-600">Cuotas N/A</span>}
-        <span className="inline-flex items-center gap-1 text-[12px] font-bold text-emerald-400 group-hover:gap-1.5 transition-all">
+        <span className="inline-flex items-center gap-1 text-[12px] font-semibold text-emerald-400/90 group-hover:gap-1.5 transition-all">
           Análisis IA <Icon name="arrowRight" className="w-3.5 h-3.5" strokeWidth={2.4} />
         </span>
       </div>
@@ -308,20 +308,20 @@ export default function TodayMatches() {
   if (!loading && matches.length === 0) return null
 
   return (
-    <section className="max-w-5xl mx-auto px-4 pt-6 pb-2">
-      <div className="flex items-center justify-between mb-3 px-0.5">
+    <section className="max-w-5xl mx-auto px-4 sm:px-6 pt-12 pb-2">
+      <div className="flex items-center justify-between mb-4 px-0.5">
         <p className="section-label">Partidos de Hoy</p>
         <span className="text-[11px] text-zinc-600">Top 5 · análisis con datos reales</span>
       </div>
 
       {loading ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {[...Array(4)].map((_, i) => (
             <div key={i} className="rounded-2xl border border-white/[0.06] bg-white/[0.02] p-4 h-[150px] animate-pulse" />
           ))}
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           {matches.map((m) => (
             <MatchCard key={m.match_id} match={m} live={liveMap.get(m.match_id)} onClick={() => setSelected(m)} />
           ))}

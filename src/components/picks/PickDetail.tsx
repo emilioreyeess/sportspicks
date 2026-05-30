@@ -3,6 +3,7 @@
 import { useState } from "react"
 import { type Pick } from "@/types"
 import { usePlan } from "@/lib/plan"
+import { Portal } from "@/components/ui/primitives"
 import {
   getRemainingSecondOpinions,
   incrementSecondOpinion,
@@ -90,10 +91,11 @@ export function PickDetail({ pick, onClose }: Props) {
   const engine = (p as any).engine
 
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/70 backdrop-blur-sm"
+    <Portal>
+    <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-md"
       onClick={onClose}>
       <div
-        className="w-full sm:w-[560px] max-h-[92vh] overflow-y-auto bg-zinc-900/95 border border-white/[0.07] rounded-t-3xl sm:rounded-2xl p-6 space-y-5"
+        className="w-full sm:w-[560px] max-h-[92vh] overflow-y-auto bg-zinc-900 sm:bg-zinc-900/95 backdrop-blur-2xl border border-white/[0.07] rounded-t-3xl sm:rounded-3xl p-6 space-y-5"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -258,6 +260,7 @@ export function PickDetail({ pick, onClose }: Props) {
         )}
       </div>
     </div>
+    </Portal>
   )
 }
 

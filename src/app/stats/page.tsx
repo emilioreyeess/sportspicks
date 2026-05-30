@@ -263,7 +263,7 @@ export default function StatsPage() {
                     className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white/[0.04]
                       transition-colors text-left border-b border-white/[0.07] last:border-0">
                     <div className="grid place-items-center w-9 h-9 rounded-xl bg-zinc-800/60 border border-white/[0.07] shrink-0">
-                      <span className="text-xs font-black text-zinc-400">{p.jersey ?? p.positionAbbr}</span>
+                      <span className="text-xs font-bold text-zinc-400">{p.jersey ?? p.positionAbbr}</span>
                     </div>
                     <div className="min-w-0">
                       <p className="text-sm font-medium text-white truncate">{p.name}</p>
@@ -336,12 +336,12 @@ function PlayerCard({ player }: { player: PlayerResult }) {
     <div className="bg-zinc-900/60 border border-white/[0.07] rounded-2xl p-5 animate-fade-in">
       <div className="flex items-start gap-4">
         <div className="grid place-items-center w-14 h-14 rounded-2xl bg-zinc-800/60 border border-white/[0.07] shrink-0">
-          <span className="text-xl font-black text-zinc-300">
+          <span className="text-xl font-bold text-zinc-300">
             {player.jersey ? `#${player.jersey}` : player.positionAbbr}
           </span>
         </div>
         <div className="flex-1 min-w-0">
-          <h2 className="text-xl font-black text-white leading-tight">{player.name}</h2>
+          <h2 className="text-xl font-bold text-white leading-tight">{player.name}</h2>
           <p className="text-sm text-zinc-400 mt-0.5">{player.position}</p>
           <div className="flex flex-wrap gap-2 mt-3">
             <span className="text-xs bg-zinc-800/60 border border-white/[0.07] text-zinc-300 px-2.5 py-1 rounded-full">
@@ -384,7 +384,7 @@ function StatCard({ icon, value, label, color }: { icon: string; value: string; 
   return (
     <div className="bg-zinc-900/60 border border-white/[0.07] rounded-xl p-3 text-center">
       <p className="text-2xl mb-0.5">{icon}</p>
-      <p className={`text-xl font-black ${color}`}>{value}</p>
+      <p className={`text-xl font-bold ${color}`}>{value}</p>
       <p className="text-[10px] text-zinc-600 mt-0.5">{label}</p>
     </div>
   )
@@ -447,7 +447,7 @@ function TeamStatsView({ stats, isPremium, isPro, analyzeUsed, onAnalyze, analys
       <div className="bg-zinc-900/60 border border-white/[0.07] rounded-2xl p-5">
         <div className="flex items-start justify-between mb-4 gap-3">
           <div className="min-w-0">
-            <h2 className="text-xl font-black text-white">{stats.name}</h2>
+            <h2 className="text-xl font-bold text-white">{stats.name}</h2>
             <p className="text-sm text-zinc-500">{stats.league} · Temporada {stats.season}</p>
             <p className="text-xs text-zinc-600 mt-0.5">{stats.played} partidos · {points} puntos</p>
           </div>
@@ -475,7 +475,7 @@ function TeamStatsView({ stats, isPremium, isPro, analyzeUsed, onAnalyze, analys
                 <><Icon name="settings" className="w-3.5 h-3.5 animate-spin" />Analizando…</>
               ) : !isPremium ? (
                 <><Icon name="lock" className="w-3.5 h-3.5" strokeWidth={2} />Análisis IA
-                  <span className="text-[9px] font-black bg-emerald-500/20 text-emerald-400 border border-emerald-800/60 px-1 py-0.5 rounded-full leading-none">⭐</span>
+                  <span className="text-[9px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-800/60 px-1 py-0.5 rounded-full leading-none">⭐</span>
                 </>
               ) : isPremium && !isPro && analyzeUsed ? (
                 <><Icon name="lock" className="w-3.5 h-3.5" strokeWidth={2} />Usado hoy</>
@@ -491,15 +491,15 @@ function TeamStatsView({ stats, isPremium, isPro, analyzeUsed, onAnalyze, analys
         {/* W/D/L */}
         <div className="grid grid-cols-3 gap-3 text-center">
           <div className="bg-emerald-500/10 rounded-xl p-3">
-            <p className="text-2xl font-black text-emerald-400">{stats.wins}</p>
+            <p className="text-2xl font-bold text-emerald-400">{stats.wins}</p>
             <p className="text-[10px] text-zinc-500">Victorias</p>
           </div>
           <div className="bg-zinc-800/50 rounded-xl p-3">
-            <p className="text-2xl font-black text-zinc-300">{stats.draws}</p>
+            <p className="text-2xl font-bold text-zinc-300">{stats.draws}</p>
             <p className="text-[10px] text-zinc-500">Empates</p>
           </div>
           <div className="bg-red-500/10 rounded-xl p-3">
-            <p className="text-2xl font-black text-red-400">{stats.losses}</p>
+            <p className="text-2xl font-bold text-red-400">{stats.losses}</p>
             <p className="text-[10px] text-zinc-500">Derrotas</p>
           </div>
         </div>
@@ -513,7 +513,7 @@ function TeamStatsView({ stats, isPremium, isPro, analyzeUsed, onAnalyze, analys
               <Icon name="spark" className="w-5 h-5 text-emerald-400" />
             </div>
             <div>
-              <p className="text-sm font-black text-white">Análisis Scout IA</p>
+              <p className="text-sm font-bold text-white">Análisis Scout IA</p>
               <p className="text-xs text-zinc-500">Disponible en Premium ⭐ y Pro 👑</p>
             </div>
           </div>
@@ -553,7 +553,7 @@ function TeamStatsView({ stats, isPremium, isPro, analyzeUsed, onAnalyze, analys
               <Icon name="spark" className="w-4.5 h-4.5 text-emerald-400" strokeWidth={2} />
             </div>
             <div>
-              <p className="text-sm font-black text-white">Análisis Scout IA · {stats.name}</p>
+              <p className="text-sm font-bold text-white">Análisis Scout IA · {stats.name}</p>
               <p className="text-[10px] text-zinc-500">Basado exclusivamente en datos reales de ESPN · {stats.season}</p>
             </div>
             {analysisLoading && (
@@ -605,7 +605,7 @@ function TeamStatsView({ stats, isPremium, isPro, analyzeUsed, onAnalyze, analys
             const bars: Record<string, string>   = { amber: "bg-amber-400",   blue: "bg-blue-500",   emerald: "bg-emerald-500" }
             return (
               <div key={c.label} className="bg-zinc-900/60 border border-white/[0.07] rounded-xl p-4 text-center">
-                <p className={`text-2xl font-black ${colors[c.color]}`}>{c.pct}%</p>
+                <p className={`text-2xl font-bold ${colors[c.color]}`}>{c.pct}%</p>
                 <p className="text-[10px] text-zinc-500 mt-0.5">{c.label}</p>
                 <div className="mt-2 h-1.5 bg-white/[0.06] rounded-full overflow-hidden">
                   <div className={`h-full ${bars[c.color]} rounded-full`} style={{ width: `${c.pct}%` }} />
@@ -649,19 +649,19 @@ function TeamStatsView({ stats, isPremium, isPro, analyzeUsed, onAnalyze, analys
               <p className="text-xs font-bold text-zinc-400 mb-3">{s.label}</p>
               <div className="flex justify-between text-center">
                 <div>
-                  <p className="text-xl font-black text-emerald-400">{s.data.wins}</p>
+                  <p className="text-xl font-bold text-emerald-400">{s.data.wins}</p>
                   <p className="text-[10px] text-zinc-600">V</p>
                 </div>
                 <div>
-                  <p className="text-xl font-black text-zinc-400">{s.data.draws}</p>
+                  <p className="text-xl font-bold text-zinc-400">{s.data.draws}</p>
                   <p className="text-[10px] text-zinc-600">E</p>
                 </div>
                 <div>
-                  <p className="text-xl font-black text-red-400">{s.data.losses}</p>
+                  <p className="text-xl font-bold text-red-400">{s.data.losses}</p>
                   <p className="text-[10px] text-zinc-600">D</p>
                 </div>
                 <div>
-                  <p className="text-lg font-black text-white">{s.data.goals_for}-{s.data.goals_against}</p>
+                  <p className="text-lg font-bold text-white">{s.data.goals_for}-{s.data.goals_against}</p>
                   <p className="text-[10px] text-zinc-600">Goles</p>
                 </div>
               </div>

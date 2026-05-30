@@ -38,17 +38,17 @@ export function TopBar() {
 
           {/* Brand — left */}
           <Link href="/" className="flex items-center gap-2 group">
-            <span className="grid place-items-center w-[30px] h-[30px] rounded-[9px] bg-gradient-to-br from-emerald-500/20 to-cyan-500/12 border border-emerald-600/35 group-hover:border-emerald-500/55 group-hover:shadow-[0_0_12px_rgba(52,211,153,0.18)] transition-all duration-200 overflow-hidden shrink-0">
+            <span className="grid place-items-center w-[30px] h-[30px] rounded-[9px] bg-emerald-400/10 border border-emerald-400/15 group-hover:border-emerald-400/25 transition-all duration-200 overflow-hidden shrink-0">
               <img src="/icon.svg" className="w-[16px] h-[16px]" alt="" />
             </span>
-            <span className="text-[15px] font-black tracking-tight text-white">SportsPicks</span>
+            <span className="text-[15px] font-bold tracking-tight text-white">SportsPicks</span>
           </Link>
 
           {/* Actions — right */}
           <div className="flex items-center gap-1">
             {plan === "free" ? (
               <Link href="/pricing"
-                className="flex items-center gap-1 rounded-full border border-emerald-700/45 bg-emerald-500/10 px-2.5 py-[5px] text-[11px] font-black text-emerald-400 tap hover:bg-emerald-500/16 hover:border-emerald-600/55 transition-all">
+                className="flex items-center gap-1 rounded-full bg-emerald-400/10 px-3 py-[5px] text-[11px] font-semibold text-emerald-400/90 tap hover:bg-emerald-400/15 transition-all">
                 <Icon name="crown" className="w-3 h-3" strokeWidth={2.4} />
                 Premium
               </Link>
@@ -93,10 +93,10 @@ export function TopBar() {
             {/* Drawer header — matches TopBar height */}
             <div className="relative flex items-center justify-between h-[56px] px-4 border-b border-white/[0.07]">
               <div className="flex items-center gap-2">
-                <span className="grid place-items-center w-[28px] h-[28px] rounded-[8px] bg-gradient-to-br from-emerald-500/18 to-cyan-500/10 border border-emerald-700/35 overflow-hidden shrink-0">
+                <span className="grid place-items-center w-[28px] h-[28px] rounded-[8px] bg-emerald-400/10 border border-emerald-400/15 overflow-hidden shrink-0">
                   <img src="/icon.svg" className="w-3.5 h-3.5" alt="" />
                 </span>
-                <span className="text-[15px] font-black text-white tracking-tight">SportsPicks</span>
+                <span className="text-[15px] font-bold text-white tracking-tight">SportsPicks</span>
               </div>
               <button onClick={() => setOpen(false)} aria-label="Cerrar menú"
                 className="grid place-items-center w-9 h-9 rounded-xl text-zinc-400 hover:bg-white/[0.06] hover:text-white transition-colors tap">
@@ -120,12 +120,12 @@ export function TopBar() {
                       ].join(" ")}>
                       <Icon
                         name={item.icon}
-                        className={["w-[18px] h-[18px] transition-all shrink-0", active ? "text-emerald-400 drop-shadow-[0_0_5px_rgba(52,211,153,0.55)]" : "text-zinc-500"].join(" ")}
+                        className={["w-[18px] h-[18px] transition-all shrink-0", active ? "text-emerald-400 drop-shadow-[0_0_5px_rgba(82,181,145,0.55)]" : "text-zinc-500"].join(" ")}
                         strokeWidth={active ? 2.2 : 1.8}
                       />
                       <span className="flex-1 tracking-tight leading-none">{item.label}</span>
                       {active && (
-                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.7)] shrink-0" />
+                        <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_6px_rgba(82,181,145,0.7)] shrink-0" />
                       )}
                     </Link>
                   )
@@ -161,12 +161,12 @@ export function TopBar() {
               <Link
                 href={plan === "free" ? "/pricing" : "/account"}
                 className={[
-                  "relative overflow-hidden flex items-center justify-between rounded-[13px] border px-4 py-3 tap transition-all",
+                  "relative overflow-hidden flex items-center justify-between rounded-2xl px-4 py-3.5 tap transition-all",
                   plan === "free"
-                    ? "border-emerald-800/55 bg-emerald-500/[0.06] hover:border-emerald-700/55 hover:bg-emerald-500/10"
+                    ? "bg-emerald-400/[0.07] hover:bg-emerald-400/[0.11]"
                     : plan === "pro"
-                      ? "border-violet-800/55 bg-violet-500/[0.06] hover:border-violet-700/55"
-                      : "border-white/[0.08] bg-white/[0.03] hover:border-white/[0.12]",
+                      ? "bg-violet-400/[0.07] hover:bg-violet-400/[0.11]"
+                      : "bg-white/[0.03] hover:bg-white/[0.05]",
                 ].join(" ")}>
                 {plan !== "free" && (
                   <div className={[

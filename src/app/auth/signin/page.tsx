@@ -110,7 +110,7 @@ export default function SignInPage() {
 
         <div className="relative">
           <div className="flex items-center gap-3 mb-14">
-            <span className="grid place-items-center w-10 h-10 rounded-[12px] bg-gradient-to-br from-emerald-500/22 to-cyan-500/14 border border-emerald-600/38 text-emerald-400 shadow-[0_0_16px_rgba(52,211,153,0.18)]">
+            <span className="grid place-items-center w-10 h-10 rounded-[12px] bg-gradient-to-br from-emerald-500/22 to-cyan-500/14 border border-emerald-600/38 text-emerald-400 shadow-[0_0_16px_rgba(82,181,145,0.18)]">
               <Icon name="value" className="w-5 h-5" strokeWidth={2.1} />
             </span>
             <div>
@@ -158,7 +158,7 @@ export default function SignInPage() {
 
           {/* Mobile-only logo */}
           <div className="lg:hidden text-center mb-8">
-            <span className="inline-grid place-items-center w-14 h-14 rounded-[16px] bg-gradient-to-br from-emerald-500/22 to-cyan-500/14 border border-emerald-600/38 text-emerald-400 shadow-[0_0_24px_rgba(52,211,153,0.18)] mb-4">
+            <span className="inline-grid place-items-center w-14 h-14 rounded-[16px] bg-gradient-to-br from-emerald-500/22 to-cyan-500/14 border border-emerald-600/38 text-emerald-400 shadow-[0_0_24px_rgba(82,181,145,0.18)] mb-4">
               <Icon name="value" className="w-7 h-7" strokeWidth={2} />
             </span>
             <h1 className="text-[24px] font-black text-white tracking-tight">SportsPicks</h1>
@@ -203,7 +203,7 @@ export default function SignInPage() {
                     value={name}
                     onChange={e => setName(e.target.value)}
                     required
-                    className="w-full h-11 px-3.5 rounded-[11px] bg-zinc-800/60 border border-white/[0.10] text-[14px] text-white placeholder-zinc-500 focus:outline-none focus:border-emerald-600/55 focus:shadow-[0_0_0_3px_rgba(52,211,153,0.10)] transition-all"
+                    className="w-full h-11 px-3.5 rounded-[11px] bg-zinc-800/60 border border-white/[0.10] text-[14px] text-white placeholder-zinc-500 focus:outline-none focus:border-emerald-600/55 focus:shadow-[0_0_0_3px_rgba(82,181,145,0.10)] transition-all"
                   />
                 )}
                 <input
@@ -213,7 +213,7 @@ export default function SignInPage() {
                   onChange={e => setEmail(e.target.value)}
                   required
                   autoComplete="email"
-                  className="w-full h-11 px-3.5 rounded-[11px] bg-zinc-800/60 border border-white/[0.10] text-[14px] text-white placeholder-zinc-500 focus:outline-none focus:border-emerald-600/55 focus:shadow-[0_0_0_3px_rgba(52,211,153,0.10)] transition-all"
+                  className="w-full h-11 px-3.5 rounded-[11px] bg-zinc-800/60 border border-white/[0.10] text-[14px] text-white placeholder-zinc-500 focus:outline-none focus:border-emerald-600/55 focus:shadow-[0_0_0_3px_rgba(82,181,145,0.10)] transition-all"
                 />
                 <input
                   type="password"
@@ -223,7 +223,7 @@ export default function SignInPage() {
                   required
                   minLength={8}
                   autoComplete={mode === "register" ? "new-password" : "current-password"}
-                  className="w-full h-11 px-3.5 rounded-[11px] bg-zinc-800/60 border border-white/[0.10] text-[14px] text-white placeholder-zinc-500 focus:outline-none focus:border-emerald-600/55 focus:shadow-[0_0_0_3px_rgba(52,211,153,0.10)] transition-all"
+                  className="w-full h-11 px-3.5 rounded-[11px] bg-zinc-800/60 border border-white/[0.10] text-[14px] text-white placeholder-zinc-500 focus:outline-none focus:border-emerald-600/55 focus:shadow-[0_0_0_3px_rgba(82,181,145,0.10)] transition-all"
                 />
 
                 {/* TyC + Cookies checkboxes */}
@@ -270,7 +270,7 @@ export default function SignInPage() {
                 <button
                   type="submit"
                   disabled={!canSubmitCredentials || !!loading}
-                  className="w-full h-11 rounded-[11px] text-[14px] font-semibold bg-emerald-500 hover:bg-emerald-400 disabled:opacity-40 text-zinc-950 transition-all tap flex items-center justify-center gap-2 shadow-[0_4px_16px_-4px_rgba(52,211,153,0.35)]"
+                  className="w-full h-11 rounded-[11px] text-[14px] font-semibold bg-emerald-500 hover:bg-emerald-400 disabled:opacity-40 text-zinc-950 transition-all tap flex items-center justify-center gap-2 shadow-[0_4px_16px_-4px_rgba(82,181,145,0.35)]"
                 >
                   {loading === "credentials" ? <><Spinner /><span>Procesando…</span></> : (
                     mode === "login" ? "Iniciar sesión" : "Crear cuenta"

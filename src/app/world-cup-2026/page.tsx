@@ -83,7 +83,7 @@ export default function WorldCupPage() {
         <section>
           <div className="mb-4">
             <span className="section-label">Fase de grupos</span>
-            <h2 className="text-lg font-black text-white mt-0.5">12 Grupos · 48 Equipos</h2>
+            <h2 className="text-lg font-bold text-white mt-0.5">12 Grupos · 48 Equipos</h2>
           </div>
           {loading ? (
             <div className="space-y-2.5">
@@ -107,7 +107,7 @@ export default function WorldCupPage() {
           <div className="flex items-center justify-between mb-4">
             <div>
               <span className="section-label">Próximos partidos</span>
-              <h2 className="text-lg font-black text-white mt-0.5">
+              <h2 className="text-lg font-bold text-white mt-0.5">
                 Calendario Mundial 2026
               </h2>
             </div>
@@ -115,13 +115,13 @@ export default function WorldCupPage() {
               {selectedGroup && (
                 <button
                   onClick={() => setSelectedGroup(null)}
-                  className="flex items-center gap-1 text-[10px] font-black bg-amber-500/15 border border-amber-700/40 text-amber-400 px-2.5 py-1 rounded-full tap hover:bg-amber-500/25 transition-colors"
+                  className="flex items-center gap-1 text-[10px] font-bold bg-amber-500/15 border border-amber-700/40 text-amber-400 px-2.5 py-1 rounded-full tap hover:bg-amber-500/25 transition-colors"
                 >
                   Grupo {selectedGroup} ×
                 </button>
               )}
               {isPremium && (
-                <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-widest text-amber-400 border border-amber-700/50 bg-amber-500/10 rounded-full px-2.5 py-1">
+                <span className="inline-flex items-center gap-1 text-[10px] font-bold uppercase tracking-widest text-amber-400 border border-amber-700/50 bg-amber-500/10 rounded-full px-2.5 py-1">
                   <Icon name="spark" className="w-3 h-3" strokeWidth={2.5} />
                   Análisis disponible
                 </span>
@@ -167,12 +167,12 @@ export default function WorldCupPage() {
               <span className="grid place-items-center w-12 h-12 rounded-2xl bg-amber-500/15 mx-auto mb-3">
                 <Icon name="spark" className="w-6 h-6 text-amber-400" strokeWidth={2} />
               </span>
-              <p className="text-sm font-black text-white mb-1">Análisis estadístico por partido</p>
+              <p className="text-sm font-bold text-white mb-1">Análisis estadístico por partido</p>
               <p className="text-xs text-zinc-400 leading-relaxed mb-4 max-w-xs mx-auto">
                 Usuarios Premium pueden solicitar un análisis completo de cualquier partido: forma, xG, árbitro, contexto. Sin predicciones de resultado.
               </p>
               <Link href="/pricing"
-                className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-500 text-zinc-950 font-black text-sm tap">
+                className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-gradient-to-r from-amber-500 to-yellow-500 text-zinc-950 font-bold text-sm tap">
                 <Icon name="crown" className="w-4 h-4" strokeWidth={2.2} /> Ver Premium
               </Link>
             </div>
@@ -183,11 +183,11 @@ export default function WorldCupPage() {
       {/* Combinadas WC */}
       <div className="rounded-2xl border border-white/[0.07] bg-zinc-900/60 p-4 flex items-center justify-between gap-3">
         <div>
-          <p className="text-sm font-black text-white">Combinadas del Mundial</p>
+          <p className="text-sm font-bold text-white">Combinadas del Mundial</p>
           <p className="text-xs text-zinc-500 mt-0.5">Motor Poisson · 3 perfiles de riesgo</p>
         </div>
         <Link href="/combinadas"
-          className="shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-500/15 border border-amber-700/40 text-amber-300 font-black text-xs tap hover:bg-amber-500/25 transition-colors">
+          className="shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-xl bg-amber-500/15 border border-amber-700/40 text-amber-300 font-bold text-xs tap hover:bg-amber-500/25 transition-colors">
           Ir a Combinadas
           <Icon name="arrowRight" className="w-3.5 h-3.5" strokeWidth={2.2} />
         </Link>
@@ -235,7 +235,7 @@ function GroupsGrid({
           >
             {/* Group header */}
             <div className="flex items-center justify-between px-4 py-2.5 border-b border-white/[0.07] bg-zinc-900/60">
-              <span className="text-xs font-black uppercase tracking-widest text-white">
+              <span className="text-xs font-bold uppercase tracking-widest text-white">
                 Grupo {group}
               </span>
               <span className="text-[10px] text-zinc-600 font-bold">
@@ -301,15 +301,15 @@ function HeroSection() {
         <div className="absolute -bottom-12 -left-8 w-48 h-48 bg-yellow-500/10 rounded-full blur-[70px]" />
       </div>
       <div className="relative">
-        <h1 className="text-3xl font-black tracking-tight text-white">
+        <h1 className="text-3xl font-bold tracking-tight text-white">
           Mundial <span className="bg-gradient-to-r from-amber-300 to-yellow-400 bg-clip-text text-transparent">2026</span>
         </h1>
         <p className="mt-1.5 text-sm text-zinc-400">48 equipos · 🇺🇸🇲🇽🇨🇦 · 11 jun – 19 jul</p>
         <div className="mt-4 flex flex-wrap gap-2">
           <span className="inline-flex items-center gap-2 rounded-xl border border-amber-700/40 bg-zinc-950/60 px-3 py-1.5">
             <Icon name="bell" className="w-3.5 h-3.5 text-amber-400" strokeWidth={2.2} />
-            <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Arranque en</span>
-            <span className="text-sm font-black text-amber-300">{countdown}</span>
+            <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Arranque en</span>
+            <span className="text-sm font-bold text-amber-300">{countdown}</span>
           </span>
           <span className="inline-flex items-center gap-1.5 rounded-xl border border-white/[0.07] bg-zinc-950/60 px-3 py-1.5 text-[11px] text-zinc-400 font-bold">
             12 grupos · 104 partidos
@@ -344,10 +344,10 @@ function FixtureCard({
       <div className="px-4 py-3.5">
         {/* Date + stage */}
         <div className="flex items-center justify-between mb-3">
-          <span className="text-[10px] font-black uppercase tracking-widest text-zinc-600">
+          <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-600">
             {fixture.stage === "group" ? `Grupo ${fixture.group ?? ""}` : fixture.stage} · {fixture.venue.city}
           </span>
-          <span className={`text-[10px] font-black ${isLive ? "text-emerald-400" : isFinal ? "text-zinc-500" : "text-zinc-500"}`}>
+          <span className={`text-[10px] font-bold ${isLive ? "text-emerald-400" : isFinal ? "text-zinc-500" : "text-zinc-500"}`}>
             {isLive ? "🔴 EN VIVO" : isFinal ? "Final" : `${dateStr} ${timeStr}`}
           </span>
         </div>
@@ -358,7 +358,7 @@ function FixtureCard({
           <div className="flex items-center gap-2 min-w-0 flex-1">
             <span className="text-2xl shrink-0">{homeTeam?.flagEmoji ?? "🏳️"}</span>
             <div className="min-w-0">
-              <p className="text-sm font-black text-white truncate">{homeTeam?.name ?? fixture.homeCode}</p>
+              <p className="text-sm font-bold text-white truncate">{homeTeam?.name ?? fixture.homeCode}</p>
               <p className="text-[10px] text-zinc-600">#{homeTeam?.fifaRanking ?? "?"} FIFA</p>
             </div>
           </div>
@@ -366,18 +366,18 @@ function FixtureCard({
           {/* Score / VS */}
           <div className="shrink-0 text-center px-2">
             {fixture.result ? (
-              <p className="text-xl font-black text-white">
+              <p className="text-xl font-bold text-white">
                 {fixture.result.homeScore} – {fixture.result.awayScore}
               </p>
             ) : (
-              <p className="text-sm font-black text-zinc-600">vs</p>
+              <p className="text-sm font-bold text-zinc-600">vs</p>
             )}
           </div>
 
           {/* Away */}
           <div className="flex items-center gap-2 min-w-0 flex-1 justify-end">
             <div className="min-w-0 text-right">
-              <p className="text-sm font-black text-white truncate">{awayTeam?.name ?? fixture.awayCode}</p>
+              <p className="text-sm font-bold text-white truncate">{awayTeam?.name ?? fixture.awayCode}</p>
               <p className="text-[10px] text-zinc-600">#{awayTeam?.fifaRanking ?? "?"} FIFA</p>
             </div>
             <span className="text-2xl shrink-0">{awayTeam?.flagEmoji ?? "🏳️"}</span>
@@ -388,7 +388,7 @@ function FixtureCard({
         {fixture.status === "scheduled" && (
           <button
             onClick={() => onAnalyze(fixture.matchId)}
-            className={`mt-3 w-full flex items-center justify-center gap-1.5 py-2 rounded-xl border text-xs font-black transition-all tap ${
+            className={`mt-3 w-full flex items-center justify-center gap-1.5 py-2 rounded-xl border text-xs font-bold transition-all tap ${
               isOpen
                 ? "border-amber-600/60 bg-amber-500/15 text-amber-300"
                 : isPremium
@@ -474,7 +474,7 @@ function PreTournamentFixtures({
           <div key={fix.matchId} className="rounded-2xl border border-white/[0.07] bg-zinc-900/60 overflow-hidden">
             <div className="px-4 py-3.5">
               <div className="flex items-center justify-between mb-3">
-                <span className="text-[10px] font-black uppercase tracking-widest text-zinc-600">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-600">
                   Grupo {fix.group} · {fix.city}
                 </span>
                 <span className="text-[10px] text-zinc-500">{dateStr} {timeStr}</span>
@@ -484,14 +484,14 @@ function PreTournamentFixtures({
                 <div className="flex items-center gap-2 min-w-0 flex-1">
                   <span className="text-2xl shrink-0">{homeTeam?.flagEmoji ?? "🏳️"}</span>
                   <div>
-                    <p className="text-sm font-black text-white">{homeTeam?.name ?? fix.homeCode}</p>
+                    <p className="text-sm font-bold text-white">{homeTeam?.name ?? fix.homeCode}</p>
                     <p className="text-[10px] text-zinc-600">#{homeTeam?.fifaRanking ?? "?"} FIFA</p>
                   </div>
                 </div>
-                <span className="text-sm font-black text-zinc-600 px-2">vs</span>
+                <span className="text-sm font-bold text-zinc-600 px-2">vs</span>
                 <div className="flex items-center gap-2 min-w-0 flex-1 justify-end">
                   <div className="text-right">
-                    <p className="text-sm font-black text-white">{awayTeam?.name ?? fix.awayCode}</p>
+                    <p className="text-sm font-bold text-white">{awayTeam?.name ?? fix.awayCode}</p>
                     <p className="text-[10px] text-zinc-600">#{awayTeam?.fifaRanking ?? "?"} FIFA</p>
                   </div>
                   <span className="text-2xl shrink-0">{awayTeam?.flagEmoji ?? "🏳️"}</span>
@@ -500,7 +500,7 @@ function PreTournamentFixtures({
 
               <button
                 onClick={() => onAnalyze(fix.matchId)}
-                className={`mt-3 w-full flex items-center justify-center gap-1.5 py-2 rounded-xl border text-xs font-black transition-all tap ${
+                className={`mt-3 w-full flex items-center justify-center gap-1.5 py-2 rounded-xl border text-xs font-bold transition-all tap ${
                   isOpen
                     ? "border-amber-600/60 bg-amber-500/15 text-amber-300"
                     : isPremium
@@ -575,7 +575,7 @@ function MatchAnalysisPanel({
 
   return (
     <div className="border-t border-white/[0.07] bg-zinc-950/40 px-4 py-4 space-y-4">
-      <p className="text-[10px] font-black uppercase tracking-widest text-amber-400">
+      <p className="text-[10px] font-bold uppercase tracking-widest text-amber-400">
         Análisis estadístico · Solo datos, sin predicción de resultado
       </p>
 
@@ -583,7 +583,7 @@ function MatchAnalysisPanel({
       {odds && (
         <div className="rounded-xl border border-white/[0.07] bg-zinc-900/60 p-3">
           <div className="flex items-center justify-between mb-2">
-            <p className="text-[10px] font-black uppercase tracking-widest text-zinc-600">Cuotas reales</p>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600">Cuotas reales</p>
             <span className="text-[9px] text-zinc-600">{odds.bookmaker}</span>
           </div>
           <div className="grid grid-cols-3 gap-2">
@@ -593,15 +593,15 @@ function MatchAnalysisPanel({
               { label: `2 ${away.team.flagEmoji}`,  value: odds.away,  color: "text-blue-400"    },
             ].map((c) => (
               <div key={c.label} className="text-center rounded-lg border border-white/[0.07] bg-zinc-950/60 py-2">
-                <p className={`text-lg font-black ${c.color}`}>{c.value?.toFixed(2) ?? "—"}</p>
+                <p className={`text-lg font-bold ${c.color}`}>{c.value?.toFixed(2) ?? "—"}</p>
                 <p className="text-[9px] text-zinc-600">{c.label}</p>
               </div>
             ))}
           </div>
           {odds.over25 && (
             <div className="mt-2 flex items-center justify-center gap-4 border-t border-white/[0.07] pt-2">
-              <span className="text-[10px] text-zinc-500">+2.5 <span className="font-black text-white">{odds.over25.toFixed(2)}</span></span>
-              <span className="text-[10px] text-zinc-500">-2.5 <span className="font-black text-white">{odds.under25?.toFixed(2) ?? "—"}</span></span>
+              <span className="text-[10px] text-zinc-500">+2.5 <span className="font-bold text-white">{odds.over25.toFixed(2)}</span></span>
+              <span className="text-[10px] text-zinc-500">-2.5 <span className="font-bold text-white">{odds.under25?.toFixed(2) ?? "—"}</span></span>
             </div>
           )}
         </div>
@@ -614,12 +614,12 @@ function MatchAnalysisPanel({
           { label: away.team.shortName, form: away.form, flag: away.team.flagEmoji },
         ].map((side) => (
           <div key={side.label} className="rounded-xl border border-white/[0.07] bg-zinc-900/60 p-3">
-            <p className="text-[10px] font-black text-zinc-500 mb-2">{side.flag} {side.label}</p>
+            <p className="text-[10px] font-bold text-zinc-500 mb-2">{side.flag} {side.label}</p>
             {side.form ? (
               <div className="space-y-1.5">
                 <div className="flex items-center gap-1">
                   {side.form.formString.split("").map((c, i) => (
-                    <span key={i} className={`w-5 h-5 grid place-items-center rounded text-[9px] font-black ${
+                    <span key={i} className={`w-5 h-5 grid place-items-center rounded text-[9px] font-bold ${
                       c === "W" ? "bg-emerald-500/20 text-emerald-400" :
                       c === "D" ? "bg-amber-500/20 text-amber-400" :
                       "bg-rose-500/20 text-rose-400"
@@ -645,18 +645,18 @@ function MatchAnalysisPanel({
       {/* xG */}
       {(home.xg || away.xg) && (
         <div className="rounded-xl border border-white/[0.07] bg-zinc-900/60 p-3">
-          <p className="text-[10px] font-black uppercase tracking-widest text-zinc-600 mb-2">xG estimado (últimos 5)</p>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 mb-2">xG estimado (últimos 5)</p>
           <div className="flex items-center justify-around">
             {home.xg && (
               <div className="text-center">
-                <p className="text-lg font-black text-white">{home.xg.xgFor5.toFixed(2)}</p>
+                <p className="text-lg font-bold text-white">{home.xg.xgFor5.toFixed(2)}</p>
                 <p className="text-[9px] text-zinc-600">{home.team.shortName} xG</p>
               </div>
             )}
-            <span className="text-zinc-700 font-black">–</span>
+            <span className="text-zinc-700 font-bold">–</span>
             {away.xg && (
               <div className="text-center">
-                <p className="text-lg font-black text-white">{away.xg.xgFor5.toFixed(2)}</p>
+                <p className="text-lg font-bold text-white">{away.xg.xgFor5.toFixed(2)}</p>
                 <p className="text-[9px] text-zinc-600">{away.team.shortName} xG</p>
               </div>
             )}
@@ -668,11 +668,11 @@ function MatchAnalysisPanel({
       {referee && (
         <div className="rounded-xl border border-white/[0.07] bg-zinc-900/60 p-3 flex items-center justify-between gap-2">
           <div>
-            <p className="text-[10px] font-black uppercase tracking-widest text-zinc-600 mb-0.5">Árbitro</p>
-            <p className="text-sm font-black text-white">{referee.name}</p>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 mb-0.5">Árbitro</p>
+            <p className="text-sm font-bold text-white">{referee.name}</p>
             <p className="text-[10px] text-zinc-500">{referee.nationality} · {referee.cards.yellowPerMatch.toFixed(2)} 🟨/partido</p>
           </div>
-          <span className={`text-[10px] font-black uppercase tracking-widest px-2 py-1 rounded-lg ${
+          <span className={`text-[10px] font-bold uppercase tracking-widest px-2 py-1 rounded-lg ${
             referee.severity === "very-strict" ? "bg-rose-500/15 text-rose-400" :
             referee.severity === "strict"      ? "bg-orange-500/15 text-orange-400" :
             referee.severity === "lenient"     ? "bg-emerald-500/15 text-emerald-400" :
@@ -732,13 +732,13 @@ function FormBasedAnalysis({ homeCode, awayCode }: { homeCode?: string; awayCode
     if (!team) return null
     return (
       <div className="rounded-xl border border-white/[0.07] bg-zinc-900/60 p-3">
-        <p className="text-[10px] font-black text-zinc-500 mb-1.5">{team.flagEmoji} {team.name}</p>
+        <p className="text-[10px] font-bold text-zinc-500 mb-1.5">{team.flagEmoji} {team.name}</p>
         <p className="text-[10px] text-zinc-500">#{team.fifaRanking ?? "?"} FIFA · {team.confederation}</p>
         {form ? (
           <div className="mt-2 space-y-1">
             <div className="flex items-center gap-1">
               {form.formString.split("").map((c: string, i: number) => (
-                <span key={i} className={`w-5 h-5 grid place-items-center rounded text-[9px] font-black ${
+                <span key={i} className={`w-5 h-5 grid place-items-center rounded text-[9px] font-bold ${
                   c === "W" ? "bg-emerald-500/20 text-emerald-400" :
                   c === "D" ? "bg-amber-500/20 text-amber-400" :
                   "bg-rose-500/20 text-rose-400"
@@ -756,7 +756,7 @@ function FormBasedAnalysis({ homeCode, awayCode }: { homeCode?: string; awayCode
 
   return (
     <div className="border-t border-white/[0.07] bg-zinc-950/40 px-4 py-4 space-y-3">
-      <p className="text-[10px] font-black uppercase tracking-widest text-amber-400">
+      <p className="text-[10px] font-bold uppercase tracking-widest text-amber-400">
         Análisis estadístico · Solo datos, sin predicción de resultado
       </p>
       <div className="grid grid-cols-2 gap-2">
@@ -778,7 +778,7 @@ function ContextPill({ text, color }: { text: string; color: string }) {
     blue:   "border-blue-700/40 bg-blue-500/10 text-blue-400",
   }
   return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded-lg border text-[10px] font-black ${colors[color] ?? colors.amber}`}>
+    <span className={`inline-flex items-center px-2 py-0.5 rounded-lg border text-[10px] font-bold ${colors[color] ?? colors.amber}`}>
       {text}
     </span>
   )

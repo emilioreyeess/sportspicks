@@ -2,10 +2,10 @@
 
 import { useEffect, useState } from "react"
 import type { MatchCenter } from "@/lib/world-cup/types"
-import { TeamCrest } from "./TeamCrest"
 import { RefereeThermometer } from "./RefereeThermometer"
 import { XgRadar } from "./XgRadar"
 import { Icon } from "@/components/ui/icons"
+import { Portal } from "@/components/ui/primitives"
 
 interface Props {
   matchId: string
@@ -39,15 +39,16 @@ export function MatchCenterModal({ matchId, onClose }: Props) {
   }, [])
 
   return (
+    <Portal>
     <div
-      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-sm animate-fade-in"
+      className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-md animate-fade-in"
       onClick={onClose}
       role="dialog"
       aria-modal="true"
     >
       <div
         onClick={(e) => e.stopPropagation()}
-        className="w-full sm:max-w-3xl max-h-[92vh] overflow-y-auto bg-zinc-950 sm:bg-zinc-950/95 backdrop-blur-xl border-t sm:border border-white/[0.07] rounded-t-3xl sm:rounded-2xl animate-slide-up safe-bottom"
+        className="w-full sm:max-w-3xl max-h-[92vh] overflow-y-auto bg-zinc-950 sm:bg-zinc-950/95 backdrop-blur-2xl border-t sm:border border-white/[0.07] rounded-t-3xl sm:rounded-3xl animate-slide-up safe-bottom"
       >
         {/* Header sticky */}
         <div className="sticky top-0 z-10 bg-gradient-to-b from-zinc-950 to-zinc-950/90 backdrop-blur-md border-b border-white/[0.07] px-4 py-3 flex items-center gap-3">
@@ -79,6 +80,7 @@ export function MatchCenterModal({ matchId, onClose }: Props) {
         </div>
       </div>
     </div>
+    </Portal>
   )
 }
 

@@ -111,11 +111,11 @@ export default function BotPage() {
             <Icon name="arrowRight" className="w-5 h-5 rotate-180" strokeWidth={2} />
           </Link>
           <div className="flex items-center gap-2 flex-1 min-w-0">
-            <span className="grid place-items-center w-9 h-9 rounded-xl bg-gradient-to-br from-violet-500/20 to-emerald-500/10 border border-violet-700/40 text-violet-300">
+            <span className="grid place-items-center w-9 h-9 rounded-xl bg-violet-400/10 text-violet-400/90">
               <Icon name="bot" className="w-5 h-5" strokeWidth={2} />
             </span>
             <div className="min-w-0">
-              <p className="text-sm font-black text-white leading-tight">Bot IA</p>
+              <p className="text-sm font-bold text-white leading-tight">Bot IA</p>
               <p className="text-[10px] text-zinc-500 leading-tight flex items-center gap-1">
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
                 Análisis con datos reales de ESPN
@@ -123,7 +123,7 @@ export default function BotPage() {
             </div>
           </div>
           <button onClick={newConversation}
-            className="flex items-center gap-1.5 text-xs font-bold text-zinc-300 bg-zinc-800 hover:bg-zinc-700 px-3 py-2 rounded-lg tap">
+            className="flex items-center gap-1.5 text-xs font-semibold text-zinc-300 bg-white/[0.05] hover:bg-white/[0.08] px-3 py-2 rounded-lg tap transition-colors">
             <Icon name="close" className="w-3.5 h-3.5" strokeWidth={2.4} /> Nueva
           </button>
         </div>
@@ -144,12 +144,12 @@ export default function BotPage() {
       <div className="border-t border-white/[0.07] bg-zinc-950 px-3 pt-3 pb-3 safe-bottom">
         <div className="max-w-2xl mx-auto">
           {limitReached ? (
-            <div className="rounded-2xl border border-emerald-800/50 bg-gradient-to-r from-emerald-500/10 to-cyan-500/5 p-4 text-center">
-              <Icon name="crown" className="w-6 h-6 text-emerald-400 mx-auto mb-1.5" />
-              <p className="text-sm font-bold text-white">Has usado tu análisis gratuito</p>
-              <p className="text-xs text-zinc-400 mt-0.5 mb-3">El bot es ilimitado con Premium. ¡Hazte Premium!</p>
+            <div className="rounded-2xl bg-emerald-400/[0.07] p-5 text-center">
+              <Icon name="crown" className="w-6 h-6 text-emerald-400/90 mx-auto mb-1.5" />
+              <p className="text-sm font-semibold text-white">Has usado tu análisis gratuito</p>
+              <p className="text-xs text-zinc-400 mt-0.5 mb-3.5">El bot es ilimitado con Premium. ¡Hazte Premium!</p>
               <Link href="/pricing"
-                className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-cyan-500 text-zinc-950 font-bold text-sm tap">
+                className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-semibold text-sm tap transition-colors">
                 Desbloquear Bot ilimitado
               </Link>
             </div>

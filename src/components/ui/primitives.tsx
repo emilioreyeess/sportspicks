@@ -1,6 +1,7 @@
 import Link from "next/link"
 import type { ReactNode, InputHTMLAttributes, TextareaHTMLAttributes } from "react"
-import { useEffect, useRef } from "react"
+import { useEffect, useRef, useState } from "react"
+import { createPortal } from "react-dom"
 import { Icon } from "@/components/ui/icons"
 
 export function cx(...parts: (string | false | null | undefined)[]): string {
@@ -8,14 +9,26 @@ export function cx(...parts: (string | false | null | undefined)[]): string {
 }
 
 /* ═══════════════════════════════════════════════════════════════════════════
+   PORTAL — renders children into <body> so overlays escape any transformed
+   ancestor (a non-`none` transform/filter on a parent turns it into the
+   containing block for position:fixed, which breaks full-screen modals).
+   ═══════════════════════════════════════════════════════════════════════════ */
+export function Portal({ children }: { children: ReactNode }) {
+  const [mounted, setMounted] = useState(false)
+  useEffect(() => { setMounted(true); return () => setMounted(false) }, [])
+  if (!mounted || typeof document === "undefined") return null
+  return createPortal(children, document.body)
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
    CARD
    ═══════════════════════════════════════════════════════════════════════════ */
 const CARD_VARIANT: Record<string, string> = {
-  default:  "bg-zinc-900/75 rounded-2xl border border-white/[0.07] shadow-[0_2px_16px_rgba(0,0,0,0.32),inset_0_0.5px_0_rgba(255,255,255,0.05)]",
-  flat:     "bg-zinc-900/60 rounded-2xl border border-white/[0.06]",
-  elevated: "bg-zinc-900/80 rounded-2xl border border-white/[0.08] shadow-[0_8px_40px_rgba(0,0,0,0.50),inset_0_0.5px_0_rgba(255,255,255,0.06)]",
+  default:  "bg-zinc-900/55 rounded-2xl border border-white/[0.05] shadow-[0_4px_24px_-14px_rgba(0,0,0,0.5)]",
+  flat:     "bg-zinc-900/40 rounded-2xl",
+  elevated: "bg-zinc-900/70 rounded-2xl border border-white/[0.06] shadow-[0_14px_44px_-18px_rgba(0,0,0,0.55)]",
   ghost:    "rounded-2xl",
-  outline:  "rounded-2xl border border-white/[0.07] bg-transparent",
+  outline:  "rounded-2xl border border-white/[0.06] bg-transparent",
 }
 
 export function Card({ children, className, glow, hover, variant = "default", onClick }: {
@@ -33,8 +46,8 @@ export function Card({ children, className, glow, hover, variant = "default", on
       tabIndex={onClick ? 0 : undefined}
       className={cx(
         CARD_VARIANT[variant],
-        glow && "shadow-[0_0_0_1px_rgba(52,211,153,0.10),0_8px_40px_-12px_rgba(52,211,153,0.15)]",
-        hover && "transition-all duration-200 cursor-pointer hover:border-white/[0.12] hover:-translate-y-[1px] hover:shadow-[0_8px_32px_rgba(0,0,0,0.40)]",
+        glow && "shadow-[0_8px_40px_-14px_rgba(82,181,145,0.18)]",
+        hover && "transition-all duration-200 cursor-pointer hover:border-white/[0.10] hover:-translate-y-[1px] hover:shadow-[0_12px_36px_-16px_rgba(0,0,0,0.5)]",
         onClick && "cursor-pointer",
         className,
       )}>
@@ -88,13 +101,13 @@ export function Badge({ children, tone = "zinc", className, dot }: {
    BUTTON
    ═══════════════════════════════════════════════════════════════════════════ */
 const BTN_VARIANT: Record<string, string> = {
-  primary:   "bg-emerald-500 hover:bg-emerald-400 active:bg-emerald-600 text-zinc-950 font-semibold shadow-[0_4px_16px_-4px_rgba(52,211,153,0.38)] hover:shadow-[0_6px_20px_-4px_rgba(52,211,153,0.50)]",
-  secondary: "bg-white/[0.06] hover:bg-white/[0.10] active:bg-white/[0.04] text-white font-medium border border-white/[0.12] hover:border-white/[0.20]",
+  primary:   "bg-emerald-500 hover:bg-emerald-400 active:bg-emerald-600 text-zinc-950 font-semibold shadow-[0_6px_20px_-10px_rgba(82,181,145,0.5)]",
+  secondary: "bg-white/[0.06] hover:bg-white/[0.10] active:bg-white/[0.04] text-white font-medium border border-white/[0.10] hover:border-white/[0.16]",
   ghost:     "bg-transparent hover:bg-white/[0.06] text-zinc-300 hover:text-white font-medium",
-  danger:    "bg-rose-600 hover:bg-rose-500 active:bg-rose-700 text-white font-semibold shadow-[0_4px_16px_-4px_rgba(225,29,72,0.38)]",
-  premium:   "bg-gradient-to-r from-emerald-500 to-cyan-500 hover:opacity-92 active:opacity-82 text-zinc-950 font-semibold shadow-[0_4px_16px_-4px_rgba(52,211,153,0.38)]",
-  violet:    "bg-gradient-to-r from-violet-600 to-indigo-600 hover:opacity-92 active:opacity-82 text-white font-semibold shadow-[0_4px_16px_-4px_rgba(139,92,246,0.38)]",
-  outline:   "bg-transparent border border-white/[0.12] hover:bg-white/[0.06] hover:border-white/[0.20] text-zinc-300 hover:text-white font-medium",
+  danger:    "bg-rose-600 hover:bg-rose-500 active:bg-rose-700 text-white font-semibold shadow-[0_6px_20px_-10px_rgba(225,29,72,0.42)]",
+  premium:   "bg-gradient-to-r from-emerald-500 to-cyan-500 hover:opacity-92 active:opacity-82 text-zinc-950 font-semibold shadow-[0_6px_20px_-10px_rgba(82,181,145,0.45)]",
+  violet:    "bg-gradient-to-r from-violet-600 to-indigo-600 hover:opacity-92 active:opacity-82 text-white font-semibold shadow-[0_6px_20px_-10px_rgba(148,120,218,0.42)]",
+  outline:   "bg-transparent border border-white/[0.10] hover:bg-white/[0.06] hover:border-white/[0.16] text-zinc-300 hover:text-white font-medium",
 }
 const BTN_SIZE: Record<string, string> = {
   xs: "px-2.5 py-1    text-[11px] rounded-[8px]  h-7",
@@ -282,42 +295,44 @@ export function Modal({ open, onClose, children, title, size = "md" }: {
                      "max-w-lg"
 
   return (
-    <div
-      ref={overlayRef}
-      className="fixed inset-0 z-[80] flex items-center justify-center px-4"
-      onClick={(e) => { if (e.target === overlayRef.current) onClose() }}
-    >
-      {/* Backdrop */}
-      <div className="absolute inset-0 bg-black/72 backdrop-blur-[3px] animate-fade-in" />
+    <Portal>
+      <div
+        ref={overlayRef}
+        className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center sm:px-4"
+        onClick={(e) => { if (e.target === overlayRef.current) onClose() }}
+      >
+        {/* Backdrop — solid enough that page content never bleeds through */}
+        <div className="absolute inset-0 bg-black/80 backdrop-blur-md animate-fade-in" />
 
-      {/* Panel — Apple sheet style */}
-      <div className={cx(
-        "relative w-full animate-scale-in",
-        "bg-zinc-900/88 rounded-[20px] border border-white/[0.08]",
-        "shadow-[0_24px_80px_rgba(0,0,0,0.70),inset_0_0.5px_0_rgba(255,255,255,0.06)]",
-        "backdrop-filter: saturate(180%) blur(20px)",
-        widthClass,
-      )}>
-        {title && (
-          <div className="flex items-center justify-between border-b border-white/[0.07] px-5 py-4">
-            <h2 className="text-[15px] font-bold text-white">{title}</h2>
+        {/* Panel — solid dark frosted sheet, perfectly legible */}
+        <div className={cx(
+          "relative w-full animate-scale-in",
+          "bg-zinc-900/95 backdrop-blur-2xl",
+          "rounded-t-3xl sm:rounded-3xl border border-white/[0.07]",
+          "shadow-[0_24px_80px_-20px_rgba(0,0,0,0.6)]",
+          widthClass,
+        )}>
+          {title && (
+            <div className="flex items-center justify-between px-6 pt-5 pb-3">
+              <h2 className="text-[15px] font-semibold text-white tracking-tight">{title}</h2>
+              <button onClick={onClose} aria-label="Cerrar"
+                className="grid place-items-center w-8 h-8 rounded-lg text-zinc-500 hover:text-white hover:bg-white/[0.06] transition-colors tap">
+                <Icon name="close" className="w-4 h-4" strokeWidth={2} />
+              </button>
+            </div>
+          )}
+          {!title && (
             <button onClick={onClose} aria-label="Cerrar"
-              className="grid place-items-center w-8 h-8 rounded-[8px] text-zinc-500 hover:text-white hover:bg-white/[0.07] transition-colors tap">
+              className="absolute top-4 right-4 z-10 grid place-items-center w-8 h-8 rounded-lg text-zinc-500 hover:text-white hover:bg-white/[0.06] transition-colors tap">
               <Icon name="close" className="w-4 h-4" strokeWidth={2} />
             </button>
+          )}
+          <div className={cx("px-6 pb-6", title ? "pt-0" : "pt-6")}>
+            {children}
           </div>
-        )}
-        {!title && (
-          <button onClick={onClose} aria-label="Cerrar"
-            className="absolute top-3.5 right-3.5 z-10 grid place-items-center w-8 h-8 rounded-[8px] text-zinc-500 hover:text-white hover:bg-white/[0.07] transition-colors tap">
-            <Icon name="close" className="w-4 h-4" strokeWidth={2} />
-          </button>
-        )}
-        <div className="p-5">
-          {children}
         </div>
       </div>
-    </div>
+    </Portal>
   )
 }
 
@@ -407,7 +422,7 @@ export function PageHeader({ icon, title, subtitle, action, breadcrumb, classNam
         {/* Title row */}
         <div className="flex items-center gap-3">
           {icon && (
-            <span className="grid place-items-center w-9 h-9 rounded-[10px] bg-gradient-to-br from-emerald-500/18 to-cyan-500/10 border border-emerald-700/38 text-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.12)] shrink-0">
+            <span className="grid place-items-center w-9 h-9 rounded-[10px] bg-gradient-to-br from-emerald-500/18 to-cyan-500/10 border border-emerald-700/38 text-emerald-400 shadow-[0_0_10px_rgba(82,181,145,0.12)] shrink-0">
               <Icon name={icon} className="w-4 h-4" strokeWidth={2.1} />
             </span>
           )}

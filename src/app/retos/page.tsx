@@ -165,14 +165,14 @@ function ComboDisplay({ combo, color }: { combo: RetoCombo; color: ColorKey }) {
             <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-0.5">
               Mini-combinada · {combo.picks.length} picks
             </p>
-            <p className={`text-2xl font-black tracking-tight ${col.accent}`}>
+            <p className={`text-2xl font-bold tracking-tight ${col.accent}`}>
               {combo.combined_odd.toFixed(2)}
             </p>
             <p className="text-[10px] text-zinc-600 mt-0.5">cuota total</p>
           </div>
           <div className="text-right">
             <p className="text-[10px] text-zinc-600 mb-0.5">Prob. combinada</p>
-            <p className={`text-lg font-black ${col.accent}`}>{combo.combined_prob.toFixed(1)}%</p>
+            <p className={`text-lg font-bold ${col.accent}`}>{combo.combined_prob.toFixed(1)}%</p>
           </div>
         </div>
       )}
@@ -183,14 +183,14 @@ function ComboDisplay({ combo, color }: { combo: RetoCombo; color: ColorKey }) {
           <div className="px-4 py-3.5">
             <div className="flex items-start gap-3">
               {/* Leg number */}
-              <span className={`shrink-0 grid place-items-center w-6 h-6 rounded-lg text-[11px] font-black mt-0.5 ${col.legNum}`}>
+              <span className={`shrink-0 grid place-items-center w-6 h-6 rounded-lg text-[11px] font-bold mt-0.5 ${col.legNum}`}>
                 {isMulti ? i + 1 : "→"}
               </span>
               <div className="flex-1 min-w-0">
                 {/* Match + time */}
                 <div className="flex items-start justify-between gap-2 mb-2">
                   <div className="min-w-0">
-                    <p className="text-sm font-black text-white leading-snug">{pick.match_name}</p>
+                    <p className="text-sm font-bold text-white leading-snug">{pick.match_name}</p>
                     <p className={`text-[11px] mt-0.5 font-medium ${col.accent}`}>
                       {pick.league} · {pick.market}
                     </p>
@@ -205,9 +205,9 @@ function ComboDisplay({ combo, color }: { combo: RetoCombo; color: ColorKey }) {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-[11px] text-zinc-500 mb-0.5">Selección</p>
-                    <p className={`text-base font-black ${col.accent}`}>{pick.selection}</p>
+                    <p className={`text-base font-bold ${col.accent}`}>{pick.selection}</p>
                   </div>
-                  <div className={`px-3.5 py-2 rounded-xl border font-black text-2xl tracking-tight ${col.oddBadge}`}>
+                  <div className={`px-3.5 py-2 rounded-xl border font-bold text-2xl tracking-tight ${col.oddBadge}`}>
                     {pick.odd.toFixed(2)}
                   </div>
                 </div>
@@ -274,7 +274,7 @@ function SimulationTracker({ sim, color }: { sim: SimResult; color: ColorKey }) 
       <div className="flex items-center gap-1.5 flex-wrap">
         {sim.path.map((v, i) => (
           <span key={i} className="flex items-center gap-1">
-            <span className={`text-xs font-black ${i === sim.path.length - 1 ? col.accent : "text-zinc-500"}`}>
+            <span className={`text-xs font-bold ${i === sim.path.length - 1 ? col.accent : "text-zinc-500"}`}>
               {v}€
             </span>
             {i < sim.path.length - 1 && (
@@ -310,10 +310,10 @@ function YesterdaySection({
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0 flex-1">
           <p className="text-xs text-zinc-400 leading-snug">{entry.summary}</p>
-          <p className={`text-sm font-black mt-0.5 ${col.accent}`}>Cuota {entry.combo_odd.toFixed(2)}</p>
+          <p className={`text-sm font-bold mt-0.5 ${col.accent}`}>Cuota {entry.combo_odd.toFixed(2)}</p>
         </div>
         {!isPending ? (
-          <span className={`shrink-0 text-xs font-black px-3 py-1.5 rounded-full ${
+          <span className={`shrink-0 text-xs font-bold px-3 py-1.5 rounded-full ${
             entry.result === "WIN"
               ? "bg-emerald-500 text-white"
               : "bg-rose-500 text-white"
@@ -324,13 +324,13 @@ function YesterdaySection({
           <div className="flex gap-2 shrink-0">
             <button
               onClick={() => onMark("WIN")}
-              className="px-3.5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 active:bg-emerald-600 text-white text-xs font-black transition-colors tap"
+              className="px-3.5 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 active:bg-emerald-600 text-white text-xs font-bold transition-colors tap"
             >
               ✓ Gané
             </button>
             <button
               onClick={() => onMark("LOSS")}
-              className="px-3.5 py-2 rounded-xl bg-rose-500 hover:bg-rose-400 active:bg-rose-600 text-white text-xs font-black transition-colors tap"
+              className="px-3.5 py-2 rounded-xl bg-rose-500 hover:bg-rose-400 active:bg-rose-600 text-white text-xs font-bold transition-colors tap"
             >
               ✗ Fallé
             </button>
@@ -394,8 +394,8 @@ function CustomRetoCreator() {
           <span className="grid place-items-center w-10 h-10 rounded-xl bg-violet-500/20 border border-violet-600/40 text-xl">⚙️</span>
           <div>
             <div className="flex items-center gap-2">
-              <h3 className="text-base font-black text-white">Reto Personalizado</h3>
-              <span className="text-[10px] font-black px-2 py-0.5 rounded-full border border-violet-600/50 bg-violet-500/15 text-violet-300">👑 PRO</span>
+              <h3 className="text-base font-bold text-white">Reto Personalizado</h3>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border border-violet-600/50 bg-violet-500/15 text-violet-300">👑 PRO</span>
             </div>
             <p className="text-[11px] text-zinc-500 mt-0.5">Define tu cuota objetivo y el sistema busca el pick ideal del pool de hoy</p>
           </div>
@@ -406,8 +406,8 @@ function CustomRetoCreator() {
         {/* Target odd slider */}
         <div>
           <div className="flex items-end justify-between mb-3">
-            <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Cuota objetivo</label>
-            <span className="text-4xl font-black tracking-tight text-violet-400 leading-none">{targetOdd.toFixed(2)}</span>
+            <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Cuota objetivo</label>
+            <span className="text-4xl font-bold tracking-tight text-violet-400 leading-none">{targetOdd.toFixed(2)}</span>
           </div>
           <input
             type="range" min={1.10} max={5.00} step={0.05} value={targetOdd}
@@ -424,7 +424,7 @@ function CustomRetoCreator() {
             {ODD_PRESETS.map((p) => (
               <button key={p.value}
                 onClick={() => { setTargetOdd(p.value); setCombo(null) }}
-                className={`flex-1 py-1.5 rounded-lg border text-xs font-black transition-all ${
+                className={`flex-1 py-1.5 rounded-lg border text-xs font-bold transition-all ${
                   Math.abs(targetOdd - p.value) < 0.01
                     ? "border-violet-600/60 bg-violet-500/20 text-violet-300"
                     : "border-white/[0.07] text-zinc-600 hover:border-white/[0.12] hover:text-zinc-400"
@@ -437,12 +437,12 @@ function CustomRetoCreator() {
 
         {/* N legs */}
         <div>
-          <label className="text-[10px] font-black uppercase tracking-widest text-zinc-500 mb-2.5 block">Número de picks</label>
+          <label className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 mb-2.5 block">Número de picks</label>
           <div className="grid grid-cols-2 gap-2">
             {([1, 2, 3, 4] as const).map((n) => (
               <button key={n}
                 onClick={() => { setNLegs(n); setCombo(null) }}
-                className={`py-3 rounded-xl border text-sm font-black transition-all ${
+                className={`py-3 rounded-xl border text-sm font-bold transition-all ${
                   nLegs === n
                     ? "border-violet-600/60 bg-violet-500/15 text-violet-300"
                     : "border-white/[0.07] text-zinc-500 hover:border-white/[0.12] hover:text-zinc-300"
@@ -460,7 +460,7 @@ function CustomRetoCreator() {
         <button
           onClick={generate}
           disabled={loading}
-          className="w-full py-3.5 rounded-xl bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white font-black text-sm tap shadow-lg shadow-violet-900/30 disabled:opacity-60 transition-opacity flex items-center justify-center gap-2"
+          className="w-full py-3.5 rounded-xl bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white font-bold text-sm tap shadow-lg shadow-violet-900/30 disabled:opacity-60 transition-opacity flex items-center justify-center gap-2"
         >
           {loading ? (
             <>
@@ -483,8 +483,8 @@ function CustomRetoCreator() {
         {combo && !loading && (
           <div className="animate-fade-in">
             <div className="flex items-center gap-2 mb-2">
-              <span className="text-[10px] font-black uppercase tracking-widest text-zinc-500">Pick generado</span>
-              <span className="px-2 py-0.5 rounded-lg border border-violet-700/50 bg-violet-500/15 text-violet-300 text-xs font-black">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Pick generado</span>
+              <span className="px-2 py-0.5 rounded-lg border border-violet-700/50 bg-violet-500/15 text-violet-300 text-xs font-bold">
                 cuota {combo.combined_odd.toFixed(2)}
               </span>
             </div>
@@ -527,7 +527,7 @@ function RetoCard({
         <div className="flex items-start justify-between mb-3">
           <div>
             <span className="text-3xl leading-none">{challenge.emoji}</span>
-            <h3 className={`text-2xl font-black tracking-tight mt-2 ${col.accent}`}>
+            <h3 className={`text-2xl font-bold tracking-tight mt-2 ${col.accent}`}>
               {challenge.title}
             </h3>
             <p className="text-[11px] text-zinc-500 mt-0.5 font-medium">
@@ -542,7 +542,7 @@ function RetoCard({
             <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full border ${col.badge}`}>
               {challenge.difficulty}
             </span>
-            <span className={`text-xs font-black px-2.5 py-1.5 rounded-xl border ${col.oddBadge}`}>
+            <span className={`text-xs font-bold px-2.5 py-1.5 rounded-xl border ${col.oddBadge}`}>
               ~{challenge.target_odd.toFixed(2)} /día
             </span>
           </div>
@@ -558,11 +558,11 @@ function RetoCard({
         <div className="flex items-end gap-3 mt-2">
           <div>
             <span className="text-sm text-zinc-600 line-through">{challenge.simulation.stake}€</span>
-            <div className={`text-5xl font-black tracking-tighter leading-none mt-0.5 ${col.accent}`}>
+            <div className={`text-5xl font-bold tracking-tighter leading-none mt-0.5 ${col.accent}`}>
               ~{challenge.simulation.result}€
             </div>
           </div>
-          <span className={`text-sm font-black pb-1 ${col.accent} opacity-70`}>
+          <span className={`text-sm font-bold pb-1 ${col.accent} opacity-70`}>
             +{gainPct}%
           </span>
         </div>
@@ -640,7 +640,7 @@ function RetoCard({
           {enrolled ? (
             <div className={`flex items-center gap-2 py-2.5 px-4 rounded-xl border ${col.badge}`}>
               <span className="text-sm">✓</span>
-              <span className="text-xs font-black">Siguiendo este reto</span>
+              <span className="text-xs font-bold">Siguiendo este reto</span>
               {progress.joinDate && (
                 <span className="text-[10px] text-zinc-500 ml-auto">
                   desde {new Date(progress.joinDate).toLocaleDateString("es-ES", { day: "numeric", month: "short" })}
@@ -650,14 +650,14 @@ function RetoCard({
           ) : canEnroll ? (
             <button
               onClick={onEnroll}
-              className={`w-full py-3 rounded-xl font-black text-sm tap shadow-lg ${col.btn}`}
+              className={`w-full py-3 rounded-xl font-bold text-sm tap shadow-lg ${col.btn}`}
             >
               Unirse al reto {challenge.emoji}
             </button>
           ) : (
             <Link
               href="/pricing"
-              className="flex items-center justify-center gap-2 w-full py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-cyan-500 text-zinc-950 font-black text-sm tap shadow-lg"
+              className="flex items-center justify-center gap-2 w-full py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-cyan-500 text-zinc-950 font-bold text-sm tap shadow-lg"
             >
               <Icon name="crown" className="w-4 h-4" strokeWidth={2.2} />
               {challenge.id === "pro" ? "Requiere Pro 👑" : "Requiere Premium ⭐"}
@@ -764,10 +764,10 @@ export default function RetosPage() {
         <div className="mb-5 flex items-center gap-3 rounded-2xl border border-emerald-700/40 bg-emerald-500/[0.05] px-4 py-3">
           <Icon name="crown" className="w-5 h-5 text-emerald-400 shrink-0" strokeWidth={2} />
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-black text-zinc-200">Los retos requieren Premium ⭐ o Pro 👑</p>
+            <p className="text-sm font-bold text-zinc-200">Los retos requieren Premium ⭐ o Pro 👑</p>
             <p className="text-[11px] text-zinc-500 mt-0.5">El reto PRO es exclusivo para usuarios Pro.</p>
           </div>
-          <Link href="/pricing" className="shrink-0 text-xs font-black text-emerald-400 flex items-center gap-1 tap">
+          <Link href="/pricing" className="shrink-0 text-xs font-bold text-emerald-400 flex items-center gap-1 tap">
             Ver planes <Icon name="arrowRight" className="w-3.5 h-3.5" strokeWidth={2.4} />
           </Link>
         </div>
@@ -777,12 +777,12 @@ export default function RetosPage() {
         <div className="mb-5 flex items-center gap-3 rounded-2xl border border-violet-700/40 bg-violet-500/[0.05] px-4 py-3">
           <span className="text-xl shrink-0">👑</span>
           <div className="flex-1 min-w-0">
-            <p className="text-sm font-black text-zinc-200">Reto PRO exclusivo para usuarios Pro 👑</p>
+            <p className="text-sm font-bold text-zinc-200">Reto PRO exclusivo para usuarios Pro 👑</p>
             <p className="text-[11px] text-zinc-500 mt-0.5">
               Conservador, Intermedio y Avanzado disponibles con Premium.
             </p>
           </div>
-          <Link href="/pricing" className="shrink-0 text-xs font-black text-violet-400 flex items-center gap-1 tap">
+          <Link href="/pricing" className="shrink-0 text-xs font-bold text-violet-400 flex items-center gap-1 tap">
             Ver Pro <Icon name="arrowRight" className="w-3.5 h-3.5" strokeWidth={2.4} />
           </Link>
         </div>

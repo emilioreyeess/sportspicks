@@ -226,29 +226,29 @@ export default function AccountPage() {
   const isLoggedIn   = !!session
 
   return (
-    <div className="px-4 py-6 max-w-2xl mx-auto safe-x space-y-5">
+    <div className="px-4 sm:px-6 py-8 max-w-2xl mx-auto safe-x space-y-5">
       <PageHeader icon="user" title="Mi cuenta" subtitle="Perfil, suscripción y preferencias" />
 
       {/* ── Profile ─────────────────────────────────────────────────────── */}
       <Card className="overflow-hidden">
         {/* Banner */}
         <div className={`h-16 ${
-          isPro      ? "bg-gradient-to-br from-violet-600/25 to-violet-900/10" :
-          isPremium  ? "bg-gradient-to-br from-emerald-600/20 to-cyan-900/10"  :
-                       "bg-gradient-to-br from-zinc-800/60 to-zinc-900/40"
+          isPro      ? "bg-violet-400/[0.06]" :
+          isPremium  ? "bg-emerald-400/[0.06]"  :
+                       "bg-white/[0.03]"
         }`} />
 
         <div className="px-5 pb-5 -mt-8">
           <div className="flex items-end justify-between mb-4">
-            <div className={`grid place-items-center w-16 h-16 rounded-2xl border-2 text-xl font-black shadow-lg ${
-              isPro      ? "bg-zinc-900 border-violet-700/60 text-violet-400"  :
-              isPremium  ? "bg-zinc-900 border-emerald-700/60 text-emerald-400":
+            <div className={`grid place-items-center w-16 h-16 rounded-2xl border-2 text-xl font-bold shadow-lg ${
+              isPro      ? "bg-zinc-900 border-violet-400/30 text-violet-400/90"  :
+              isPremium  ? "bg-zinc-900 border-emerald-400/30 text-emerald-400/90":
                            "bg-zinc-900 border-white/[0.10] text-zinc-300"
             }`}>{initial}</div>
             <PremiumBadge plan={plan} />
           </div>
 
-          <p className="text-lg font-black text-white">{displayName}</p>
+          <p className="text-lg font-bold text-white">{displayName}</p>
           {displayEmail && <p className="text-xs text-zinc-500 mt-0.5">{displayEmail}</p>}
 
           <div className="mt-4">
@@ -262,24 +262,24 @@ export default function AccountPage() {
                 type="button"
                 onClick={persistName}
                 disabled={nameSaving || !name.trim()}
-                className="px-3 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 disabled:opacity-40 text-zinc-950 text-xs font-bold transition-colors"
+                className="px-3 py-2 rounded-xl bg-emerald-500 hover:bg-emerald-400 disabled:opacity-40 text-zinc-950 text-xs font-semibold transition-colors"
               >
                 {nameSaving ? "…" : "Guardar"}
               </button>
             </div>
             {nameMsg && (
-              <p className={`text-xs mt-1.5 ${nameMsg.ok ? "text-emerald-400" : "text-red-400"}`}>{nameMsg.text}</p>
+              <p className={`text-xs mt-1.5 ${nameMsg.ok ? "text-emerald-400/90" : "text-rose-400/90"}`}>{nameMsg.text}</p>
             )}
           </div>
 
           {/* Public profile link */}
           {profileId && (
-            <div className="mt-4 pt-4 border-t border-white/[0.07]">
+            <div className="mt-4 pt-4 border-t border-white/[0.05]">
               <span className="section-label block mb-1.5">Tu perfil público</span>
               <div className="flex items-center gap-2">
                 <Link
                   href={`/profile/${profileId}`}
-                  className="flex-1 truncate text-xs text-zinc-400 hover:text-white bg-zinc-800/60 border border-white/[0.07] rounded-xl px-3 py-2 transition"
+                  className="flex-1 truncate text-xs text-zinc-400 hover:text-white bg-white/[0.04] rounded-xl px-3 py-2 transition-colors"
                 >
                   sportspicks.app/profile/{profileId}
                 </Link>
@@ -291,7 +291,7 @@ export default function AccountPage() {
                       setTimeout(() => setProfileLinkCopied(false), 2000)
                     })
                   }}
-                  className="shrink-0 px-3 py-2 rounded-xl bg-zinc-800/60 hover:bg-zinc-700/60 border border-white/[0.07] text-xs font-bold text-zinc-300 tap transition"
+                  className="shrink-0 px-3 py-2 rounded-xl bg-white/[0.05] hover:bg-white/[0.08] text-xs font-semibold text-zinc-300 tap transition-colors"
                 >
                   {profileLinkCopied ? "✓ Copiado" : "Copiar"}
                 </button>
@@ -306,31 +306,31 @@ export default function AccountPage() {
       <Card className="p-5">
         <SectionTitle icon="crown" title="Suscripción" />
 
-        <div className={`rounded-xl border p-4 mb-4 ${
-          isPremium ? "border-emerald-700/40 bg-emerald-500/[0.05]" : "border-white/[0.07] bg-zinc-950/60"
+        <div className={`rounded-2xl p-4 mb-4 ${
+          isPremium ? "bg-emerald-400/[0.06]" : "bg-white/[0.03]"
         }`}>
           <div className="flex items-center justify-between">
             <div>
               <p className="section-label mb-1">Plan actual</p>
               <div className="flex items-center gap-2 mt-0.5">
-                <span className={`text-xl font-black ${planColor}`}>{planDef.name}</span>
+                <span className={`text-xl font-bold ${planColor}`}>{planDef.name}</span>
                 {plan === "free" && <span className="text-[10px] text-zinc-600 font-medium">— Gratis</span>}
               </div>
             </div>
             {isPremium ? (
-              <span className={`text-[10px] font-black uppercase px-2.5 py-1 rounded-full border ${
-                isPro ? "bg-violet-500/15 text-violet-300 border-violet-700/50"
-                      : "bg-emerald-500/15 text-emerald-300 border-emerald-700/50"
+              <span className={`text-[10px] font-semibold uppercase px-2.5 py-1 rounded-full ${
+                isPro ? "bg-violet-400/12 text-violet-300/90"
+                      : "bg-emerald-400/12 text-emerald-300/90"
               }`}>{planDef.priceMonthly}€/mes</span>
             ) : (
-              <Link href="/pricing" className="flex items-center gap-1 text-xs font-bold text-emerald-400 tap">
+              <Link href="/pricing" className="flex items-center gap-1 text-xs font-semibold text-emerald-400/90 tap">
                 Mejorar <Icon name="arrowRight" className="w-3.5 h-3.5" strokeWidth={2.4} />
               </Link>
             )}
           </div>
           <p className="text-xs text-zinc-500 mt-2 leading-snug">{planDef.tagline}</p>
           {cancelPending && (
-            <p className="text-xs text-amber-400 mt-2">⚠ Cancelación programada al final del período.</p>
+            <p className="text-xs text-amber-400/90 mt-2">⚠ Cancelación programada al final del período.</p>
           )}
         </div>
 
@@ -351,7 +351,7 @@ export default function AccountPage() {
         {isPremium && sub?.customerId ? (
           <div className="space-y-2">
             <button onClick={openPortal} disabled={portalLoading}
-              className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-zinc-800/60 border border-white/[0.07] hover:bg-zinc-700/60 disabled:opacity-50 text-white font-semibold text-sm tap transition-colors">
+              className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-white/[0.05] hover:bg-white/[0.08] disabled:opacity-50 text-white font-semibold text-sm tap transition-colors">
               {portalLoading
                 ? <><Icon name="settings" className="w-4 h-4 animate-spin" /> Abriendo portal…</>
                 : <><Icon name="settings" className="w-4 h-4" strokeWidth={2} /> Gestionar suscripción / Cancelar</>}
@@ -362,12 +362,12 @@ export default function AccountPage() {
           </div>
         ) : isPremium ? (
           <Link href="/pricing"
-            className="flex items-center justify-center gap-2 w-full py-3 rounded-xl border border-white/[0.07] text-zinc-300 font-semibold text-sm tap hover:bg-zinc-800/60 transition-colors">
+            className="flex items-center justify-center gap-2 w-full py-3 rounded-xl bg-white/[0.05] text-zinc-300 font-semibold text-sm tap hover:bg-white/[0.08] transition-colors">
             Ver planes y gestionar
           </Link>
         ) : (
           <Link href="/pricing"
-            className="flex items-center justify-center gap-2 w-full py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-cyan-500 text-zinc-950 font-bold text-sm tap">
+            className="flex items-center justify-center gap-2 w-full py-3 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-semibold text-sm tap transition-colors">
             <Icon name="crown" className="w-4 h-4" strokeWidth={2.2} />
             Mejorar a Premium · desde 9.99€/mes
           </Link>
@@ -381,8 +381,8 @@ export default function AccountPage() {
         {verifyMsg && (
           <div className={`mt-2 flex items-start gap-2 rounded-xl px-3.5 py-2.5 text-xs leading-snug ${
             verifyMsg.ok
-              ? "bg-emerald-500/10 border border-emerald-700/40 text-emerald-300"
-              : "bg-amber-500/10 border border-amber-700/40 text-amber-300"
+              ? "bg-emerald-400/[0.10] text-emerald-300/90"
+              : "bg-amber-400/[0.10] text-amber-300/90"
           }`}>
             <Icon name={verifyMsg.ok ? "check" : "shield"} className="w-3.5 h-3.5 shrink-0 mt-0.5" strokeWidth={2.5} />
             {verifyMsg.text}
@@ -418,7 +418,7 @@ export default function AccountPage() {
             { label: "Juego responsable",     href: "/legal/responsible-gaming" },
           ].map((l) => (
             <Link key={l.href} href={l.href}
-              className="flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-zinc-800/60 transition-colors tap">
+              className="flex items-center justify-between px-3 py-2.5 rounded-xl hover:bg-white/[0.05] transition-colors tap">
               <span className="text-sm text-zinc-300">{l.label}</span>
               <Icon name="arrowRight" className="w-4 h-4 text-zinc-600" strokeWidth={2} />
             </Link>
@@ -433,7 +433,7 @@ export default function AccountPage() {
           {!showPwdForm ? (
             <button
               onClick={() => { setShowPwdForm(true); setPwdMsg(null) }}
-              className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-white/[0.07] bg-zinc-900/60 hover:bg-zinc-800/60 text-zinc-300 font-semibold text-sm tap transition-all"
+              className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-white/[0.05] hover:bg-white/[0.08] text-zinc-300 font-semibold text-sm tap transition-colors"
             >
               <Icon name="shield" className="w-4 h-4" strokeWidth={2} />
               Cambiar contraseña
@@ -446,7 +446,7 @@ export default function AccountPage() {
                 value={currentPwd}
                 onChange={e => setCurrentPwd(e.target.value)}
                 required
-                className="w-full h-11 px-3.5 rounded-xl bg-zinc-800/40 border border-white/[0.08] text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-white/[0.16] transition-colors"
+                className="w-full h-11 px-3.5 rounded-xl bg-white/[0.04] text-sm text-white placeholder-zinc-500 focus:outline-none focus:bg-white/[0.06] transition-colors"
               />
               <input
                 type="password"
@@ -455,7 +455,7 @@ export default function AccountPage() {
                 onChange={e => setNewPwd(e.target.value)}
                 required
                 minLength={8}
-                className="w-full h-11 px-3.5 rounded-xl bg-zinc-800/40 border border-white/[0.08] text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-white/[0.16] transition-colors"
+                className="w-full h-11 px-3.5 rounded-xl bg-white/[0.04] text-sm text-white placeholder-zinc-500 focus:outline-none focus:bg-white/[0.06] transition-colors"
               />
               <input
                 type="password"
@@ -463,18 +463,18 @@ export default function AccountPage() {
                 value={confirmPwd}
                 onChange={e => setConfirmPwd(e.target.value)}
                 required
-                className="w-full h-11 px-3.5 rounded-xl bg-zinc-800/40 border border-white/[0.08] text-sm text-white placeholder-zinc-500 focus:outline-none focus:border-white/[0.16] transition-colors"
+                className="w-full h-11 px-3.5 rounded-xl bg-white/[0.04] text-sm text-white placeholder-zinc-500 focus:outline-none focus:bg-white/[0.06] transition-colors"
               />
               {pwdMsg && (
-                <p className={`text-xs ${pwdMsg.ok ? "text-emerald-400" : "text-red-400"}`}>{pwdMsg.text}</p>
+                <p className={`text-xs ${pwdMsg.ok ? "text-emerald-400/90" : "text-rose-400/90"}`}>{pwdMsg.text}</p>
               )}
               <div className="flex gap-2">
                 <button type="button" onClick={() => { setShowPwdForm(false); setPwdMsg(null) }}
-                  className="flex-1 py-2.5 rounded-xl bg-zinc-800/60 border border-white/[0.07] hover:bg-zinc-700/60 text-sm text-zinc-300 transition-colors">
+                  className="flex-1 py-2.5 rounded-xl bg-white/[0.05] hover:bg-white/[0.08] text-sm text-zinc-300 transition-colors">
                   Cancelar
                 </button>
                 <button type="submit" disabled={pwdSaving}
-                  className="flex-1 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 disabled:opacity-40 text-zinc-950 font-bold text-sm transition-colors">
+                  className="flex-1 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 disabled:opacity-40 text-zinc-950 font-semibold text-sm transition-colors">
                   {pwdSaving ? "Guardando…" : "Actualizar"}
                 </button>
               </div>
@@ -495,7 +495,7 @@ export default function AccountPage() {
           <button
             onClick={handleSignOut}
             disabled={signingOut}
-            className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-rose-800/60 bg-rose-500/[0.08] hover:bg-rose-500/[0.15] text-rose-400 font-bold text-sm tap transition-all disabled:opacity-50"
+            className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-rose-400/[0.08] hover:bg-rose-400/[0.14] text-rose-400/90 font-semibold text-sm tap transition-colors disabled:opacity-50"
           >
             {signingOut ? (
               <>
@@ -525,7 +525,7 @@ export default function AccountPage() {
 function SectionTitle({ icon, title }: { icon: string; title: string }) {
   return (
     <div className="flex items-center gap-2 mb-4">
-      <Icon name={icon} className="w-4.5 h-4.5 text-emerald-400" />
+      <Icon name={icon} className="w-4.5 h-4.5 text-emerald-400/90" />
       <h2 className="apple-eyebrow text-white/70">{title}</h2>
     </div>
   )
@@ -534,7 +534,7 @@ function SectionTitle({ icon, title }: { icon: string; title: string }) {
 function ToggleRow({ label, hint, on, onChange }: { label: string; hint: string; on: boolean; onChange: () => void }) {
   return (
     <button onClick={onChange}
-      className="w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl hover:bg-zinc-800/50 transition-colors text-left tap">
+      className="w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-xl hover:bg-white/[0.05] transition-colors text-left tap">
       <div className="min-w-0">
         <p className="text-sm text-zinc-200 font-medium">{label}</p>
         <p className="text-[11px] text-zinc-500 leading-snug">{hint}</p>
@@ -548,8 +548,8 @@ function ToggleRow({ label, hint, on, onChange }: { label: string; hint: string;
 
 function UsageStat({ label, value, color }: { label: string; value: string; color: string }) {
   return (
-    <div className="rounded-xl border border-white/[0.07] bg-zinc-900/60 p-3 text-center">
-      <p className={`text-sm font-black ${color}`}>{value}</p>
+    <div className="rounded-xl bg-white/[0.03] p-3.5 text-center">
+      <p className={`text-sm font-bold ${color}`}>{value}</p>
       <p className="text-[10px] text-zinc-600 mt-0.5">{label}</p>
     </div>
   )

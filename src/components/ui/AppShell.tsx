@@ -29,7 +29,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
       <div className="flex flex-1">
         <Sidebar />
         <main className="flex-1 min-w-0 flex flex-col">
-          <div className="flex-1 animate-fade-in">
+          <div className="flex-1 animate-fade-in-soft">
             <ErrorBoundary>{children}</ErrorBoundary>
           </div>
           <GlobalFooter />

@@ -109,7 +109,7 @@ export function LoginWall({ children }: { children: React.ReactNode }) {
 
         <div className="relative">
           <div className="flex items-center gap-3 mb-16">
-            <span className="grid place-items-center w-11 h-11 rounded-2xl bg-gradient-to-br from-emerald-500/30 to-cyan-500/20 border border-emerald-600/40 text-emerald-400 shadow-[0_0_20px_rgba(52,211,153,0.2)]">
+            <span className="grid place-items-center w-11 h-11 rounded-2xl bg-gradient-to-br from-emerald-500/30 to-cyan-500/20 border border-emerald-600/40 text-emerald-400 shadow-[0_0_20px_rgba(82,181,145,0.2)]">
               <Icon name="value" className="w-6 h-6" strokeWidth={2} />
             </span>
             <div>
@@ -158,7 +158,7 @@ export function LoginWall({ children }: { children: React.ReactNode }) {
 
           {/* Mobile-only logo */}
           <div className="lg:hidden text-center mb-8">
-            <span className="inline-grid place-items-center w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-500/25 to-cyan-500/20 border border-emerald-600/40 text-emerald-400 shadow-[0_0_24px_rgba(52,211,153,0.2)] mb-4">
+            <span className="inline-grid place-items-center w-14 h-14 rounded-2xl bg-gradient-to-br from-emerald-500/25 to-cyan-500/20 border border-emerald-600/40 text-emerald-400 shadow-[0_0_24px_rgba(82,181,145,0.2)] mb-4">
               <Icon name="value" className="w-7 h-7" strokeWidth={2} />
             </span>
             <h1 className="text-2xl font-black text-white tracking-tight">SportsPicks</h1>

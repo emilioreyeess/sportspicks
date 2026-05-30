@@ -5,6 +5,7 @@ import { AgeGate } from "@/components/legal/AgeGate"
 import { CookieConsent } from "@/components/legal/CookieConsent"
 import { SafariInstallBanner } from "@/components/ui/SafariInstallBanner"
 import { ConditionalAnalytics } from "@/components/analytics/ConditionalAnalytics"
+import { ConditionalAdSense } from "@/components/ads/ConditionalAdSense"
 import { PlanProvider } from "@/lib/plan"
 import { SessionWrapper } from "@/components/ui/SessionWrapper"
 import { LoginWall } from "@/components/ui/LoginWall"
@@ -62,6 +63,10 @@ export const metadata: Metadata = {
     description: "Análisis deportivo cuantitativo con datos reales. Value picks, combinadas y bot IA.",
   },
   category: "sports",
+  // Google AdSense verification — no carga cookies por sí sola
+  other: {
+    "google-adsense-account": "ca-pub-9944234338041841",
+  },
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
@@ -76,6 +81,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <CookieConsent />
                 <SafariInstallBanner />
                 <ConditionalAnalytics />
+                <ConditionalAdSense />
               </LoginWall>
             </AgeGate>
           </PlanProvider>
