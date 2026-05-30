@@ -16,12 +16,12 @@ const MATCH_ID_REGEX = /^wc26-[A-Za-z0-9-]+$/
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
   const ip = getClientIp(req)
   if (!consume(`wc-match:${ip}`, 20, 4)) return tooManyRequests(60)
 
-  const matchId = params.id ?? ""
+  const matchId = (await params).id ?? ""
   if (!MATCH_ID_REGEX.test(matchId) || matchId.length > 80) {
     return Response.json({ error: "matchId inválido" }, { status: 400 })
   }

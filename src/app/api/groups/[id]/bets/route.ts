@@ -25,14 +25,15 @@ async function assertMember(sb: ReturnType<typeof createServiceClient>, groupId:
 }
 
 // ── GET ───────────────────────────────────────────────────────
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
   const session = await getServerSession(authOptions)
   if (!session?.user?.email) return Response.json({ error: "No autorizado" }, { status: 401 })
 
   const sb = createServiceClient()
   const email = session.user.email
 
-  const member = await assertMember(sb, params.id, email)
+  const member = await assertMember(sb, id, email)
   if (!member) return Response.json({ error: "No eres miembro de este grupo" }, { status: 403 })
 
   // Fetch group_bets joined with bets + bet_legs + user info
@@ -48,7 +49,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
         bet_legs ( id, match, selection, odds, status )
       )
     `)
-    .eq("group_id", params.id)
+    .eq("group_id", id)
     .order("shared_at", { ascending: false })
 
   if (error) return Response.json({ error: "Error interno del servidor" }, { status: 500 })
@@ -114,14 +115,15 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
 }
 
 // ── POST ──────────────────────────────────────────────────────
-export async function POST(req: NextRequest, { params }: { params: { id: string } }) {
+export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
   const session = await getServerSession(authOptions)
   if (!session?.user?.email) return Response.json({ error: "No autorizado" }, { status: 401 })
 
   const sb = createServiceClient()
   const email = session.user.email
 
-  const member = await assertMember(sb, params.id, email)
+  const member = await assertMember(sb, id, email)
   if (!member) return Response.json({ error: "No eres miembro de este grupo" }, { status: 403 })
 
   let body: { bet_id: string }
@@ -155,7 +157,7 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
   const { error: insertErr } = await sb
     .from("group_bets")
     .insert({
-      group_id: params.id,
+      group_id: id,
       bet_id: body.bet_id,
       user_email: email,
       is_pre_match: true,  // enforced by the pending status check above
@@ -172,7 +174,8 @@ export async function POST(req: NextRequest, { params }: { params: { id: string 
 }
 
 // ── DELETE ────────────────────────────────────────────────────
-export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
   const session = await getServerSession(authOptions)
   if (!session?.user?.email) return Response.json({ error: "No autorizado" }, { status: 401 })
 
@@ -188,7 +191,7 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
     .delete()
     .eq("id", sharedId)
     .eq("user_email", email)
-    .eq("group_id", params.id)
+    .eq("group_id", id)
 
   if (error) return Response.json({ error: "No se pudo eliminar" }, { status: 500 })
 

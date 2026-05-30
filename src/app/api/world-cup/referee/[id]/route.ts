@@ -15,12 +15,12 @@ const ID_REGEX = /^[a-z][a-z0-9-]{2,60}$/
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
   const ip = getClientIp(req)
   if (!consume(`wc-ref:${ip}`, 30, 6)) return tooManyRequests(60)
 
-  const id = (params.id ?? "").toLowerCase()
+  const id = ((await params).id ?? "").toLowerCase()
 
   // Listado completo si id === "all"
   if (id === "all") {

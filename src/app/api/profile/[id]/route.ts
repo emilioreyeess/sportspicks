@@ -18,9 +18,9 @@ export const dynamic = "force-dynamic"
 
 export async function GET(
   _req: NextRequest,
-  { params }: { params: { id: string } },
+  { params }: { params: Promise<{ id: string }> },
 ) {
-  const rawId = params.id
+  const rawId = (await params).id
 
   // Validar que id es un número entero seguro
   const numId = parseInt(rawId, 10)

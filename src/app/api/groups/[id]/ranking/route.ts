@@ -6,7 +6,8 @@ import { createServiceClient } from "@/lib/supabase/client"
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
-export async function GET(_req: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
   const session = await getServerSession(authOptions)
   if (!session?.user?.email) return Response.json({ error: "No autorizado" }, { status: 401 })
 
@@ -16,7 +17,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   const { data: membership } = await sb
     .from("group_members")
     .select("id")
-    .eq("group_id", params.id)
+    .eq("group_id", id)
     .eq("user_email", session.user.email)
     .single()
 
@@ -26,7 +27,7 @@ export async function GET(_req: NextRequest, { params }: { params: { id: string 
   const { data: members } = await sb
     .from("group_members")
     .select("user_email, role, joined_at")
-    .eq("group_id", params.id)
+    .eq("group_id", id)
 
   if (!members?.length) return Response.json({ ranking: [] })
 

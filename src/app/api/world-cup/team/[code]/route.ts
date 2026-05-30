@@ -15,12 +15,12 @@ const CODE_REGEX = /^[A-Z]{3}$/
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { code: string } },
+  { params }: { params: Promise<{ code: string }> },
 ) {
   const ip = getClientIp(req)
   if (!consume(`wc-team:${ip}`, 20, 4)) return tooManyRequests(60)
 
-  const code = (params.code ?? "").toUpperCase()
+  const code = ((await params).code ?? "").toUpperCase()
   if (!CODE_REGEX.test(code)) {
     return Response.json({ error: "Código FIFA inválido (3 letras mayúsculas)" }, { status: 400 })
   }

@@ -6,7 +6,8 @@ import { createServiceClient } from "@/lib/supabase/client"
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
-export async function PATCH(req: NextRequest, { params }: { params: { id: string } }) {
+export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
   const session = await getServerSession(authOptions)
   if (!session?.user?.email) return Response.json({ error: "No autorizado" }, { status: 401 })
 
@@ -20,8 +21,8 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     return Response.json({ error: "Estado inválido" }, { status: 400 })
   }
 
-  // Validate UUID format for params.id
-  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(params.id)) {
+  // Validate UUID format for id
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
     return Response.json({ error: "ID inválido" }, { status: 400 })
   }
 
@@ -32,7 +33,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   const { data, error } = await sb
     .from("bets")
     .update({ status: body.status, settled_at: new Date().toISOString() })
-    .eq("id", params.id)
+    .eq("id", id)
     .eq("user_email", session.user.email)
     .eq("status", "pending")   // ← prevents re-settling already settled bets
     .select()
@@ -43,7 +44,7 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
     const { data: existing } = await sb
       .from("bets")
       .select("id, user_email, status")
-      .eq("id", params.id)
+      .eq("id", id)
       .single()
     if (!existing || existing.user_email !== session.user.email) {
       return Response.json({ error: "No encontrado" }, { status: 404 })
@@ -56,12 +57,13 @@ export async function PATCH(req: NextRequest, { params }: { params: { id: string
   }
 
   // Also settle all legs with the same status
-  await sb.from("bet_legs").update({ status: body.status }).eq("bet_id", params.id)
+  await sb.from("bet_legs").update({ status: body.status }).eq("bet_id", id)
 
   return Response.json({ ok: true, bet: data })
 }
 
-export async function DELETE(req: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
   const session = await getServerSession(authOptions)
   if (!session?.user?.email) return Response.json({ error: "No autorizado" }, { status: 401 })
 
@@ -70,15 +72,15 @@ export async function DELETE(req: NextRequest, { params }: { params: { id: strin
   const { data: existing } = await sb
     .from("bets")
     .select("id, user_email")
-    .eq("id", params.id)
+    .eq("id", id)
     .single()
 
   if (!existing || existing.user_email !== session.user.email) {
     return Response.json({ error: "No encontrado" }, { status: 404 })
   }
 
-  await sb.from("bet_legs").delete().eq("bet_id", params.id)
-  await sb.from("bets").delete().eq("id", params.id)
+  await sb.from("bet_legs").delete().eq("bet_id", id)
+  await sb.from("bets").delete().eq("id", id)
 
   return Response.json({ ok: true })
 }
