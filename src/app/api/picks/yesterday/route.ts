@@ -1,9 +1,14 @@
 /**
- * GET  /api/picks/yesterday — lee picks del día anterior desde store en memoria (o /tmp).
+ * GET  /api/picks/yesterday — lee picks del día anterior.
  * POST /api/picks/yesterday — recibe picks del cliente y los enriquece con resultados ESPN.
  *
- * El GET sirve directamente los picks con resultados verificados guardados por el pipeline.
- * Si el store está frío se intenta cargar desde /tmp/sp-yesterday.json.
+ * Fuentes GET en orden de fiabilidad:
+ *  1. In-memory store (instancia caliente)
+ *  2. /tmp/sp-yesterday.json (cold restart misma instancia)
+ *  3. Vercel KV "picks:yesterday" (compartido, multi-instancia — activo desde 31/05/2026)
+ *
+ * Si ninguna fuente tiene datos, el cliente cae al fallback de localStorage
+ * (clave sp_picks_YYYY-MM-DD guardada por value/page.tsx al cargar picks de hoy).
  */
 import { NextRequest, NextResponse } from "next/server"
 import { getYesterdayAsync } from "@/lib/store"
@@ -11,18 +16,12 @@ import { getYesterdayAsync } from "@/lib/store"
 export const runtime = "nodejs"
 export const revalidate = 0
 
-/** GET — devuelve los picks de ayer con resultados ya calculados.
- *  Fuentes en orden de fiabilidad:
- *  1. In-memory store (instancia caliente)
- *  2. /tmp/sp-yesterday.json (cold restart de la misma instancia)
- *  3. Vercel KV (compartido entre todas las instancias — sobrevive cualquier reinicio)
- */
 export async function GET() {
   const yest = await getYesterdayAsync()
-  if (!yest.date || !yest.picks.length) {
-    return NextResponse.json({ date: null, picks: [] })
+  if (yest.date && yest.picks.length) {
+    return NextResponse.json({ date: yest.date, picks: yest.picks })
   }
-  return NextResponse.json({ date: yest.date, picks: yest.picks })
+  return NextResponse.json({ date: null, picks: [] })
 }
 
 const ALL_SLUGS = ["esp.1", "eng.1", "ger.1", "ita.1", "fra.1", "usa.1", "mex.1", "por.1", "ned.1", "arg.1", "bra.1", "tur.1", "sau.1", "fra.2"]

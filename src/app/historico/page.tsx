@@ -92,13 +92,14 @@ function useYesterdayPicks() {
         }
 
         // 2️⃣ Fallback: localStorage picks enriched via ESPN
-        // value/page.tsx writes with key "sp_picks_today" + date inside the JSON
+        // Intentar clave por fecha primero (más fiable), luego alias legacy
         const stored = (() => {
           try {
-            const raw = localStorage.getItem("sp_picks_today")
+            const rawByDate = localStorage.getItem(`sp_picks_${dateKey}`)
+            const rawLegacy  = localStorage.getItem("sp_picks_today")
+            const raw = rawByDate ?? rawLegacy
             if (!raw) return null
             const parsed = JSON.parse(raw)
-            // Validate the saved date matches yesterday
             if (!parsed?.date || parsed.date !== dateKey) return null
             return Array.isArray(parsed.picks) ? parsed.picks : null
           } catch { return null }

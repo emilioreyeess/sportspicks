@@ -215,10 +215,14 @@ export default function ValuePage() {
         const loadedPicks = r.picks ?? []
         setPicks(loadedPicks)
         setNote(r.note)
-        // Persistir en localStorage para poder mostrarlos mañana como "ayer"
+        // Persistir en localStorage con clave por fecha (sp_picks_YYYY-MM-DD)
+        // para que mañana "ayer" los encuentre aunque hoy se carguen picks nuevos.
+        // También guardamos sp_picks_today como alias rápido para el mismo día.
         if (loadedPicks.length > 0 && r.date) {
           try {
-            localStorage.setItem("sp_picks_today", JSON.stringify({ date: r.date, picks: loadedPicks }))
+            const payload = JSON.stringify({ date: r.date, picks: loadedPicks })
+            localStorage.setItem(`sp_picks_${r.date}`, payload)   // clave permanente por fecha
+            localStorage.setItem("sp_picks_today", payload)        // alias para compatibilidad
           } catch { /* quota exceeded — ignorar */ }
         }
       })
@@ -245,8 +249,11 @@ export default function ValuePage() {
         }
 
         // 2️⃣ Fallback: localStorage picks enriquecidos vía ESPN
+        // Intentar primero clave por fecha (nueva), luego alias legacy
         try {
-          const raw = localStorage.getItem("sp_picks_today")
+          const rawByDate = localStorage.getItem(`sp_picks_${yesterday}`)
+          const rawLegacy  = localStorage.getItem("sp_picks_today")
+          const raw = rawByDate ?? rawLegacy
           if (!raw) { setLoadingYesterday(false); return }
           const saved: { date: string; picks: any[] } = JSON.parse(raw)
           if (saved.date !== yesterday || !saved.picks?.length) { setLoadingYesterday(false); return }
