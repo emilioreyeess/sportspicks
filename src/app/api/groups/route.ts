@@ -19,37 +19,17 @@ export async function GET() {
   const sb = createServiceClient()
   const email = session.user.email
 
-  // Groups the user belongs to
-  const { data: memberships } = await sb
-    .from("group_members")
-    .select("group_id, role")
-    .eq("user_email", email)
-
-  if (!memberships?.length) return Response.json({ groups: [] })
-
-  const groupIds = memberships.map((m) => m.group_id)
+  // Single aggregated RPC: replaces 3+N queries (memberships + groups + N×count) with 1 JOIN.
+  // RPC: get_user_groups — see phase1-indexes-migration.sql
   const { data: groups, error } = await sb
-    .from("friend_groups")
-    .select("*")
-    .in("id", groupIds)
-    .order("created_at", { ascending: false })
+    .rpc("get_user_groups", { p_email: email })
 
   // CN-026: Return generic message — do not expose internal DB error details
   if (error) return Response.json({ error: "Error interno del servidor" }, { status: 500 })
 
-  // Attach member count
-  const enriched = await Promise.all(
-    (groups ?? []).map(async (g) => {
-      const { count } = await sb
-        .from("group_members")
-        .select("*", { count: "exact", head: true })
-        .eq("group_id", g.id)
-      const myRole = memberships.find((m) => m.group_id === g.id)?.role ?? "member"
-      return { ...g, member_count: count ?? 0, my_role: myRole }
-    }),
-  )
+  if (!groups?.length) return Response.json({ groups: [] })
 
-  return Response.json({ groups: enriched })
+  return Response.json({ groups })
 }
 
 export async function POST(req: NextRequest) {

@@ -1,0 +1,127 @@
+# Artillery Load Test — "Big Match Day" scenario
+# Alternative to the K6 script for teams using Artillery.
+#
+# Usage:
+#   npx artillery run load-tests/big-match-day.artillery.yml
+#   npx artillery run --target https://sportspicks.app load-tests/big-match-day.artillery.yml
+#   npx artillery run --target http://localhost:3000 --output report.json load-tests/big-match-day.artillery.yml
+#   npx artillery report report.json   # generates HTML report
+
+config:
+  target: "{{ $processEnvironment.TARGET || 'https://sportspicks.app' }}"
+  phases:
+    # 15-minute Big Match Day surge (compressed to ~8 min for CI runs)
+    - name: "Early arrivals"
+      duration: 60
+      arrivalRate: 10
+      rampTo: 50
+    - name: "Main surge"
+      duration: 90
+      arrivalRate: 50
+      rampTo: 150
+    - name: "Peak — kick-off window"
+      duration: 180
+      arrivalRate: 150
+    - name: "Kick-off spike"
+      duration: 60
+      arrivalRate: 150
+      rampTo: 200
+    - name: "Settle — game in progress"
+      duration: 90
+      arrivalRate: 200
+      rampTo: 50
+    - name: "Cool-down"
+      duration: 60
+      arrivalRate: 50
+      rampTo: 0
+
+  defaults:
+    headers:
+      User-Agent: "Artillery-LoadTest/1.0 SportsPicks-BigMatchDay"
+      Accept: "application/json"
+
+  # Pass/fail thresholds — Artillery will exit code 1 if any fail
+  ensure:
+    thresholds:
+      - http.response_time.p95: 3000   # P95 < 3s globally
+      - http.response_time.p99: 8000   # P99 < 8s globally
+    conditions:
+      - expression: "http.codes.5xx < 10"  # fewer than 10 server errors
+      - expression: "errors.total < 50"    # fewer than 50 total errors
+
+  plugins:
+    metrics-by-endpoint:
+      useOnlyRequestNames: true
+
+scenarios:
+  # ── Scenario 1: Anonymous user views today's matches (60% weight) ─────────
+  - name: "View today's matches"
+    weight: 60
+    flow:
+      - get:
+          url: "/api/matches/today"
+          name: "matches_today"
+          expect:
+            - statusCode: 200
+            - contentType: json
+            - hasProperty: "matches"
+
+      - think: 3
+
+      - get:
+          url: "/api/picks"
+          name: "picks_feed"
+          expect:
+            - statusCode: 200
+
+      - think: 5
+
+  # ── Scenario 2: Anonymous user checks match analysis (25% weight) ─────────
+  - name: "Match analysis"
+    weight: 25
+    flow:
+      - get:
+          url: "/api/matches/today"
+          name: "matches_today"
+          expect:
+            - statusCode: 200
+
+      - think: 2
+
+      # Simulates opening a match card — uses a fixed popular matchup
+      - get:
+          url: "/api/matches/analysis?id=401700000&slug=eng.1&home=359&away=360&hname=Man+City&aname=Arsenal"
+          name: "match_analysis"
+          expect:
+            - statusCode:
+                - 200
+                - 400   # expected if match not found in ESPN
+
+      - think: 8
+
+  # ── Scenario 3: Group ranking check (10% weight — authenticated) ──────────
+  - name: "Group ranking"
+    weight: 10
+    flow:
+      - get:
+          url: "/api/groups"
+          name: "groups_list"
+          # Note: will return 401 without auth cookie — that's expected
+          expect:
+            - statusCode:
+                - 200
+                - 401
+
+      - think: 4
+
+  # ── Scenario 4: Combinadas page (5% weight) ───────────────────────────────
+  - name: "Combinadas"
+    weight: 5
+    flow:
+      - get:
+          url: "/api/combinadas?mode=balanced"
+          name: "combinadas"
+          expect:
+            - statusCode: 200
+
+      - think: 5

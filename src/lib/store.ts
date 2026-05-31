@@ -126,7 +126,7 @@ const YESTERDAY_TMP = "/tmp/sp-yesterday.json"
 /** Lee los picks de ayer del store en memoria; en cold start carga desde /tmp */
 export function getYesterday(): { date: string | null; picks: any[] } {
   if (store.yesterday.picks.length > 0) return store.yesterday
-  // Cold start — intentar cargar desde /tmp
+  // Cold start — intentar cargar desde /tmp (misma instancia)
   try {
     const { readFileSync } = require("fs")
     const raw = readFileSync(YESTERDAY_TMP, "utf8")
@@ -135,20 +135,60 @@ export function getYesterday(): { date: string | null; picks: any[] } {
       store.yesterday = parsed
       return parsed
     }
-  } catch { /* /tmp vacío o inexistente en cold start → normal */ }
+  } catch { /* /tmp vacío o inexistente → normal en nueva instancia */ }
+  return store.yesterday
+}
+
+/**
+ * Versión async de getYesterday — también intenta KV si /tmp y memoria están vacíos.
+ * Usar en rutas API donde podemos await; el store síncrono sirve para compatibilidad interna.
+ */
+export async function getYesterdayAsync(): Promise<{ date: string | null; picks: any[] }> {
+  // 1. In-memory (misma instancia, más rápido)
+  if (store.yesterday.picks.length > 0) return store.yesterday
+
+  // 2. /tmp (cold start de la misma instancia)
+  try {
+    const { readFileSync } = require("fs")
+    const raw = readFileSync(YESTERDAY_TMP, "utf8")
+    const parsed = JSON.parse(raw)
+    if (parsed?.date && Array.isArray(parsed?.picks)) {
+      store.yesterday = parsed
+      return parsed
+    }
+  } catch { /* /tmp vacío → normal */ }
+
+  // 3. KV — compartido entre todas las instancias Vercel
+  try {
+    const { cacheGet } = await import("@/lib/kv")
+    const cached = await cacheGet<{ date: string; picks: any[] }>("picks:yesterday")
+    if (cached?.date && Array.isArray(cached?.picks)) {
+      store.yesterday = cached   // hidratar para próximas llamadas síncronas
+      return cached
+    }
+  } catch { /* KV no disponible */ }
+
   return store.yesterday
 }
 
 export function setYesterdayResults(date: string, picks: any[]): void {
   store.yesterday = { date, picks }
   addLog(`📋 Ayer guardado: ${picks.length} picks · ${date} · ${picks.filter(p => p.result === "WIN").length}W ${picks.filter(p => p.result === "LOSS").length}L`)
-  // Persistir en /tmp para sobrevivir cold restarts de la instancia serverless
+  // Persistir en /tmp para sobrevivir cold restarts de la misma instancia
   try {
     const { writeFileSync } = require("fs")
     writeFileSync(YESTERDAY_TMP, JSON.stringify({ date, picks }), "utf8")
   } catch (e: any) {
     addLog(`⚠️ No se pudo escribir /tmp: ${e?.message}`)
   }
+  // Persistir en KV para compartir entre instancias Vercel (multi-instancia)
+  // Fire-and-forget — no bloqueamos el pipeline
+  ;(async () => {
+    try {
+      const { cacheSet } = await import("@/lib/kv")
+      await cacheSet("picks:yesterday", { date, picks }, 48 * 3600)  // 48h TTL
+    } catch { /* KV no disponible — /tmp es el fallback */ }
+  })()
 }
 
 export function setDailyResults(r: DailyResults): void {

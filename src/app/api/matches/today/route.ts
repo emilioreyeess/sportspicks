@@ -7,6 +7,7 @@
  */
 import { NextRequest } from "next/server"
 import { consume, getClientIp, tooManyRequests } from "@/lib/rate-limit"
+import { cacheFetch, CK, TTL } from "@/lib/kv"
 
 export const runtime = "nodejs"
 export const maxDuration = 30
@@ -122,16 +123,17 @@ async function fetchLeague(slug: string): Promise<TodayMatch[]> {
   }
 }
 
-export async function GET(req: NextRequest) {
-  const ip = getClientIp(req)
-  if (!consume(`matches-today:${ip}`, 30, 6)) return tooManyRequests(60)
+// ─── Cache key: one entry per calendar day-hour-minute bucket ─────────────
+// Live days: 60s TTL (scores change). Static days: 5 min TTL.
+function todayDateKey(): string {
+  // Round to current minute so the cache key is stable within a minute window
+  const d = new Date()
+  return `${d.getUTCFullYear()}-${d.getUTCMonth()}-${d.getUTCDate()}-${d.getUTCHours()}-${Math.floor(d.getUTCMinutes() / 1)}`
+}
 
-  const all = await Promise.all(Object.keys(LEAGUES).map(fetchLeague))
-  const merged = all.flat()
-
-  // Dedup por match_id, ranking por importancia, top 5
+function buildRanked(merged: TodayMatch[]) {
   const seen = new Set<string>()
-  const ranked = merged
+  return merged
     .filter((m) => (seen.has(m.match_id) ? false : (seen.add(m.match_id), true)))
     .sort((a, b) => {
       if (b._score !== a._score) return b._score - a._score
@@ -141,6 +143,27 @@ export async function GET(req: NextRequest) {
     })
     .slice(0, 5)
     .map(({ _score, ...rest }) => rest)
+}
+
+export async function GET(req: NextRequest) {
+  const ip = getClientIp(req)
+  if (!consume(`matches-today:${ip}`, 30, 6)) return tooManyRequests(60)
+
+  const dateKey = todayDateKey()
+  const cacheKey = CK.matchesToday(dateKey)
+
+  // Cache strategy:
+  // · KV hit  → return instantly (all 1000 concurrent users share 1 ESPN call/min)
+  // · KV miss → fan-out 16 ESPN calls, store result, return
+  // · SWR     → stale data returned immediately while background refresh runs
+  const ranked = await cacheFetch(
+    cacheKey,
+    TTL.MATCHES_LIVE,        // 60s TTL — aggressive for live scores
+    async () => {
+      const all = await Promise.all(Object.keys(LEAGUES).map(fetchLeague))
+      return buildRanked(all.flat())
+    },
+  )
 
   return Response.json({ matches: ranked, count: ranked.length, ts: new Date().toISOString() })
 }

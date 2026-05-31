@@ -18,6 +18,7 @@
  */
 
 import { getCombinedFormWeight } from "@/lib/learning/supabase-ml"
+import { cacheFetch, CK, TTL } from "@/lib/kv"
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Utilidades Poisson
@@ -101,7 +102,7 @@ function getStat(team: any, ...labels: string[]): number | null {
  * Construye el modelo de un equipo a partir de su calendario ESPN + los
  * boxscores de sus últimos partidos. Todo real; nulls donde no haya dato.
  */
-export async function fetchTeamModel(slug: string, teamId: string): Promise<TeamModel | null> {
+async function _fetchTeamModelRaw(slug: string, teamId: string): Promise<TeamModel | null> {
   try {
     const res = await fetch(
       `https://site.api.espn.com/apis/site/v2/sports/soccer/${encodeURIComponent(slug)}/teams/${encodeURIComponent(teamId)}/schedule`,
@@ -185,6 +186,19 @@ export async function fetchTeamModel(slug: string, teamId: string): Promise<Team
   } catch {
     return null
   }
+}
+
+/**
+ * Cached wrapper around _fetchTeamModelRaw.
+ * Team season stats change at most once per matchday → 10 min TTL is safe.
+ * Multiple users opening the same match analysis share one ESPN call set.
+ */
+export async function fetchTeamModel(slug: string, teamId: string): Promise<TeamModel | null> {
+  return cacheFetch(
+    CK.teamModel(slug, teamId),
+    TTL.TEAM_MODEL,
+    () => _fetchTeamModelRaw(slug, teamId),
+  )
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

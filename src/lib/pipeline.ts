@@ -1194,14 +1194,19 @@ export function runPipeline(reason = "scheduled"): Promise<void> {
     addLog(`▶️  Pipeline iniciado (${reason})`)
     const t0 = Date.now()
     try {
-      // ── Verificar resultados del día anterior (solo si el store estaba caliente) ──
-      // En cold start el store está vacío y los picks de ayer se recuperan desde
-      // localStorage en el cliente → /api/picks/yesterday los resuelve vía ESPN.
+      // ── Verificar resultados del día anterior ──────────────────────────────────
+      // Fuentes en orden de fiabilidad:
+      //   1. In-memory store (instancia caliente, misma ejecución)
+      //   2. KV (compartido entre instancias Vercel — sobrevive cold starts)
+      // Si no hay picks de ayer en ninguna fuente, el GET /api/picks/yesterday los
+      // devolverá vacíos y el cliente caerá al fallback de localStorage.
       const prevStore = getStore()
       const today = new Date().toISOString().split("T")[0]
+      const yesterdayDate = new Date(Date.now() - 86_400_000).toISOString().split("T")[0]
 
+      // --- Caso A: store caliente con picks de ayer ---
       if (prevStore.date && prevStore.date !== today && prevStore.valuePicks.length > 0) {
-        addLog(`📋 Verificando resultados del ${prevStore.date}…`)
+        addLog(`📋 Verificando resultados del ${prevStore.date} (store caliente)…`)
         try {
           const verified = await checkPickResults(prevStore.valuePicks, prevStore.date)
           const wins    = verified.filter((p: any) => p.result === "WIN").length
@@ -1211,6 +1216,23 @@ export function runPipeline(reason = "scheduled"): Promise<void> {
           addLog(`✅ Resultados verificados: ${wins}W ${losses}L ${pending} pendientes`)
         } catch (e: any) {
           addLog(`⚠️  Error verificando resultados: ${e?.message ?? e}`)
+        }
+      } else {
+        // --- Caso B: cold start — intentar recuperar picks de ayer desde KV ---
+        try {
+          const { cacheGet } = await import("@/lib/kv")
+          const kvYesterday = await cacheGet<{ date: string; picks: any[] }>("picks:today-raw")
+          if (kvYesterday?.date === yesterdayDate && kvYesterday.picks?.length > 0) {
+            addLog(`📋 Verificando resultados del ${kvYesterday.date} (fuente: KV)…`)
+            const verified = await checkPickResults(kvYesterday.picks, kvYesterday.date)
+            const wins    = verified.filter((p: any) => p.result === "WIN").length
+            const losses  = verified.filter((p: any) => p.result === "LOSS").length
+            const pending = verified.filter((p: any) => p.result === "PENDING").length
+            setYesterdayResults(kvYesterday.date, verified)
+            addLog(`✅ Resultados verificados (cold KV): ${wins}W ${losses}L ${pending} pendientes`)
+          }
+        } catch (e: any) {
+          addLog(`ℹ️  Sin picks previos en KV: ${e?.message ?? e}`)
         }
       }
 
@@ -1298,6 +1320,19 @@ export function runPipeline(reason = "scheduled"): Promise<void> {
         matches: data.matches.length,
         durationMs: Date.now() - t0,
       })
+
+      // Guardar los picks de HOY en KV como "today-raw" para que mañana el pipeline
+      // pueda recuperarlos en cold start y verificar sus resultados via ESPN.
+      // TTL: 36h (suficiente para que el cron de las 6:30 AM los encuentre al día siguiente).
+      if (picks.length > 0) {
+        ;(async () => {
+          try {
+            const { cacheSet } = await import("@/lib/kv")
+            await cacheSet("picks:today-raw", { date: todayDate, picks }, 36 * 3600)
+            addLog(`💾 Picks de hoy guardados en KV (${picks.length} picks · ${todayDate})`)
+          } catch { /* KV no disponible — /tmp es el fallback */ }
+        })()
+      }
 
       addLog(`🟢 Pipeline completado en ${((Date.now() - t0) / 1000).toFixed(1)}s`)
     } catch (e: any) {

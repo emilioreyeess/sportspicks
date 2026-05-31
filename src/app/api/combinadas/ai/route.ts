@@ -5,6 +5,7 @@ import { authOptions } from "@/lib/auth-options"
 import { getStore } from "@/lib/store"
 import { ensureWarm } from "@/lib/pipeline"
 import { consume, getClientIp, tooManyRequests } from "@/lib/rate-limit"
+import { sseEvent } from "@/lib/jobs"
 
 export const runtime = "nodejs"
 export const maxDuration = 60
@@ -176,75 +177,102 @@ Elige la mejor combinación. Recuerda: devuelve siempre entre 2 y 5 índices en 
 
 Devuelve el JSON.`
 
-  try {
-    const response = await client.messages.create({
-      model: "claude-sonnet-4-5-20250929",
-      max_tokens: 1500,
-      system: sys,
-      messages: [{ role: "user", content: userMsg }],
-    })
+  // ── FASE 3: SSE Streaming — instant ACK + async Claude computation ─────────
+  // Phase 1 → "thinking" event arrives in < 100ms (no ESPN / DB wait).
+  // Phase 2 → "done" event arrives when Claude finishes (~5-15s).
+  // Frontend handles both events without blocking UI.
+  const stream = new ReadableStream({
+    async start(controller) {
+      try {
+        // Immediate acknowledgement so the user sees the spinner right away
+        controller.enqueue(sseEvent("thinking", {
+          message: "Analizando el pool de hoy con el modelo estadístico...",
+        }))
 
-    const blocks = response.content as any[]
-    const text: string = blocks.find((b) => b.type === "text")?.text ?? "{}"
-    const cleaned = text.replace(/```(?:json)?/gi, "").replace(/```/g, "").trim()
+        const response = await client.messages.create({
+          model: "claude-sonnet-4-5-20250929",
+          max_tokens: 1500,
+          system: sys,
+          messages: [{ role: "user", content: userMsg }],
+        })
 
-    let parsed: {
-      selected?: number[]
-      leg_reasons?: string[]
-      overall_reasoning?: string
-      interpretation?: string
-    } = {}
-    try {
-      parsed = JSON.parse(cleaned)
-    } catch {
-      const m = cleaned.match(/\{[\s\S]*\}/)
-      if (m) { try { parsed = JSON.parse(m[0]) } catch {} }
-    }
+        const blocks = response.content as any[]
+        const text: string = blocks.find((b) => b.type === "text")?.text ?? "{}"
+        const cleaned = text.replace(/```(?:json)?/gi, "").replace(/```/g, "").trim()
 
-    let idx = (parsed.selected ?? []).filter(
-      (n): n is number => typeof n === "number" && n >= 0 && n < pool.length
-    )
+        let parsed: {
+          selected?: number[]
+          leg_reasons?: string[]
+          overall_reasoning?: string
+          interpretation?: string
+        } = {}
+        try {
+          parsed = JSON.parse(cleaned)
+        } catch {
+          const m = cleaned.match(/\{[\s\S]*\}/)
+          if (m) { try { parsed = JSON.parse(m[0]) } catch {} }
+        }
 
-    // Fallback: si Claude devolvió vacío, top-3 por probabilidad del filtro relevante
-    if (idx.length === 0) {
-      const filtered = filterPoolByIntent(items, intent)
-      const top3 = filtered.sort((a: any, b: any) => b.prob - a.prob).slice(0, 3).map((x: any) => x.i)
-      idx = top3.length > 0 ? top3 : [0, 1, 2].filter((i) => i < pool.length)
-      parsed.overall_reasoning = `No encontré selecciones exactas para "${prompt}". Aquí están las selecciones con mejor probabilidad del pool de hoy.`
-      parsed.interpretation = `Selección automática — petición original: "${prompt}"`
-    }
+        let idx = (parsed.selected ?? []).filter(
+          (n): n is number => typeof n === "number" && n >= 0 && n < pool.length
+        )
 
-    // Deduplicar por partido
-    const seen = new Set<string>()
-    const chosen: any[] = []
-    const legReasons: string[] = []
-    for (let k = 0; k < idx.length; k++) {
-      const i = idx[k]
-      const p = pool[i]
-      if (seen.has(p.matchId ?? p.match)) continue
-      seen.add(p.matchId ?? p.match)
-      chosen.push(p)
-      legReasons.push(parsed.leg_reasons?.[k] ?? `Edge positivo: modelo ${Math.round(p.prob * 100)}% vs implícita de cuota ${p.odd.toFixed(2)}`)
-    }
+        if (idx.length === 0) {
+          const filtered = filterPoolByIntent(items, intent)
+          const top3 = filtered.sort((a: any, b: any) => b.prob - a.prob).slice(0, 3).map((x: any) => x.i)
+          idx = top3.length > 0 ? top3 : [0, 1, 2].filter((i) => i < pool.length)
+          parsed.overall_reasoning = `No encontré selecciones exactas para "${prompt}". Aquí están las selecciones con mejor probabilidad del pool de hoy.`
+          parsed.interpretation = `Selección automática — petición original: "${prompt}"`
+        }
 
-    // Si tras deduplicar quedamos sin nada (edge case extremo)
-    if (chosen.length === 0) {
-      const fallback = pool.slice(0, 3)
-      return Response.json(buildResponse(prompt, fallback, [],
-        "Aquí tienes las selecciones más sólidas del pool de hoy.",
-        `Selección alternativa para: "${prompt}"`))
-    }
+        const seen = new Set<string>()
+        const chosen: any[] = []
+        const legReasons: string[] = []
+        for (let k = 0; k < idx.length; k++) {
+          const i = idx[k]
+          const p = pool[i]
+          if (seen.has(p.matchId ?? p.match)) continue
+          seen.add(p.matchId ?? p.match)
+          chosen.push(p)
+          legReasons.push(
+            parsed.leg_reasons?.[k] ??
+            `Edge positivo: modelo ${Math.round(p.prob * 100)}% vs implícita de cuota ${p.odd.toFixed(2)}`
+          )
+        }
 
-    return Response.json(buildResponse(
-      prompt, chosen, legReasons,
-      parsed.overall_reasoning ?? "",
-      parsed.interpretation ?? "",
-    ))
+        if (chosen.length === 0) {
+          const fallback = pool.slice(0, 3)
+          controller.enqueue(sseEvent("done", buildResponse(
+            prompt, fallback, [],
+            "Aquí tienes las selecciones más sólidas del pool de hoy.",
+            `Selección alternativa para: "${prompt}"`
+          )))
+        } else {
+          controller.enqueue(sseEvent("done", buildResponse(
+            prompt, chosen, legReasons,
+            parsed.overall_reasoning ?? "",
+            parsed.interpretation ?? "",
+          )))
+        }
+      } catch (e: any) {
+        console.error("AI combinadas error:", e)
+        controller.enqueue(sseEvent("error", {
+          error: "Error procesando la petición. Inténtalo de nuevo.",
+        }))
+      } finally {
+        controller.close()
+      }
+    },
+  })
 
-  } catch (e: any) {
-    console.error("AI combinadas error:", e)
-    return Response.json({ error: "Error procesando la petición. Inténtalo de nuevo." }, { status: 500 })
-  }
+  return new Response(stream, {
+    headers: {
+      "Content-Type":  "text/event-stream",
+      "Cache-Control": "no-cache, no-transform",
+      "Connection":    "keep-alive",
+      "X-Accel-Buffering": "no",
+    },
+  })
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────

@@ -5,7 +5,9 @@
   "scripts": {
     "dev": "next dev",
     "build": "next build",
-    "start": "next start"
+    "start": "next start",
+    "load:k6": "k6 run load-tests/big-match-day.js",
+    "load:artillery": "npx artillery run load-tests/big-match-day.artillery.yml"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "0.98.0",

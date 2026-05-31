@@ -6,14 +6,19 @@
  * Si el store está frío se intenta cargar desde /tmp/sp-yesterday.json.
  */
 import { NextRequest, NextResponse } from "next/server"
-import { getYesterday } from "@/lib/store"
+import { getYesterdayAsync } from "@/lib/store"
 
 export const runtime = "nodejs"
 export const revalidate = 0
 
-/** GET — devuelve los picks de ayer con resultados ya calculados */
+/** GET — devuelve los picks de ayer con resultados ya calculados.
+ *  Fuentes en orden de fiabilidad:
+ *  1. In-memory store (instancia caliente)
+ *  2. /tmp/sp-yesterday.json (cold restart de la misma instancia)
+ *  3. Vercel KV (compartido entre todas las instancias — sobrevive cualquier reinicio)
+ */
 export async function GET() {
-  const yest = getYesterday()
+  const yest = await getYesterdayAsync()
   if (!yest.date || !yest.picks.length) {
     return NextResponse.json({ date: null, picks: [] })
   }

@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server"
 import { consume, getClientIp, tooManyRequests } from "@/lib/rate-limit"
+import { cacheFetch, CK, TTL } from "@/lib/kv"
 
 export const runtime = "nodejs"
 export const maxDuration = 60
@@ -68,6 +69,20 @@ export async function GET(req: NextRequest) {
     return Response.json({ error: "Liga no soportada" }, { status: 400 })
   }
   const id = idRaw
+
+  // ── Cache full computed payload (slug+teamId → stats JSON) ───────────────
+  // Team season stats change at most once per matchday. 10 min TTL is safe.
+  // All users querying the same team share a single ESPN call set.
+  const cacheKey = CK.teamModel(slug, id)
+
+  // Fast-path: return cached payload if available
+  const cached = await (async () => {
+    const { cacheGet } = await import("@/lib/kv")
+    // We use a separate key for the full payload (vs. the team model used by match-model)
+    return cacheGet<object>(cacheKey + ":team-stats")
+  })().catch(() => null)
+
+  if (cached) return Response.json(cached)
 
   try {
     const res = await fetch(
@@ -181,7 +196,7 @@ export async function GET(req: NextRequest) {
       advanced_samples:      samples,
     } : null
 
-    return Response.json({
+    const payload = {
       id: parseInt(id), slug,
       name: teamName,
       league: LEAGUE_NAMES[slug] ?? slug,
@@ -211,7 +226,12 @@ export async function GET(req: NextRequest) {
         wins: awayWins, draws: awayDraws, losses: awayLosses,
         goals_for: awayGF, goals_against: awayGA,
       },
-    })
+    }
+    // Store in KV so subsequent requests for the same team skip all ESPN calls
+    const { cacheSet, TTL: KV_TTL } = await import("@/lib/kv")
+    void cacheSet(cacheKey + ":team-stats", payload, KV_TTL.TEAM_MODEL)
+
+    return Response.json(payload)
   } catch (e: any) {
     return Response.json({ error: e.message }, { status: 500 })
   }
