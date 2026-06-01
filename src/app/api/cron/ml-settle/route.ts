@@ -14,6 +14,7 @@
  */
 import { NextRequest, NextResponse } from "next/server"
 import { runMlCycle } from "@/lib/learning/supabase-ml"
+import { refreshYesterdayPicks } from "@/lib/yesterday-refresh"
 
 export const runtime = "nodejs"
 export const maxDuration = 120          // liquidar muchos partidos puede tardar
@@ -35,7 +36,16 @@ async function handle(req: NextRequest) {
 
   try {
     const result = await runMlCycle(asOfDate)
-    return NextResponse.json({ ok: true, ...result })
+    // Además del ciclo ML (Supabase predictions_log), re-verificamos el snapshot
+    // de "ayer" que ven los usuarios: si quedaron picks PENDING en KV porque el
+    // pipeline diario corrió antes de los finales, los liquidamos aquí.
+    let yesterdayRefresh: any = null
+    try {
+      yesterdayRefresh = await refreshYesterdayPicks({ force: true })
+    } catch (e: any) {
+      yesterdayRefresh = { ran: false, reason: `error: ${e?.message ?? e}` }
+    }
+    return NextResponse.json({ ok: true, ...result, yesterdayRefresh })
   } catch (e: any) {
     console.error("[cron/ml-settle] error:", e?.message ?? e)
     return NextResponse.json({ ok: false, error: e?.message ?? "unknown" }, { status: 500 })

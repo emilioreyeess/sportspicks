@@ -83,6 +83,24 @@ function FormChips({ form }: { form: string[] }) {
   )
 }
 
+/* ── Fallback UI cuando faltan datos / amistoso sin historia ──────────────── */
+function NoDataFallback({ title, hint }: { title: string; hint?: string }) {
+  return (
+    <div className="rounded-2xl border border-amber-700/30 bg-amber-500/[0.06] px-5 py-6 text-center">
+      <div className="grid place-items-center w-11 h-11 rounded-2xl bg-amber-500/15 border border-amber-700/40 text-amber-400 mx-auto mb-3">
+        <Icon name="info" className="w-5 h-5" strokeWidth={2} />
+      </div>
+      <p className="text-[14px] font-semibold text-white tracking-tight">{title}</p>
+      {hint && (
+        <p className="text-[12px] text-zinc-400 leading-relaxed mt-2 max-w-xs mx-auto">{hint}</p>
+      )}
+      <p className="text-[10px] text-zinc-600 mt-3">
+        SportsPicks nunca emite pronósticos sin volumen de datos verificables en ESPN.
+      </p>
+    </div>
+  )
+}
+
 /* ── Modal de análisis ─────────────────────────────────────────────────────── */
 function AnalysisModal({ match, onClose }: { match: TodayMatch; onClose: () => void }) {
   const [loading, setLoading] = useState(true)
@@ -103,7 +121,7 @@ function AnalysisModal({ match, onClose }: { match: TodayMatch; onClose: () => v
     })
     fetch(`/api/matches/analysis?${qs.toString()}`, { cache: "no-store" })
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`HTTP ${r.status}`))))
-      .then((d) => { if (!cancelled) setData(d.analysis) })
+      .then((d) => { if (!cancelled) setData(d?.analysis ?? null) })
       .catch((e) => { if (!cancelled) setError(e?.message ?? "Error") })
       .finally(() => { if (!cancelled) setLoading(false) })
     return () => { cancelled = true }
@@ -111,6 +129,9 @@ function AnalysisModal({ match, onClose }: { match: TodayMatch; onClose: () => v
 
   const a = data
   const noIds = !match.home_id || !match.away_id
+  // dataSufficient lo expone el backend cuando el motor no tiene volumen
+  // para emitir un pronóstico fiable (amistosos sin historia, debutantes).
+  const insufficientData = !loading && !error && !noIds && a && a.dataSufficient === false
 
   return (
     <Modal open onClose={onClose} title={`${match.home_team} vs ${match.away_team}`} size="lg">
@@ -124,12 +145,21 @@ function AnalysisModal({ match, onClose }: { match: TodayMatch; onClose: () => v
 
         {loading ? (
           <div className="flex items-center justify-center py-16"><Spinner className="w-6 h-6" /></div>
-        ) : error || noIds ? (
-          <div className="rounded-xl bg-amber-400/[0.08] p-4 text-[13px] text-amber-300/90">
-            {noIds
-              ? "No hay identificadores de equipo para este partido — análisis no disponible."
-              : "No se pudo cargar el análisis en este momento."}
-          </div>
+        ) : noIds ? (
+          <NoDataFallback
+            title="Datos no disponibles para este encuentro"
+            hint="ESPN no expone identificadores de equipo para este partido (típico en amistosos preparatorios o partidos de selección sin liga asociada)."
+          />
+        ) : error ? (
+          <NoDataFallback
+            title="No se pudo cargar el análisis"
+            hint="Inténtalo de nuevo en unos segundos. Si el partido es muy reciente, ESPN aún puede no haber publicado los datos."
+          />
+        ) : insufficientData ? (
+          <NoDataFallback
+            title="Sin volumen de datos suficiente"
+            hint={a?.dataIssue ?? "Este encuentro tiene poco historial reciente en ESPN — habitual en amistosos internacionales o equipos recién ascendidos. El motor no emite pronóstico sobre muestras pequeñas."}
+          />
         ) : a ? (
           <>
             {/* Resultado 1X2 */}

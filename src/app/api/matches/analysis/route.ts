@@ -55,9 +55,12 @@ export async function GET(req: NextRequest) {
     const analysis = await analyzeMatch({ league: slug, home, away })
 
     // ── Registrar predicciones en el ML loop (solo si el partido no ha empezado) ──
+    //   · No registrar si el motor no tuvo datos suficientes (amistosos sin
+    //     historia, debutantes de copa). El feed se ensuciaría con predicciones
+    //     basadas en 1-2 partidos.
     const kickoffMs = kickoff ? new Date(kickoff).getTime() : NaN
     const notStarted = isFinite(kickoffMs) ? kickoffMs > Date.now() : false
-    if (notStarted && analysis.picks.length) {
+    if (notStarted && analysis.dataSufficient && analysis.picks.length) {
       let userId: string | null = null
       try {
         const session = await getServerSession(authOptions)

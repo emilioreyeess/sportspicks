@@ -237,7 +237,16 @@ export interface MatchAnalysis {
   /** Selección destacada por mercado (para registrar en el ML loop). */
   picks: { market: string; pick: string; prob: number }[]
   dataComplete: boolean
+  /** True si hay volumen de datos suficiente para emitir probabilidades. */
+  dataSufficient: boolean
+  /** Mensaje legible para la UI cuando dataSufficient === false. */
+  dataIssue: string | null
 }
+
+/** Mínimo de partidos jugados por equipo para que el motor emita probabilidades.
+ *  Por debajo de esto (amistosos sin historia, debutantes de copa, etc.) el motor
+ *  omite el partido de forma controlada en lugar de inventar números. */
+export const MIN_GAMES_FOR_ANALYSIS = 3
 
 const HOME_ADV = 1.10
 const AWAY_ADJ = 0.95
@@ -282,6 +291,24 @@ export async function analyzeMatch(args: {
     corners: null, cards: null,
     picks: [],
     dataComplete: false,
+    dataSufficient: false,
+    dataIssue: null,
+  }
+
+  // ── Guarda de volumen de datos ────────────────────────────────────────────
+  // Amistosos, debuts de copa o selecciones sin historial reciente entran aquí
+  // con `played < MIN_GAMES_FOR_ANALYSIS`. En lugar de emitir un Poisson sobre
+  // 1-2 muestras (que sería literalmente inventarnos un pronóstico), el motor
+  // se planta y devuelve un MatchAnalysis vacío con `dataIssue` explicado.
+  const homePlayed = home?.played ?? 0
+  const awayPlayed = away?.played ?? 0
+  if (!home || !away) {
+    out.dataIssue = "No hay datos de uno o ambos equipos en ESPN."
+    return out
+  }
+  if (homePlayed < MIN_GAMES_FOR_ANALYSIS || awayPlayed < MIN_GAMES_FOR_ANALYSIS) {
+    out.dataIssue = `Volumen de datos insuficiente para un pronóstico fiable (${home.name}: ${homePlayed} partidos · ${away.name}: ${awayPlayed} partidos · mínimo ${MIN_GAMES_FOR_ANALYSIS}).`
+    return out
   }
 
   // ── Goles / 1X2 / BTTS / O/U (requiere gfpg+gapg de ambos) ────────────────
@@ -371,5 +398,12 @@ export async function analyzeMatch(args: {
   }
 
   out.dataComplete = out.prob1 != null && out.corners != null && out.cards != null
+  // dataSufficient = el motor pudo emitir al menos 1X2 (gfpg+gapg de ambos
+  // estaban disponibles). Corners/cards pueden seguir siendo null sin invalidar
+  // el análisis: la UI los muestra como N/A.
+  out.dataSufficient = out.prob1 != null
+  if (!out.dataSufficient && out.dataIssue == null) {
+    out.dataIssue = "Faltan goles a favor o en contra de uno de los equipos en ESPN."
+  }
   return out
 }

@@ -34,6 +34,12 @@ const QUALITY_GATE = 56   // raised from 52 — stricter quality bar
 const MAX_PICKS = 10
 // Minimum odds for a handicap pick where the selected team is a clear underdog 1X2
 const MIN_ODD_HANDICAP_UNDERDOG = 1.75
+/** Mínimo de partidos jugados por equipo (ambos) para que el motor evalúe un
+ *  partido. Si cualquiera de los dos tiene menos historia que esto (amistosos
+ *  pre-temporada, debutantes de copa, equipos recién ascendidos sin muestra),
+ *  el partido se omite del pipeline de forma controlada — nunca emitimos un
+ *  pronóstico Poisson sobre 1-2 muestras. */
+const MIN_GAMES_FOR_PICK = 4
 
 // ─── Tipos ──────────────────────────────────────────────────────────────────
 
@@ -107,13 +113,26 @@ async function fetchDailyData(): Promise<DailyData> {
   const queue = raw.slice(0, 56)
   interface WithForm extends RawMatch { home: TeamForm; away: TeamForm }
   const withForm: WithForm[] = []
+  let skippedNoData = 0
   await Promise.all(queue.map(async (m) => {
     const [home, away] = await Promise.all([
       fetchTeamForm(m.slug, m.homeId),
       fetchTeamForm(m.slug, m.awayId),
     ])
-    if (home && away) withForm.push({ ...m, home, away })
+    if (!home || !away) { skippedNoData++; return }
+    // SKIP CONTROLADO: si alguno de los dos equipos no tiene suficientes
+    // partidos jugados, el motor no puede calcular un Edge fiable. Se omite
+    // sin romper el pipeline. Esto cubre el caso "amistosos sin historial"
+    // y "debutantes de copa".
+    if (home.gamesPlayed < MIN_GAMES_FOR_PICK || away.gamesPlayed < MIN_GAMES_FOR_PICK) {
+      skippedNoData++
+      return
+    }
+    withForm.push({ ...m, home, away })
   }))
+  if (skippedNoData > 0) {
+    addLog(`⏭️  ${skippedNoData} partido(s) omitido(s) por volumen de datos insuficiente (amistosos / debutantes)`)
+  }
 
   // Media de goles POR LIGA (cada competición tiene su propio entorno goleador)
   const globalAvg = withForm.length

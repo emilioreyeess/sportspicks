@@ -12,13 +12,28 @@
  */
 import { NextRequest, NextResponse } from "next/server"
 import { getYesterdayAsync } from "@/lib/store"
+import { refreshYesterdayPicks } from "@/lib/yesterday-refresh"
 
 export const runtime = "nodejs"
 export const revalidate = 0
 
 export async function GET() {
   const yest = await getYesterdayAsync()
+
+  // Si hay PENDING en el snapshot, re-verifica contra ESPN (throttled a 5 min
+  // por instancia para no martillear). El refresh hidrata el store interno;
+  // re-leemos después para devolver el snapshot actualizado al cliente.
   if (yest.date && yest.picks.length) {
+    const hasPending = yest.picks.some((p: any) => p?.result === "PENDING")
+    if (hasPending) {
+      try {
+        const r = await refreshYesterdayPicks({ minPending: 1 })
+        if (r.ran) {
+          const fresh = await getYesterdayAsync()
+          return NextResponse.json({ date: fresh.date, picks: fresh.picks, refreshed: true })
+        }
+      } catch { /* si el refresh falla devolvemos el snapshot tal cual */ }
+    }
     return NextResponse.json({ date: yest.date, picks: yest.picks })
   }
   return NextResponse.json({ date: null, picks: [] })
