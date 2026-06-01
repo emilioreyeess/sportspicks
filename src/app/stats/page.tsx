@@ -2,11 +2,15 @@
 
 import { useState, useEffect, useRef } from "react"
 import { useDebounce } from "@/hooks/useDebounce"
-import { PageHeader, Card } from "@/components/ui/primitives"
+import { PageHeader, Card, Badge, Button, Spinner, Alert, EmptyState } from "@/components/ui/primitives"
 import { Icon } from "@/components/ui/icons"
 import { usePlan } from "@/lib/plan"
 import { useUpgradeModal } from "@/components/premium"
 import Link from "next/link"
+
+/* ────────────────────────────────────────────────────────────────────────────
+   Types
+   ──────────────────────────────────────────────────────────────────────────── */
 
 interface TeamResult { id: string; name: string; slug: string; league: string; country: string; flag: string }
 interface PlayerResult {
@@ -31,10 +35,14 @@ interface TeamStats {
   away: { played: number; wins: number; draws: number; losses: number; goals_for: number; goals_against: number }
 }
 
+/* ────────────────────────────────────────────────────────────────────────────
+   Constants
+   ──────────────────────────────────────────────────────────────────────────── */
+
 const FORM_COLOR: Record<string, string> = {
-  W: "bg-emerald-500 text-white",
-  D: "bg-zinc-600 text-zinc-300",
-  L: "bg-red-500/80 text-white",
+  W: "bg-emerald-500/90 text-white",
+  D: "bg-zinc-700 text-zinc-200",
+  L: "bg-rose-500/90 text-white",
 }
 
 const QUICK: TeamResult[] = [
@@ -44,17 +52,27 @@ const QUICK: TeamResult[] = [
   { id: "132", name: "Bayern Munich",   slug: "ger.1", league: "Bundesliga",     country: "Alemania",   flag: "🇩🇪" },
 ]
 
+/* ────────────────────────────────────────────────────────────────────────────
+   API helpers
+   ──────────────────────────────────────────────────────────────────────────── */
+
 async function searchTeams(q: string) {
   const res = await fetch(`/api/stats/search?q=${encodeURIComponent(q)}`)
   return res.json()
 }
-
 async function searchPlayers(q: string) {
   const res = await fetch(`/api/stats/player-search?q=${encodeURIComponent(q)}`)
   return res.json()
 }
+async function getTeamStats(id: string, slug: string) {
+  const res = await fetch(`/api/stats/team?id=${id}&slug=${encodeURIComponent(slug)}`)
+  return res.json()
+}
 
-// ── Rate limit para análisis IA (localStorage) ─────────────────────────────
+/* ────────────────────────────────────────────────────────────────────────────
+   AI usage tracking (Premium = 1/day, Pro = unlimited)
+   ──────────────────────────────────────────────────────────────────────────── */
+
 function getAnalysisUsage(): { count: number; date: string } {
   try {
     const raw = localStorage.getItem("sp_analyze_usage")
@@ -77,10 +95,9 @@ function canRunAnalysis(isPro: boolean): { ok: boolean; remaining: number } {
   return { ok: used < 1, remaining: Math.max(0, 1 - used) }
 }
 
-async function getTeamStats(id: string, slug: string) {
-  const res = await fetch(`/api/stats/team?id=${id}&slug=${encodeURIComponent(slug)}`)
-  return res.json()
-}
+/* ════════════════════════════════════════════════════════════════════════════
+   MAIN PAGE
+   ════════════════════════════════════════════════════════════════════════════ */
 
 export default function StatsPage() {
   const { isPremium, isPro } = usePlan()
@@ -94,7 +111,6 @@ export default function StatsPage() {
   const [loadingSearch, setLoadingSearch] = useState(false)
   const [loadingTeam, setLoadingTeam] = useState(false)
 
-  // Análisis IA
   const [analysis, setAnalysis] = useState("")
   const [analysisLoading, setAnalysisLoading] = useState(false)
   const [analysisError, setAnalysisError] = useState("")
@@ -103,7 +119,6 @@ export default function StatsPage() {
 
   const debouncedQuery = useDebounce(query, 350)
 
-  // Check analysis usage on mount
   useEffect(() => {
     if (isPremium && !isPro) {
       const { ok } = canRunAnalysis(false)
@@ -149,7 +164,6 @@ export default function StatsPage() {
     if (!stats) return
     if (!isPremium) { upgrade.show("stats_advanced"); return }
 
-    // Rate limit: Premium = 1/día, Pro = ilimitado
     const { ok } = canRunAnalysis(isPro)
     if (!ok) {
       setAnalysisError("Has usado tu análisis diario. Vuelve mañana o mejora a Pro para análisis ilimitados.")
@@ -196,7 +210,6 @@ export default function StatsPage() {
         }
       }
 
-      // Registrar uso y actualizar estado
       incrementAnalysisUsage()
       if (!isPro) setAnalyzeUsed(true)
 
@@ -209,65 +222,73 @@ export default function StatsPage() {
     }
   }
 
+  const showEmpty = !stats && !selectedPlayer && !loadingTeam
+
   return (
-    <div className="px-4 py-6 max-w-4xl mx-auto safe-x">
-      <PageHeader icon="stats" title="Estadísticas"
-        subtitle="Busca cualquier equipo del mundo · Datos reales de ESPN" />
+    <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8 sm:py-10 safe-x">
+      <PageHeader
+        icon="stats"
+        title="Estadísticas"
+        subtitle="Busca cualquier equipo o jugador del mundo. Datos verificados de ESPN sin filtros."
+      />
 
       {/* Search */}
-      <div className="relative mb-6">
-        <span className="absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500">
-          <Icon name="stats" className="w-4 h-4" />
-        </span>
-        <input
-          type="text"
-          value={query}
-          onChange={(e) => { setQuery(e.target.value); setStats(null); setAnalysis(""); setAnalysisError("") }}
-          placeholder="Busca un equipo: Real Madrid, Boca Juniors, Al Nassr…"
-          className="w-full bg-zinc-800/40 border border-white/[0.08] focus:border-white/[0.16]
-            text-white placeholder-zinc-600 rounded-2xl pl-10 pr-4 py-3.5 text-sm outline-none transition-colors"
-        />
-        {loadingSearch && (
-          <span className="absolute right-4 top-1/2 -translate-y-1/2 text-zinc-500 text-xs">Buscando…</span>
-        )}
+      <div className="relative mb-8">
+        <div className="relative">
+          <span className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-zinc-500">
+            <Icon name="search" className="w-4 h-4" strokeWidth={2} />
+          </span>
+          <input
+            type="text"
+            value={query}
+            onChange={(e) => { setQuery(e.target.value); setStats(null); setAnalysis(""); setAnalysisError("") }}
+            placeholder="Real Madrid, Mbappé, Boca Juniors…"
+            className="w-full h-14 bg-zinc-900/55 border border-white/[0.05] focus:border-emerald-500/40 focus:bg-zinc-900/70 focus:shadow-[0_0_0_4px_rgba(82,181,145,0.10)]
+              text-white placeholder-zinc-600 rounded-2xl pl-11 pr-12 text-[15px] outline-none transition-all"
+          />
+          {loadingSearch && (
+            <span className="absolute right-4 top-1/2 -translate-y-1/2">
+              <Spinner className="w-4 h-4" />
+            </span>
+          )}
+        </div>
+
         {(teamResults.length > 0 || playerResults.length > 0) && (
-          <div className="absolute top-full mt-2 w-full bg-zinc-900/95 border border-white/[0.07]
-            rounded-2xl overflow-hidden z-20 shadow-2xl max-h-80 overflow-y-auto backdrop-blur-xl">
-            {/* Equipos */}
+          <div className="absolute top-full mt-2 w-full bg-zinc-900/95 backdrop-blur-2xl border border-white/[0.07]
+            rounded-2xl overflow-hidden z-30 shadow-[0_20px_60px_-20px_rgba(0,0,0,0.7)] max-h-[60vh] overflow-y-auto">
             {teamResults.length > 0 && (
               <>
-                <p className="px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-zinc-600 border-b border-white/[0.07]">
+                <p className="px-4 pt-3 pb-1.5 text-[10px] font-bold uppercase tracking-widest text-zinc-500">
                   Equipos
                 </p>
                 {teamResults.slice(0, 5).map((t) => (
                   <button key={`team-${t.slug}-${t.id}`} onClick={() => loadTeam(t)}
                     className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white/[0.04]
-                      transition-colors text-left border-b border-white/[0.07] last:border-0">
-                    <span className="text-xl">{t.flag}</span>
-                    <div>
-                      <p className="text-sm font-medium text-white">{t.name}</p>
-                      <p className="text-xs text-zinc-500">{t.league} · {t.country}</p>
+                      transition-colors text-left">
+                    <span className="text-xl shrink-0">{t.flag}</span>
+                    <div className="min-w-0">
+                      <p className="text-[14px] font-semibold text-white truncate">{t.name}</p>
+                      <p className="text-[12px] text-zinc-500 truncate">{t.league} · {t.country}</p>
                     </div>
                   </button>
                 ))}
               </>
             )}
-            {/* Jugadores */}
             {playerResults.length > 0 && (
               <>
-                <p className="px-4 py-2 text-[10px] font-bold uppercase tracking-wider text-zinc-600 border-b border-white/[0.07]">
+                <p className="px-4 pt-3 pb-1.5 text-[10px] font-bold uppercase tracking-widest text-zinc-500">
                   Jugadores
                 </p>
                 {playerResults.slice(0, 5).map((p) => (
                   <button key={`player-${p.id}`} onClick={() => selectPlayer(p)}
                     className="w-full flex items-center gap-3 px-4 py-3 hover:bg-white/[0.04]
-                      transition-colors text-left border-b border-white/[0.07] last:border-0">
-                    <div className="grid place-items-center w-9 h-9 rounded-xl bg-zinc-800/60 border border-white/[0.07] shrink-0">
-                      <span className="text-xs font-bold text-zinc-400">{p.jersey ?? p.positionAbbr}</span>
+                      transition-colors text-left">
+                    <div className="grid place-items-center w-9 h-9 rounded-xl bg-zinc-800/80 border border-white/[0.07] shrink-0">
+                      <span className="text-[11px] font-bold text-zinc-300">{p.jersey ?? p.positionAbbr}</span>
                     </div>
                     <div className="min-w-0">
-                      <p className="text-sm font-medium text-white truncate">{p.name}</p>
-                      <p className="text-xs text-zinc-500">{p.position} · {p.teamName} · {p.flag} {p.league}</p>
+                      <p className="text-[14px] font-semibold text-white truncate">{p.name}</p>
+                      <p className="text-[12px] text-zinc-500 truncate">{p.position} · {p.teamName} · {p.flag} {p.league}</p>
                     </div>
                   </button>
                 ))}
@@ -279,9 +300,9 @@ export default function StatsPage() {
 
       {/* Loading skeleton */}
       {loadingTeam && (
-        <div className="space-y-3">
+        <div className="space-y-4">
           {[...Array(4)].map((_, i) => (
-            <div key={i} className="h-24 rounded-2xl bg-zinc-900/80 animate-pulse" />
+            <div key={i} className="h-28 rounded-3xl bg-zinc-900/40 animate-pulse" />
           ))}
         </div>
       )}
@@ -291,7 +312,7 @@ export default function StatsPage() {
         <PlayerCard player={selectedPlayer} />
       )}
 
-      {/* Stats + AI button */}
+      {/* Stats + AI */}
       {stats && !loadingTeam && (
         <TeamStatsView
           stats={stats}
@@ -307,21 +328,26 @@ export default function StatsPage() {
       )}
 
       {/* Empty state */}
-      {!stats && !selectedPlayer && !loadingTeam && (
-        <div className="text-center py-16 space-y-3">
-          <p className="text-5xl">📊</p>
-          <p className="text-zinc-400 font-medium">Busca un equipo para ver sus estadísticas</p>
-          <p className="text-xs text-zinc-600">Más de 300 equipos de 19 ligas en todo el mundo</p>
-          <div className="flex flex-wrap justify-center gap-2 mt-4">
-            {QUICK.map((t) => (
-              <button key={t.id} onClick={() => loadTeam(t)}
-                className="text-xs px-3 py-1.5 bg-zinc-900/80 border border-white/[0.07]
-                  text-zinc-400 hover:text-white rounded-xl transition-colors">
-                {t.flag} {t.name}
-              </button>
-            ))}
-          </div>
-        </div>
+      {showEmpty && (
+        <Card variant="flat" className="px-6 py-12 sm:py-16">
+          <EmptyState
+            icon="search"
+            title="Busca un equipo o jugador"
+            hint="Más de 300 equipos en 19 ligas. Resultados al instante, datos en directo de ESPN."
+            action={
+              <div className="flex flex-wrap justify-center gap-2 max-w-md mx-auto">
+                {QUICK.map((t) => (
+                  <button key={t.id} onClick={() => loadTeam(t)}
+                    className="inline-flex items-center gap-2 text-[12px] font-medium px-3.5 py-2
+                      bg-zinc-900/70 border border-white/[0.07] hover:border-white/[0.14] hover:bg-zinc-900
+                      text-zinc-300 hover:text-white rounded-xl transition-all tap">
+                    <span>{t.flag}</span>{t.name}
+                  </button>
+                ))}
+              </div>
+            }
+          />
+        </Card>
       )}
 
       <upgrade.Modal />
@@ -329,78 +355,85 @@ export default function StatsPage() {
   )
 }
 
-// ─── Player card ─────────────────────────────────────────────────────────────
+/* ════════════════════════════════════════════════════════════════════════════
+   Player card
+   ════════════════════════════════════════════════════════════════════════════ */
 
 function PlayerCard({ player }: { player: PlayerResult }) {
   return (
-    <div className="bg-zinc-900/60 border border-white/[0.07] rounded-2xl p-5 animate-fade-in">
-      <div className="flex items-start gap-4">
-        <div className="grid place-items-center w-14 h-14 rounded-2xl bg-zinc-800/60 border border-white/[0.07] shrink-0">
-          <span className="text-xl font-bold text-zinc-300">
+    <Card variant="default" className="p-6 sm:p-7 animate-fade-in">
+      <div className="flex items-start gap-5">
+        <div className="grid place-items-center w-16 h-16 rounded-2xl bg-zinc-800/80 border border-white/[0.07] shrink-0">
+          <span className="text-[18px] font-bold text-zinc-200">
             {player.jersey ? `#${player.jersey}` : player.positionAbbr}
           </span>
         </div>
         <div className="flex-1 min-w-0">
-          <h2 className="text-xl font-bold text-white leading-tight">{player.name}</h2>
-          <p className="text-sm text-zinc-400 mt-0.5">{player.position}</p>
-          <div className="flex flex-wrap gap-2 mt-3">
-            <span className="text-xs bg-zinc-800/60 border border-white/[0.07] text-zinc-300 px-2.5 py-1 rounded-full">
-              {player.flag} {player.teamName}
-            </span>
-            <span className="text-xs bg-zinc-800/60 border border-white/[0.07] text-zinc-500 px-2.5 py-1 rounded-full">
-              {player.league}
-            </span>
-            {player.age && (
-              <span className="text-xs bg-zinc-800/60 border border-white/[0.07] text-zinc-500 px-2.5 py-1 rounded-full">
-                {player.age} años
-              </span>
-            )}
-            {player.nationality && (
-              <span className="text-xs bg-zinc-800/60 border border-white/[0.07] text-zinc-500 px-2.5 py-1 rounded-full">
-                {player.nationality}
-              </span>
-            )}
+          <h2 className="text-[22px] font-bold text-white tracking-tight leading-tight">{player.name}</h2>
+          <p className="text-[13px] text-zinc-500 mt-1">{player.position}</p>
+          <div className="flex flex-wrap gap-2 mt-4">
+            <Badge tone="zinc">{player.flag} {player.teamName}</Badge>
+            <Badge tone="zinc">{player.league}</Badge>
+            {player.age && <Badge tone="zinc">{player.age} años</Badge>}
+            {player.nationality && <Badge tone="zinc">{player.nationality}</Badge>}
           </div>
         </div>
       </div>
       {player.espnUrl && (
-        <a href={player.espnUrl} target="_blank" rel="noopener noreferrer"
-          className="mt-4 flex items-center justify-center gap-2 w-full py-2.5 rounded-xl
-            bg-zinc-800/60 border border-white/[0.07] hover:bg-zinc-700/60 text-zinc-300 text-sm font-semibold transition-colors tap">
-          <Icon name="arrowRight" className="w-4 h-4" strokeWidth={2.2} />
+        <Button
+          variant="secondary"
+          size="md"
+          full
+          iconRight="external"
+          className="mt-6"
+          href={player.espnUrl}
+        >
           Ver estadísticas completas en ESPN
-        </a>
+        </Button>
       )}
-      <p className="text-[10px] text-zinc-700 text-center mt-3">
-        Datos biográficos de ESPN · estadísticas de partidos disponibles en ESPN
+      <p className="text-[11px] text-zinc-600 text-center mt-4">
+        Datos biográficos verificados de ESPN
       </p>
-    </div>
+    </Card>
   )
 }
 
-// ─── Stat card ────────────────────────────────────────────────────────────────
+/* ════════════════════════════════════════════════════════════════════════════
+   Small stat tile (used by TeamStatsView)
+   ════════════════════════════════════════════════════════════════════════════ */
 
-function StatCard({ icon, value, label, color }: { icon: string; value: string; label: string; color: string }) {
+function MetricTile({ icon, value, label, color }: {
+  icon: string; value: string; label: string
+  color: "emerald" | "rose" | "amber" | "blue" | "violet" | "cyan"
+}) {
+  const valClass: Record<string, string> = {
+    emerald: "text-emerald-400",
+    rose:    "text-rose-400",
+    amber:   "text-amber-400",
+    blue:    "text-blue-400",
+    violet:  "text-violet-400",
+    cyan:    "text-cyan-400",
+  }
   return (
-    <div className="bg-zinc-900/60 border border-white/[0.07] rounded-xl p-3 text-center">
-      <p className="text-2xl mb-0.5">{icon}</p>
-      <p className={`text-xl font-bold ${color}`}>{value}</p>
-      <p className="text-[10px] text-zinc-600 mt-0.5">{label}</p>
+    <div className="rounded-2xl bg-zinc-900/40 px-4 py-4 text-center">
+      <p className="text-[22px] leading-none mb-2 opacity-70">{icon}</p>
+      <p className={`text-[20px] font-bold leading-none tracking-tight ${valClass[color]}`}>{value}</p>
+      <p className="text-[11px] text-zinc-500 mt-2 leading-tight">{label}</p>
     </div>
   )
 }
 
-// ─── Render del markdown simple (negrita, saltos de línea) ────────────────────
-// CN-007: No dangerouslySetInnerHTML — parse inline **bold** with React elements
+/* ════════════════════════════════════════════════════════════════════════════
+   Markdown-lite renderer for streaming analysis
+   ════════════════════════════════════════════════════════════════════════════ */
 
 function InlineLine({ text }: { text: string }) {
-  // Split on **bold** markers and render as React spans/strongs
   const parts = text.split(/\*\*(.+?)\*\*/g)
   return (
     <>
       {parts.map((part, i) =>
         i % 2 === 1
-          ? <strong key={i} className="text-white font-bold">{part}</strong>
+          ? <strong key={i} className="text-white font-semibold">{part}</strong>
           : <span key={i}>{part}</span>
       )}
     </>
@@ -410,11 +443,13 @@ function InlineLine({ text }: { text: string }) {
 function AnalysisText({ text }: { text: string }) {
   const lines = text.split("\n")
   return (
-    <div className="space-y-0.5">
+    <div className="space-y-1">
       {lines.map((line, i) => {
         const isBold = /^\*\*/.test(line)
         return (
-          <p key={i} className={isBold ? "text-white font-bold mt-4 first:mt-0" : "text-zinc-300 text-sm leading-relaxed"}>
+          <p key={i} className={isBold
+            ? "text-white font-semibold mt-5 first:mt-0 text-[14px] tracking-tight"
+            : "text-zinc-300 text-[13.5px] leading-relaxed"}>
             {line ? <InlineLine text={line} /> : <>&nbsp;</>}
           </p>
         )
@@ -423,9 +458,14 @@ function AnalysisText({ text }: { text: string }) {
   )
 }
 
-// ─── Vista completa del equipo ────────────────────────────────────────────────
+/* ════════════════════════════════════════════════════════════════════════════
+   Team stats view
+   ════════════════════════════════════════════════════════════════════════════ */
 
-function TeamStatsView({ stats, isPremium, isPro, analyzeUsed, onAnalyze, analysisLoading, analysis, analysisError, analysisRef }: {
+function TeamStatsView({
+  stats, isPremium, isPro, analyzeUsed, onAnalyze,
+  analysisLoading, analysis, analysisError, analysisRef,
+}: {
   stats: TeamStats
   isPremium: boolean
   isPro: boolean
@@ -442,238 +482,296 @@ function TeamStatsView({ stats, isPremium, isPro, analyzeUsed, onAnalyze, analys
   const points = stats.wins * 3 + stats.draws
 
   return (
-    <div className="space-y-5">
-      {/* Header + botón análisis IA */}
-      <div className="bg-zinc-900/60 border border-white/[0.07] rounded-2xl p-5">
-        <div className="flex items-start justify-between mb-4 gap-3">
+    <div className="space-y-6 animate-fade-in">
+      {/* ── Header card: identity + form + AI trigger ─────────────────────── */}
+      <Card variant="default" className="p-6 sm:p-7">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-5">
           <div className="min-w-0">
-            <h2 className="text-xl font-bold text-white">{stats.name}</h2>
-            <p className="text-sm text-zinc-500">{stats.league} · Temporada {stats.season}</p>
-            <p className="text-xs text-zinc-600 mt-0.5">{stats.played} partidos · {points} puntos</p>
+            <h2 className="text-[24px] sm:text-[26px] font-bold text-white tracking-tight leading-tight">
+              {stats.name}
+            </h2>
+            <p className="text-[13px] text-zinc-500 mt-1">{stats.league} · Temporada {stats.season}</p>
+            <p className="text-[12px] text-zinc-600 mt-1">{stats.played} partidos · {points} puntos</p>
           </div>
-          <div className="flex flex-col items-end gap-2 shrink-0">
-            <div className="flex gap-1">
-              {stats.form.map((r, i) => (
-                <span key={i} className={`text-[10px] font-bold w-5 h-5 rounded flex items-center justify-center ${FORM_COLOR[r] ?? "bg-zinc-700"}`}>
-                  {r}
-                </span>
-              ))}
-            </div>
-            {/* ── BOTÓN ANÁLISIS IA ───────────────────────────────── */}
-            <button
+          <div className="flex flex-col items-start sm:items-end gap-3 shrink-0">
+            {stats.form.length > 0 && (
+              <div className="flex gap-1.5">
+                {stats.form.map((r, i) => (
+                  <span key={i}
+                    className={`text-[10px] font-bold w-6 h-6 rounded-md flex items-center justify-center ${FORM_COLOR[r] ?? "bg-zinc-700"}`}>
+                    {r}
+                  </span>
+                ))}
+              </div>
+            )}
+            {/* AI trigger */}
+            <AnalyzeButton
+              isPremium={isPremium}
+              isPro={isPro}
+              analyzeUsed={analyzeUsed}
+              loading={analysisLoading}
               onClick={onAnalyze}
-              disabled={analysisLoading || (isPremium && !isPro && analyzeUsed)}
-              className={`inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold tap transition-all ${
-                !isPremium
-                  ? "bg-zinc-800/60 border border-white/[0.07] text-zinc-400 hover:border-white/[0.12]"
-                  : isPremium && !isPro && analyzeUsed
-                  ? "bg-zinc-800/60 border border-white/[0.07] text-zinc-500 cursor-not-allowed opacity-60"
-                  : "bg-gradient-to-r from-emerald-500 to-cyan-500 text-zinc-950 hover:opacity-90 disabled:opacity-50"
-              }`}
-            >
-              {analysisLoading ? (
-                <><Icon name="settings" className="w-3.5 h-3.5 animate-spin" />Analizando…</>
-              ) : !isPremium ? (
-                <><Icon name="lock" className="w-3.5 h-3.5" strokeWidth={2} />Análisis IA
-                  <span className="text-[9px] font-bold bg-emerald-500/20 text-emerald-400 border border-emerald-800/60 px-1 py-0.5 rounded-full leading-none">⭐</span>
-                </>
-              ) : isPremium && !isPro && analyzeUsed ? (
-                <><Icon name="lock" className="w-3.5 h-3.5" strokeWidth={2} />Usado hoy</>
-              ) : (
-                <><Icon name="spark" className="w-3.5 h-3.5" strokeWidth={2.2} />
-                  Análisis IA{!isPro && <span className="opacity-60">· 1/día</span>}
-                </>
-              )}
-            </button>
+            />
           </div>
         </div>
 
-        {/* W/D/L */}
-        <div className="grid grid-cols-3 gap-3 text-center">
-          <div className="bg-emerald-500/10 rounded-xl p-3">
-            <p className="text-2xl font-bold text-emerald-400">{stats.wins}</p>
-            <p className="text-[10px] text-zinc-500">Victorias</p>
-          </div>
-          <div className="bg-zinc-800/50 rounded-xl p-3">
-            <p className="text-2xl font-bold text-zinc-300">{stats.draws}</p>
-            <p className="text-[10px] text-zinc-500">Empates</p>
-          </div>
-          <div className="bg-red-500/10 rounded-xl p-3">
-            <p className="text-2xl font-bold text-red-400">{stats.losses}</p>
-            <p className="text-[10px] text-zinc-500">Derrotas</p>
-          </div>
+        {/* W/D/L summary */}
+        <div className="grid grid-cols-3 gap-3 mt-6">
+          <SummaryCell value={stats.wins} label="Victorias" tone="emerald" />
+          <SummaryCell value={stats.draws} label="Empates" tone="zinc" />
+          <SummaryCell value={stats.losses} label="Derrotas" tone="rose" />
         </div>
-      </div>
+      </Card>
 
-      {/* ── ANÁLISIS IA — resultado ─────────────────────────────────────────── */}
+      {/* ── AI teaser (free users) ────────────────────────────────────────── */}
       {!isPremium && (
-        <div ref={analysisRef} className="rounded-2xl border border-emerald-800/40 bg-emerald-500/5 p-5">
-          <div className="flex items-center gap-3 mb-3">
-            <div className="grid place-items-center w-10 h-10 rounded-xl bg-emerald-500/10 shrink-0">
-              <Icon name="spark" className="w-5 h-5 text-emerald-400" />
-            </div>
-            <div>
-              <p className="text-sm font-bold text-white">Análisis Scout IA</p>
-              <p className="text-xs text-zinc-500">Disponible en Premium ⭐ y Pro 👑</p>
-            </div>
-          </div>
-          {/* Vista previa difuminada de cómo se vería */}
-          <div className="relative rounded-xl overflow-hidden">
-            <div className="blur-[5px] opacity-40 pointer-events-none select-none space-y-1.5 px-1">
-              <p className="text-sm text-white font-bold">📊 Perfil general</p>
-              <p className="text-sm text-zinc-300 leading-relaxed">Equipo con presencia ofensiva clara, marcando por encima de la media de la liga con un volumen alto de tiros generados por partido. Su solidez defensiva varía notablemente según el contexto…</p>
-              <p className="text-sm text-white font-bold mt-2">🏟️ Comportamiento local vs visitante</p>
-              <p className="text-sm text-zinc-300 leading-relaxed">Como local domina con claridad: alta tasa de victoria y media goleadora superior. Fuera de casa el rendimiento cae significativamente, con más goles encajados y menor control del partido…</p>
-              <p className="text-sm text-white font-bold mt-2">💡 Oportunidades de mercado</p>
-              <p className="text-sm text-zinc-300 leading-relaxed">El porcentaje BTTS y Over 2.5 histórico sugiere que los mercados de goles tienen respaldo estadístico en partidos donde…</p>
-            </div>
-            <div className="absolute inset-0 bg-gradient-to-b from-transparent via-zinc-950/60 to-zinc-950/95 flex items-end justify-center pb-4">
-              <Link href="/pricing"
-                className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-gradient-to-r from-emerald-500 to-cyan-500 text-zinc-950 font-bold text-sm tap">
-                <Icon name="crown" className="w-4 h-4" strokeWidth={2.2} />
-                Desbloquear con Premium
-              </Link>
-            </div>
-          </div>
-        </div>
+        <AnalysisTeaser refEl={analysisRef} />
       )}
 
       {analysisError && (
-        <div className="flex items-start gap-2 rounded-xl border border-amber-700/40 bg-amber-500/[0.08] px-4 py-3">
-          <Icon name="shield" className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-          <p className="text-sm text-amber-200/90 leading-snug">{analysisError}</p>
-        </div>
+        <Alert tone="warning">{analysisError}</Alert>
       )}
 
       {(analysis || analysisLoading) && (
-        <div ref={analysisRef} className="rounded-2xl border border-emerald-800/40 bg-gradient-to-b from-emerald-500/5 to-zinc-900 overflow-hidden animate-fade-in">
-          {/* Header del informe */}
-          <div className="flex items-center gap-3 px-5 py-4 border-b border-white/[0.07]">
-            <div className="grid place-items-center w-9 h-9 rounded-xl bg-emerald-500/15 shrink-0">
-              <Icon name="spark" className="w-4.5 h-4.5 text-emerald-400" strokeWidth={2} />
+        <Card variant="default" className="overflow-hidden" glow>
+          <div ref={analysisRef} />
+          <div className="flex items-center gap-3 px-6 pt-5 pb-4 border-b border-white/[0.05]">
+            <div className="grid place-items-center w-10 h-10 rounded-xl bg-emerald-500/12 border border-emerald-700/40 text-emerald-400 shrink-0">
+              <Icon name="spark" className="w-4 h-4" strokeWidth={2.2} />
             </div>
-            <div>
-              <p className="text-sm font-bold text-white">Análisis Scout IA · {stats.name}</p>
-              <p className="text-[10px] text-zinc-500">Basado exclusivamente en datos reales de ESPN · {stats.season}</p>
+            <div className="flex-1 min-w-0">
+              <p className="text-[14px] font-semibold text-white tracking-tight">Análisis Scout IA · {stats.name}</p>
+              <p className="text-[11px] text-zinc-500 mt-0.5">Basado exclusivamente en datos reales de ESPN · {stats.season}</p>
             </div>
-            {analysisLoading && (
-              <Icon name="settings" className="w-4 h-4 text-emerald-400 animate-spin ml-auto shrink-0" />
-            )}
+            {analysisLoading && <Spinner className="w-4 h-4 shrink-0" />}
           </div>
-          {/* Contenido */}
-          <div className="px-5 py-4">
+          <div className="px-6 py-5">
             {analysis
               ? <AnalysisText text={analysis} />
-              : <div className="space-y-2">
+              : (
+                <div className="space-y-3">
                   {[...Array(5)].map((_, i) => (
-                    <div key={i} className={`h-3.5 bg-white/[0.06] rounded animate-pulse ${i === 2 ? "w-3/4" : "w-full"}`} />
+                    <div key={i} className={`h-3.5 bg-white/[0.04] rounded-md animate-pulse ${i === 2 ? "w-3/4" : "w-full"}`} />
                   ))}
                 </div>
+              )
             }
           </div>
           {!analysisLoading && analysis && (
-            <div className="px-5 py-2.5 border-t border-white/[0.07] bg-zinc-950/40">
-              <p className="text-[10px] text-zinc-700 text-center">
-                Análisis generado por IA · basado solo en estadísticas ESPN · no constituye consejo de apuesta · +18
+            <div className="px-6 py-3 border-t border-white/[0.05] bg-zinc-950/40">
+              <p className="text-[10px] text-zinc-600 text-center leading-relaxed">
+                Generado por IA · solo estadísticas ESPN · no constituye consejo de apuesta · +18
               </p>
             </div>
           )}
-        </div>
+        </Card>
       )}
 
-      {/* Goals & available metrics */}
-      <div>
-        <p className="apple-eyebrow mb-3">Goles y ofensiva</p>
+      {/* ── Goals & offense ────────────────────────────────────────────────── */}
+      <Section title="Goles y ofensiva">
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          <StatCard icon="⚽" value={String(stats.goals_for)}     label="Goles a favor"   color="text-emerald-400" />
-          <StatCard icon="🥅" value={String(stats.goals_against)} label="Goles en contra" color="text-red-400" />
-          <StatCard icon="🎯" value={goalsPerGame}                 label="Goles/partido"   color="text-amber-400" />
-          <StatCard icon="🛡️" value={goalsAgainstPerGame}          label="Encaj./partido"  color="text-blue-400" />
+          <MetricTile icon="⚽" value={String(stats.goals_for)}     label="Goles a favor"   color="emerald" />
+          <MetricTile icon="🥅" value={String(stats.goals_against)} label="Goles en contra" color="rose" />
+          <MetricTile icon="🎯" value={goalsPerGame}                 label="Goles / partido" color="amber" />
+          <MetricTile icon="🛡️" value={goalsAgainstPerGame}          label="Encajados / PJ"  color="blue" />
         </div>
-      </div>
+      </Section>
 
-      {/* Betting markets */}
-      <div>
-        <p className="apple-eyebrow mb-3">Mercados de apuesta</p>
-        <div className="grid grid-cols-3 gap-3">
+      {/* ── Markets ────────────────────────────────────────────────────────── */}
+      <Section title="Mercados de apuesta">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {[
-            { label: "BTTS",         pct: stats.btts_pct,   color: "amber" },
-            { label: "Over 2.5",     pct: stats.over25_pct, color: "blue" },
-            { label: "Portería a 0", pct: cleanSheetPct,    color: "emerald" },
-          ].map((c) => {
-            const colors: Record<string, string> = { amber: "text-amber-400", blue: "text-blue-400", emerald: "text-emerald-400" }
-            const bars: Record<string, string>   = { amber: "bg-amber-400",   blue: "bg-blue-500",   emerald: "bg-emerald-500" }
-            return (
-              <div key={c.label} className="bg-zinc-900/60 border border-white/[0.07] rounded-xl p-4 text-center">
-                <p className={`text-2xl font-bold ${colors[c.color]}`}>{c.pct}%</p>
-                <p className="text-[10px] text-zinc-500 mt-0.5">{c.label}</p>
-                <div className="mt-2 h-1.5 bg-white/[0.06] rounded-full overflow-hidden">
-                  <div className={`h-full ${bars[c.color]} rounded-full`} style={{ width: `${c.pct}%` }} />
-                </div>
-              </div>
-            )
-          })}
-        </div>
-      </div>
-
-      {/* Stats avanzadas */}
-      {(stats.advanced_samples ?? 0) > 0 && (
-        <div>
-          <p className="apple-eyebrow mb-3">
-            Stats avanzadas · medias últimos {stats.advanced_samples} partidos
-          </p>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-            <StatCard icon="⛳" value={stats.avg_corners_for != null ? stats.avg_corners_for.toFixed(1) : "—"}      label="Córners a favor/PJ"   color="text-emerald-400" />
-            <StatCard icon="🚩" value={stats.avg_corners_against != null ? stats.avg_corners_against.toFixed(1) : "—"} label="Córners en contra/PJ" color="text-blue-400" />
-            <StatCard icon="🟨" value={stats.avg_yellows != null ? stats.avg_yellows.toFixed(1) : "—"}              label="Amarillas/PJ"         color="text-amber-400" />
-            <StatCard icon="🟥" value={stats.avg_reds != null ? stats.avg_reds.toFixed(2) : "—"}                    label="Rojas/PJ"             color="text-red-400" />
-          </div>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3">
-            <StatCard icon="⚔️" value={stats.avg_fouls != null ? stats.avg_fouls.toFixed(1) : "—"}                  label="Faltas/PJ"            color="text-rose-400" />
-            <StatCard icon="🎯" value={stats.avg_shots != null ? stats.avg_shots.toFixed(1) : "—"}                  label="Tiros/PJ"             color="text-violet-400" />
-            <StatCard icon="🎯" value={stats.avg_shots_on_target != null ? stats.avg_shots_on_target.toFixed(1) : "—"} label="A puerta/PJ"       color="text-violet-300" />
-            <StatCard icon="⚽" value={stats.avg_possession != null ? stats.avg_possession + "%" : "—"}             label="Posesión media"       color="text-cyan-400" />
-          </div>
-        </div>
-      )}
-
-      {/* Home vs Away */}
-      <div>
-        <p className="apple-eyebrow mb-3">Local vs Visitante</p>
-        <div className="grid grid-cols-2 gap-3">
-          {[
-            { label: "🏟️ Como local",    data: stats.home },
-            { label: "✈️ Como visitante", data: stats.away },
-          ].map((s) => (
-            <div key={s.label} className="bg-zinc-900/60 border border-white/[0.07] rounded-xl p-4">
-              <p className="text-xs font-bold text-zinc-400 mb-3">{s.label}</p>
-              <div className="flex justify-between text-center">
-                <div>
-                  <p className="text-xl font-bold text-emerald-400">{s.data.wins}</p>
-                  <p className="text-[10px] text-zinc-600">V</p>
-                </div>
-                <div>
-                  <p className="text-xl font-bold text-zinc-400">{s.data.draws}</p>
-                  <p className="text-[10px] text-zinc-600">E</p>
-                </div>
-                <div>
-                  <p className="text-xl font-bold text-red-400">{s.data.losses}</p>
-                  <p className="text-[10px] text-zinc-600">D</p>
-                </div>
-                <div>
-                  <p className="text-lg font-bold text-white">{s.data.goals_for}-{s.data.goals_against}</p>
-                  <p className="text-[10px] text-zinc-600">Goles</p>
-                </div>
-              </div>
-            </div>
+            { label: "BTTS",         pct: stats.btts_pct,   tone: "amber"   as const },
+            { label: "Over 2.5",     pct: stats.over25_pct, tone: "blue"    as const },
+            { label: "Portería a 0", pct: cleanSheetPct,    tone: "emerald" as const },
+          ].map((c) => (
+            <MarketBar key={c.label} label={c.label} pct={c.pct} tone={c.tone} />
           ))}
         </div>
-      </div>
+      </Section>
 
-      {/* Data note */}
-      <p className="text-[11px] text-zinc-700 text-center pb-2">
-        Datos reales de ESPN · stats avanzadas del boxscore de los últimos partidos · xG no disponible en esta fuente
+      {/* ── Advanced ────────────────────────────────────────────────────────── */}
+      {(stats.advanced_samples ?? 0) > 0 && (
+        <Section
+          title="Stats avanzadas"
+          eyebrow={`Medias en los últimos ${stats.advanced_samples} partidos`}
+        >
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+            <MetricTile icon="⛳" value={fmt(stats.avg_corners_for)}     label="Córners a favor / PJ"   color="emerald" />
+            <MetricTile icon="🚩" value={fmt(stats.avg_corners_against)} label="Córners en contra / PJ" color="blue" />
+            <MetricTile icon="🟨" value={fmt(stats.avg_yellows)}         label="Amarillas / PJ"          color="amber" />
+            <MetricTile icon="🟥" value={fmt(stats.avg_reds, 2)}         label="Rojas / PJ"              color="rose" />
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3">
+            <MetricTile icon="⚔️" value={fmt(stats.avg_fouls)}            label="Faltas / PJ"            color="rose" />
+            <MetricTile icon="🎯" value={fmt(stats.avg_shots)}            label="Tiros / PJ"             color="violet" />
+            <MetricTile icon="🎯" value={fmt(stats.avg_shots_on_target)}  label="A puerta / PJ"          color="violet" />
+            <MetricTile icon="⚽" value={stats.avg_possession != null ? stats.avg_possession + "%" : "—"} label="Posesión media" color="cyan" />
+          </div>
+        </Section>
+      )}
+
+      {/* ── Home vs Away ──────────────────────────────────────────────────── */}
+      <Section title="Local vs Visitante">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <SplitCard label="🏟️ Como local"    data={stats.home} />
+          <SplitCard label="✈️ Como visitante" data={stats.away} />
+        </div>
+      </Section>
+
+      <p className="text-[11px] text-zinc-600 text-center pt-2 pb-2 leading-relaxed">
+        Datos verificados de ESPN · stats avanzadas del boxscore de los últimos partidos
       </p>
     </div>
+  )
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+   Sub-components for TeamStatsView
+   ──────────────────────────────────────────────────────────────────────────── */
+
+function fmt(v: number | null | undefined, digits = 1): string {
+  return v != null ? v.toFixed(digits) : "—"
+}
+
+function Section({ title, eyebrow, children }: { title: string; eyebrow?: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <div className="mb-3 px-1">
+        <p className="text-[11px] font-bold uppercase tracking-widest text-zinc-500">{title}</p>
+        {eyebrow && <p className="text-[11px] text-zinc-600 mt-0.5">{eyebrow}</p>}
+      </div>
+      {children}
+    </div>
+  )
+}
+
+function SummaryCell({ value, label, tone }: {
+  value: number; label: string
+  tone: "emerald" | "rose" | "zinc"
+}) {
+  const toneClass = {
+    emerald: "bg-emerald-500/[0.07] text-emerald-400",
+    rose:    "bg-rose-500/[0.07]    text-rose-400",
+    zinc:    "bg-zinc-800/40        text-zinc-200",
+  }[tone]
+  return (
+    <div className={`rounded-2xl px-4 py-3.5 text-center ${toneClass}`}>
+      <p className="text-[26px] font-bold leading-none tracking-tight">{value}</p>
+      <p className="text-[11px] text-zinc-500 mt-2">{label}</p>
+    </div>
+  )
+}
+
+function MarketBar({ label, pct, tone }: {
+  label: string; pct: number
+  tone: "amber" | "blue" | "emerald"
+}) {
+  const tones = {
+    amber:   { text: "text-amber-400",   bar: "bg-amber-400/80" },
+    blue:    { text: "text-blue-400",    bar: "bg-blue-500/80" },
+    emerald: { text: "text-emerald-400", bar: "bg-emerald-500/80" },
+  }[tone]
+  return (
+    <div className="rounded-2xl bg-zinc-900/40 px-4 py-4">
+      <div className="flex items-baseline justify-between">
+        <p className="text-[12px] font-semibold text-zinc-400">{label}</p>
+        <p className={`text-[22px] font-bold leading-none tracking-tight ${tones.text}`}>{pct}%</p>
+      </div>
+      <div className="mt-3 h-1.5 bg-white/[0.04] rounded-full overflow-hidden">
+        <div className={`h-full ${tones.bar} rounded-full transition-all`} style={{ width: `${Math.max(0, Math.min(100, pct))}%` }} />
+      </div>
+    </div>
+  )
+}
+
+function SplitCard({ label, data }: {
+  label: string
+  data: { played: number; wins: number; draws: number; losses: number; goals_for: number; goals_against: number }
+}) {
+  return (
+    <div className="rounded-2xl bg-zinc-900/40 px-5 py-4">
+      <p className="text-[12px] font-semibold text-zinc-400 mb-4">{label}</p>
+      <div className="grid grid-cols-4 gap-2 text-center">
+        <Cell value={data.wins} label="V" color="text-emerald-400" />
+        <Cell value={data.draws} label="E" color="text-zinc-300" />
+        <Cell value={data.losses} label="D" color="text-rose-400" />
+        <Cell value={`${data.goals_for}-${data.goals_against}`} label="Goles" color="text-white" />
+      </div>
+    </div>
+  )
+}
+
+function Cell({ value, label, color }: { value: number | string; label: string; color: string }) {
+  return (
+    <div>
+      <p className={`text-[18px] font-bold leading-none tracking-tight ${color}`}>{value}</p>
+      <p className="text-[10px] text-zinc-600 mt-1.5">{label}</p>
+    </div>
+  )
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+   Analyze button (smart state)
+   ──────────────────────────────────────────────────────────────────────────── */
+
+function AnalyzeButton({ isPremium, isPro, analyzeUsed, loading, onClick }: {
+  isPremium: boolean; isPro: boolean; analyzeUsed: boolean; loading: boolean; onClick: () => void
+}) {
+  if (loading) {
+    return <Button variant="premium" size="sm" loading>Analizando</Button>
+  }
+  if (!isPremium) {
+    return (
+      <Button variant="secondary" size="sm" iconLeft="lock" onClick={onClick}>
+        Análisis IA
+      </Button>
+    )
+  }
+  if (isPremium && !isPro && analyzeUsed) {
+    return (
+      <Button variant="secondary" size="sm" iconLeft="lock" disabled>
+        Usado hoy · vuelve mañana
+      </Button>
+    )
+  }
+  return (
+    <Button variant="premium" size="sm" iconLeft="spark" onClick={onClick}>
+      Análisis IA{!isPro && <span className="opacity-70 ml-1">· 1/día</span>}
+    </Button>
+  )
+}
+
+/* ────────────────────────────────────────────────────────────────────────────
+   Premium teaser
+   ──────────────────────────────────────────────────────────────────────────── */
+
+function AnalysisTeaser({ refEl }: { refEl: React.RefObject<HTMLDivElement> }) {
+  return (
+    <Card variant="default" className="overflow-hidden">
+      <div ref={refEl} />
+      <div className="flex items-center gap-3 px-6 pt-5 pb-4 border-b border-white/[0.05]">
+        <div className="grid place-items-center w-10 h-10 rounded-xl bg-emerald-500/12 border border-emerald-700/40 text-emerald-400 shrink-0">
+          <Icon name="spark" className="w-4 h-4" strokeWidth={2.2} />
+        </div>
+        <div>
+          <p className="text-[14px] font-semibold text-white tracking-tight">Análisis Scout IA</p>
+          <p className="text-[11px] text-zinc-500 mt-0.5">Disponible para usuarios Premium ⭐ y Pro 👑</p>
+        </div>
+      </div>
+      <div className="relative">
+        <div className="blur-[5px] opacity-40 pointer-events-none select-none space-y-2 px-6 py-5">
+          <p className="text-[14px] text-white font-semibold">📊 Perfil general</p>
+          <p className="text-[13px] text-zinc-300 leading-relaxed">Equipo con presencia ofensiva clara, marcando por encima de la media de la liga con un volumen alto de tiros generados por partido. Su solidez defensiva varía notablemente según el contexto…</p>
+          <p className="text-[14px] text-white font-semibold mt-3">🏟️ Comportamiento local vs visitante</p>
+          <p className="text-[13px] text-zinc-300 leading-relaxed">Como local domina con claridad. Fuera de casa el rendimiento cae con más goles encajados…</p>
+        </div>
+        <div className="absolute inset-0 bg-gradient-to-b from-zinc-950/30 via-zinc-950/70 to-zinc-950/95 flex items-end justify-center pb-6">
+          <Button variant="premium" size="md" iconLeft="crown" href="/pricing">
+            Desbloquear con Premium
+          </Button>
+        </div>
+      </div>
+    </Card>
   )
 }

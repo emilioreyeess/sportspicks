@@ -1,8 +1,12 @@
 /**
  * Sentry — configuración del SDK en el navegador (Client Components).
- * Este archivo se importa automáticamente por Next.js al compilar el bundle cliente.
+ * Sentry lo carga automáticamente desde `instrumentation-client.ts`
+ * en la raíz del proyecto (sustituye al antiguo `sentry.client.config.ts`).
  */
 import * as Sentry from "@sentry/nextjs"
+
+// Instrumentar transiciones de App Router para tracing de navegación
+export const onRouterTransitionStart = Sentry.captureRouterTransitionStart
 
 Sentry.init({
   dsn: process.env.NEXT_PUBLIC_SENTRY_DSN,

@@ -6,9 +6,6 @@ const nextConfig = {
   output: "standalone",
   reactStrictMode: true,
   poweredByHeader: false,
-  experimental: {
-    instrumentationHook: true,
-  },
   images: {
     remotePatterns: [
       { protocol: "https", hostname: "media.api-sports.io" },
@@ -88,11 +85,15 @@ module.exports = withSentryConfig(nextConfig, {
   authToken: process.env.SENTRY_AUTH_TOKEN,
 
   // Subir source maps en build para stack traces legibles en Sentry
-  silent: true,                 // no spamear el log de build
-  hideSourceMaps: true,         // no exponer source maps en el bundle público
-  disableLogger: true,          // eliminar logs de Sentry en producción
-  automaticVercelMonitors: true, // crear monitors de Vercel Cron en Sentry automáticamente
+  silent: true,            // no spamear el log de build
+  hideSourceMaps: true,    // no exponer source maps en el bundle público
 
   // Túnel para evitar que ad-blockers rompan el SDK en producción
   tunnelRoute: "/monitoring",
+
+  // Opciones recientes (Sentry 10+): viven dentro de `webpack`
+  webpack: {
+    treeshake: { removeDebugLogging: true },   // sustituye disableLogger
+    automaticVercelMonitors: true,             // sustituye automaticVercelMonitors top-level
+  },
 })
