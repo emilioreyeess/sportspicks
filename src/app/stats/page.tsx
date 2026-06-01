@@ -6,7 +6,10 @@ import { PageHeader, Card, Badge, Button, Spinner, Alert, EmptyState } from "@/c
 import { Icon } from "@/components/ui/icons"
 import { usePlan } from "@/lib/plan"
 import { useUpgradeModal } from "@/components/premium"
+import { AdBanner } from "@/components/ads/AdBanner"
 import Link from "next/link"
+
+const AD_SLOT_STATS_FOOTER = process.env.NEXT_PUBLIC_ADSENSE_SLOT_STATS_FOOTER ?? ""
 
 /* ────────────────────────────────────────────────────────────────────────────
    Types
@@ -314,17 +317,26 @@ export default function StatsPage() {
 
       {/* Stats + AI */}
       {stats && !loadingTeam && (
-        <TeamStatsView
-          stats={stats}
-          isPremium={isPremium}
-          isPro={isPro}
-          analyzeUsed={analyzeUsed}
-          onAnalyze={runAnalysis}
-          analysisLoading={analysisLoading}
-          analysis={analysis}
-          analysisError={analysisError}
-          analysisRef={analysisRef}
-        />
+        <>
+          <TeamStatsView
+            stats={stats}
+            isPremium={isPremium}
+            isPro={isPro}
+            analyzeUsed={analyzeUsed}
+            onAnalyze={runAnalysis}
+            analysisLoading={analysisLoading}
+            analysis={analysis}
+            analysisError={analysisError}
+            analysisRef={analysisRef}
+          />
+          {/* Anuncio al final del análisis — zona footer, no interrumpe lectura.
+             Solo se renderiza para usuarios free con consentimiento marketing. */}
+          {AD_SLOT_STATS_FOOTER && (
+            <div className="mt-8">
+              <AdBanner slot={AD_SLOT_STATS_FOOTER} minHeight={250} />
+            </div>
+          )}
+        </>
       )}
 
       {/* Empty state */}

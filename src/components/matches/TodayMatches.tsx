@@ -10,6 +10,9 @@ import { useCallback, useEffect, useMemo, useState } from "react"
 import { Icon } from "@/components/ui/icons"
 import { Modal, Spinner } from "@/components/ui/primitives"
 import { useLiveMatches } from "@/hooks/useLiveMatches"
+import { AdBanner } from "@/components/ads/AdBanner"
+
+const AD_SLOT_FEED = process.env.NEXT_PUBLIC_ADSENSE_SLOT_FEED ?? ""
 
 interface TodayMatch {
   match_id: string
@@ -352,9 +355,17 @@ export default function TodayMatches() {
         </div>
       ) : (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {matches.map((m) => (
-            <MatchCard key={m.match_id} match={m} live={liveMap.get(m.match_id)} onClick={() => setSelected(m)} />
-          ))}
+          {matches.flatMap((m, i) => {
+            const card = (
+              <MatchCard key={m.match_id} match={m} live={liveMap.get(m.match_id)} onClick={() => setSelected(m)} />
+            )
+            // Anuncio nativo cada 3 tarjetas — ocupa una celda del grid,
+            // fluye con el contenido, nunca interrumpe verticalmente.
+            if (AD_SLOT_FEED && i === 2) {
+              return [card, <AdBanner key={`ad-feed-${i}`} slot={AD_SLOT_FEED} minHeight={170} />]
+            }
+            return [card]
+          })}
         </div>
       )}
 
