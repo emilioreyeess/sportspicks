@@ -1407,6 +1407,10 @@ export function runPipeline(reason = "scheduled"): Promise<void> {
             userId: null,  // pick del sistema, no de un usuario
             kickoffIso: p.kickoff_utc ?? new Date().toISOString(),
             context: m?.context ?? "club",
+            // Marca explícita: estos SON value picks oficiales del modelo.
+            // El histórico de /historico filtra por source='value_pick' para
+            // que las predicciones internas (analysis_view) no se cuelen.
+            source: "value_pick" as const,
           }
         })
         // best-effort, fire-and-forget — el pipeline no debe fallar si Supabase

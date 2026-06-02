@@ -56,6 +56,12 @@ export interface PredictionInput {
   /** Contexto competitivo — aísla el aprendizaje. Si se omite, se deriva
    *  automáticamente del slug de la liga. */
   context?: MatchContext
+  /** Origen de la predicción. Distingue value picks oficiales del modelo
+   *  (los que aparecen en /historico) de las predicciones internas que se
+   *  registran cuando un usuario abre el análisis de un partido (alimentan
+   *  el ML loop pero NO son picks "oficiales" — no salen al historial).
+   *  Default: 'analysis_view'. */
+  source?: "value_pick" | "analysis_view"
 }
 
 export interface SettleResult {
@@ -133,6 +139,9 @@ export async function logPrediction(p: PredictionInput): Promise<boolean> {
     // "club"; selecciones se etiquetan como international_* y se aíslan
     // automáticamente del aprendizaje de fútbol de clubes.
     const context: MatchContext = p.context ?? getMatchContext(p.league).context
+    // Origen: por defecto 'analysis_view' (el caller más común es el endpoint
+    // de análisis). El pipeline diario pasa explícitamente 'value_pick'.
+    const source = p.source ?? "analysis_view"
     const { error } = await sb.from("predictions_log").insert({
       match_id: p.matchId,
       league: p.league,
@@ -147,6 +156,7 @@ export async function logPrediction(p: PredictionInput): Promise<boolean> {
       kickoff_iso: p.kickoffIso,
       status: "pending",
       context,
+      source,
     })
     if (error) {
       console.warn("[ml] logPrediction insert error:", error.message)
