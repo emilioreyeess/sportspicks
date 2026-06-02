@@ -21,6 +21,7 @@ import {
   getStore, setStatus, addLog, recordError, setDailyResults, setNextRun, isFresh,
   setYesterdayResults,
 } from "@/lib/store"
+import { getMatchContext, isInternational, type MatchContext, type MatchContextProfile } from "@/lib/match-context"
 
 const LEAGUE_MAP: Record<string, string> = {
   "1": "esp.1", "2": "eng.1", "3": "ger.1", "4": "ita.1", "5": "fra.1",
@@ -35,11 +36,17 @@ const MAX_PICKS = 10
 // Minimum odds for a handicap pick where the selected team is a clear underdog 1X2
 const MIN_ODD_HANDICAP_UNDERDOG = 1.75
 /** Mínimo de partidos jugados por equipo (ambos) para que el motor evalúe un
- *  partido. Si cualquiera de los dos tiene menos historia que esto (amistosos
- *  pre-temporada, debutantes de copa, equipos recién ascendidos sin muestra),
- *  el partido se omite del pipeline de forma controlada — nunca emitimos un
- *  pronóstico Poisson sobre 1-2 muestras. */
+ *  partido. Si cualquiera de los dos tiene menos historia que esto (debutantes
+ *  de copa, equipos recién ascendidos sin muestra), el partido se omite del
+ *  pipeline de forma controlada — nunca emitimos un pronóstico Poisson sobre
+ *  1-2 muestras.
+ *
+ *  CONTEXT-AWARE: en contextos con `allowEloFallback` (amistosos y oficiales
+ *  de selecciones) bajamos el listón a `MIN_GAMES_INTL` porque tenemos el
+ *  motor Elo como red de seguridad: incluso con poca historia podemos emitir
+ *  una prob 1X2 basada en FIFA-ranking + forma reciente. */
 const MIN_GAMES_FOR_PICK = 4
+const MIN_GAMES_INTL     = 2
 
 // ─── Tipos ──────────────────────────────────────────────────────────────────
 
@@ -52,6 +59,11 @@ interface MatchModel {
   home: TeamForm; away: TeamForm
   homeMotiv: Motivation; awayMotiv: Motivation
   mdl: ModelOut
+  /** Contexto competitivo — derivado del slug. Propagado a predicciones para
+   *  aislar el aprendizaje de selecciones del de clubes. */
+  context: MatchContext
+  /** Perfil de calibración aplicable (significance/minEdge/qualityGate). */
+  contextProfile: MatchContextProfile
 }
 
 interface DailyData {
@@ -114,24 +126,34 @@ async function fetchDailyData(): Promise<DailyData> {
   interface WithForm extends RawMatch { home: TeamForm; away: TeamForm }
   const withForm: WithForm[] = []
   let skippedNoData = 0
+  let intlIngested = 0
   await Promise.all(queue.map(async (m) => {
     const [home, away] = await Promise.all([
       fetchTeamForm(m.slug, m.homeId),
       fetchTeamForm(m.slug, m.awayId),
     ])
     if (!home || !away) { skippedNoData++; return }
-    // SKIP CONTROLADO: si alguno de los dos equipos no tiene suficientes
-    // partidos jugados, el motor no puede calcular un Edge fiable. Se omite
-    // sin romper el pipeline. Esto cubre el caso "amistosos sin historial"
-    // y "debutantes de copa".
-    if (home.gamesPlayed < MIN_GAMES_FOR_PICK || away.gamesPlayed < MIN_GAMES_FOR_PICK) {
+
+    // CONTEXT-AWARE: el umbral mínimo de partidos depende del contexto.
+    // · Clubes: MIN_GAMES_FOR_PICK (rígido — sin datos no hay Poisson fiable).
+    // · Selecciones (amistosos + competitivas): MIN_GAMES_INTL — el motor Elo
+    //   actúa de red de seguridad y permite calibrar la probabilidad incluso
+    //   con poco volumen. Sin esto, NINGÚN amistoso entraría al pipeline y la
+    //   red neuronal nunca quedaría calibrada para el Mundial.
+    const ctx = getMatchContext(m.slug).context
+    const minGames = isInternational(ctx) ? MIN_GAMES_INTL : MIN_GAMES_FOR_PICK
+    if (home.gamesPlayed < minGames || away.gamesPlayed < minGames) {
       skippedNoData++
       return
     }
     withForm.push({ ...m, home, away })
+    if (isInternational(ctx)) intlIngested++
   }))
   if (skippedNoData > 0) {
-    addLog(`⏭️  ${skippedNoData} partido(s) omitido(s) por volumen de datos insuficiente (amistosos / debutantes)`)
+    addLog(`⏭️  ${skippedNoData} partido(s) omitido(s) por volumen de datos insuficiente`)
+  }
+  if (intlIngested > 0) {
+    addLog(`🌍 ${intlIngested} partido(s) internacional(es) ingestado(s) — calibración aislada`)
   }
 
   // Media de goles POR LIGA (cada competición tiene su propio entorno goleador)
@@ -153,12 +175,15 @@ async function fetchDailyData(): Promise<DailyData> {
     const awayMotiv = classifyMotivation(m.awayId, table)
     const effAvg = leagueAvgBySlug[m.slug] ?? globalAvg
     const mdl = modelMatch(m.home, m.away, homeMotiv, awayMotiv, effAvg)
+    const contextProfile = getMatchContext(m.slug, { name: m.ev?.name ?? null })
     return {
       id: m.ev.id, slug: m.slug,
       homeName: m.homeName, awayName: m.awayName,
       homeId: m.homeId, awayId: m.awayId,
       kickoff: m.ev.date, odds: m.odds,
       home: m.home, away: m.away, homeMotiv, awayMotiv, mdl,
+      context: contextProfile.context,
+      contextProfile,
     }
   })
 
@@ -401,7 +426,13 @@ export function computeValuePicks(data: DailyData): { picks: any[]; note?: strin
       if (!odd || !isFinite(odd) || odd < MIN_ODD) continue
 
       const evalCand = toEvalCandidate(c, m, odd)
-      if (evalCand.edge < MIN_EDGE || evalCand.edge > MAX_EDGE) continue
+      // CONTEXT-AWARE GATES: en amistosos el motor exige más edge y mejor
+      // calidad porque la varianza es estructuralmente mayor (rotaciones,
+      // alineaciones experimentales). En oficiales de selecciones el listón
+      // está ligeramente por encima del de clubes.
+      const minEdgeForCtx = m.contextProfile.minEdge
+      const qualityGateForCtx = m.contextProfile.qualityGate
+      if (evalCand.edge < minEdgeForCtx || evalCand.edge > MAX_EDGE) continue
       if (!commonSensePass(c, m)) continue
 
       // ────────── MOTOR DE DECISIÓN ──────────
@@ -416,6 +447,19 @@ export function computeValuePicks(data: DailyData): { picks: any[]; note?: strin
           scores: evaluation.gate.scores,
           uncertainty: evaluation.uncertainty.reasons,
           contradictions: evaluation.contradiction.conflicts,
+          context: m.context,
+        })
+        continue
+      }
+
+      // Quality gate dinámico según contexto (amistosos: gate más alto)
+      if (evalCand.baseQuality < qualityGateForCtx) {
+        auditTrail.push({
+          match: `${m.homeName} vs ${m.awayName}`,
+          league: LEAGUE_NAMES[m.slug] ?? m.slug,
+          selection: c.selection,
+          rejected: [`quality ${evalCand.baseQuality} < gate ${qualityGateForCtx} (${m.context})`],
+          context: m.context,
         })
         continue
       }
@@ -1317,6 +1361,7 @@ export function runPipeline(reason = "scheduled"): Promise<void> {
             expGoals: ((data.matches.find((mm) => mm.id === p.id)?.mdl.lambdaHome ?? 0) +
                        (data.matches.find((mm) => mm.id === p.id)?.mdl.lambdaAway ?? 0)),
           },
+          context: data.matches.find((mm) => mm.id === p.id)?.context ?? "club",
           result: "PENDING",
         }))
         recordPublishedPicks(records).catch((e) => addLog(`⚠️  Learning storage: ${e?.message ?? e}`))

@@ -19,6 +19,8 @@
 
 import { getCombinedFormWeight } from "@/lib/learning/supabase-ml"
 import { cacheFetch, CK, TTL } from "@/lib/kv"
+import { getMatchContext, isInternational } from "@/lib/match-context"
+import { estimateFromElo } from "@/lib/world-cup/elo"
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Utilidades Poisson
@@ -269,16 +271,24 @@ export async function analyzeMatch(args: {
   league: string
   home: TeamModel | null
   away: TeamModel | null
+  /** Códigos ISO/FIFA para Elo fallback (opcional). Si están y el contexto
+   *  permite Elo, se usan cuando faltan datos de forma para emitir 1X2. */
+  homeCode?: string | null
+  awayCode?: string | null
 }): Promise<MatchAnalysis> {
-  const { league, home, away } = args
+  const { league, home, away, homeCode, awayCode } = args
+  const ctxProfile = getMatchContext(league)
 
   // Pesos aprendidos por mercado (consulta OBLIGATORIA antes de emitir prob.)
+  // Para selecciones aplicamos también la dimensión `context` para que el
+  // aprendizaje aislado de amistosos modere/intensifique la probabilidad.
+  const ctxArg = ctxProfile.context
   const [w1x2, wbtts, wgoals, wcorners, wcards] = await Promise.all([
-    getCombinedFormWeight({ league, market: "1x2" }),
-    getCombinedFormWeight({ league, market: "btts" }),
-    getCombinedFormWeight({ league, market: "goals_ou" }),
-    getCombinedFormWeight({ league, market: "corners_ou" }),
-    getCombinedFormWeight({ league, market: "cards_ou" }),
+    getCombinedFormWeight({ league, market: "1x2",        context: ctxArg }),
+    getCombinedFormWeight({ league, market: "btts",       context: ctxArg }),
+    getCombinedFormWeight({ league, market: "goals_ou",   context: ctxArg }),
+    getCombinedFormWeight({ league, market: "corners_ou", context: ctxArg }),
+    getCombinedFormWeight({ league, market: "cards_ou",   context: ctxArg }),
   ])
 
   const out: MatchAnalysis = {
@@ -300,13 +310,73 @@ export async function analyzeMatch(args: {
   // con `played < MIN_GAMES_FOR_ANALYSIS`. En lugar de emitir un Poisson sobre
   // 1-2 muestras (que sería literalmente inventarnos un pronóstico), el motor
   // se planta y devuelve un MatchAnalysis vacío con `dataIssue` explicado.
+  //
+  // EXCEPCIÓN — INTL FALLBACK: si el contexto es internacional Y tenemos
+  // códigos FIFA en ambos lados, derivamos 1X2 desde el motor Elo. No es tan
+  // preciso como Poisson sobre forma reciente, pero está basado en datos
+  // verificables (FIFA ranking) y permite ingestar el partido para calibrar
+  // el modelo de cara al Mundial.
   const homePlayed = home?.played ?? 0
   const awayPlayed = away?.played ?? 0
-  if (!home || !away) {
-    out.dataIssue = "No hay datos de uno o ambos equipos en ESPN."
-    return out
-  }
-  if (homePlayed < MIN_GAMES_FOR_ANALYSIS || awayPlayed < MIN_GAMES_FOR_ANALYSIS) {
+
+  const dataIsThin =
+    !home || !away ||
+    homePlayed < MIN_GAMES_FOR_ANALYSIS ||
+    awayPlayed < MIN_GAMES_FOR_ANALYSIS
+
+  if (dataIsThin) {
+    if (
+      isInternational(ctxProfile.context) &&
+      ctxProfile.allowEloFallback &&
+      homeCode && awayCode
+    ) {
+      const elo = estimateFromElo(homeCode, awayCode, {
+        homeForm: home?.form,
+        awayForm: away?.form,
+        neutralVenue: ctxProfile.context === "international_friendly",
+        competitive: ctxProfile.context === "international_competitive",
+      })
+      if (elo) {
+        const c1 = clamp(elo.pHome, 0.01, 0.98)
+        const cX = clamp(elo.pDraw, 0.01, 0.40)
+        const c2 = clamp(elo.pAway, 0.01, 0.98)
+        const sum = c1 + cX + c2
+        out.prob1 = pct(c1 / sum)
+        out.probX = pct(cX / sum)
+        out.prob2 = pct(c2 / sum)
+        out.expectedGoalsHome = Math.round(elo.lambdaHome * 100) / 100
+        out.expectedGoalsAway = Math.round(elo.lambdaAway * 100) / 100
+        out.goalsEstimate = Math.round((elo.lambdaHome + elo.lambdaAway) * 100) / 100
+        out.goalsLine = 2.5
+        // BTTS y O/U también desde lambdas (Poisson)
+        const lh = elo.lambdaHome, la = elo.lambdaAway
+        const bttsYesRaw = (1 - Math.exp(-lh)) * (1 - Math.exp(-la))
+        out.bttsYes = pct(bttsYesRaw); out.bttsNo = pct(1 - bttsYesRaw)
+        const o25 = clamp(poissonOver(2.5, lh + la), 0, 1)
+        const o15 = clamp(poissonOver(1.5, lh + la), 0, 1)
+        out.over25 = pct(o25); out.under25 = pct(1 - o25)
+        out.over15 = pct(o15); out.under15 = pct(1 - o15)
+
+        const best1x2 = [
+          { pick: "Home", prob: c1 / sum },
+          { pick: "Draw", prob: cX / sum },
+          { pick: "Away", prob: c2 / sum },
+        ].sort((a, b) => b.prob - a.prob)[0]
+        out.picks.push({ market: "1x2", pick: best1x2.pick, prob: best1x2.prob })
+        out.picks.push({ market: "btts", pick: bttsYesRaw >= 0.5 ? "Yes" : "No", prob: Math.max(bttsYesRaw, 1 - bttsYesRaw) })
+        out.picks.push({ market: "goals_ou", pick: o25 >= 0.5 ? "Over 2.5" : "Under 2.5", prob: Math.max(o25, 1 - o25) })
+
+        out.dataSufficient = true
+        out.dataComplete = false   // sin corners/cards (no se inventan)
+        out.dataIssue = `Fallback Elo (${ctxProfile.label}): ` + elo.reasoning
+        return out
+      }
+    }
+    // Sin Elo disponible o contexto no-internacional → skip controlado
+    if (!home || !away) {
+      out.dataIssue = "No hay datos de uno o ambos equipos en ESPN."
+      return out
+    }
     out.dataIssue = `Volumen de datos insuficiente para un pronóstico fiable (${home.name}: ${homePlayed} partidos · ${away.name}: ${awayPlayed} partidos · mínimo ${MIN_GAMES_FOR_ANALYSIS}).`
     return out
   }

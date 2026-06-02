@@ -24,6 +24,7 @@
  */
 
 import { createServiceClient } from "@/lib/supabase/client"
+import { getMatchContext, type MatchContext } from "@/lib/match-context"
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Tipos
@@ -37,7 +38,7 @@ export type MlMarket =
   | "corners_ou"
   | "cards_ou"
 
-export type WeightScopeType = "league" | "market" | "team"
+export type WeightScopeType = "league" | "market" | "team" | "context"
 
 export interface PredictionInput {
   matchId: string
@@ -52,6 +53,9 @@ export interface PredictionInput {
   edge?: number | null           // valor (modelProb - impliedProb), 0..1
   userId?: string | null         // null = predicción del sistema (global)
   kickoffIso: string             // ISO 8601 del inicio del partido
+  /** Contexto competitivo — aísla el aprendizaje. Si se omite, se deriva
+   *  automáticamente del slug de la liga. */
+  context?: MatchContext
 }
 
 export interface SettleResult {
@@ -63,7 +67,7 @@ export interface SettleResult {
 }
 
 export interface PerfRow {
-  scopeType: "global" | "league" | "market"
+  scopeType: "global" | "league" | "market" | "context"
   scope: string
   samples: number
   wins: number
@@ -125,6 +129,10 @@ export async function logPrediction(p: PredictionInput): Promise<boolean> {
     if (existing && existing.length > 0) return false
 
     const modelProb = clamp(Number(p.modelProb) || 0, 0, 1)
+    // Si el caller no pasa `context`, lo derivamos del slug. Por defecto será
+    // "club"; selecciones se etiquetan como international_* y se aíslan
+    // automáticamente del aprendizaje de fútbol de clubes.
+    const context: MatchContext = p.context ?? getMatchContext(p.league).context
     const { error } = await sb.from("predictions_log").insert({
       match_id: p.matchId,
       league: p.league,
@@ -138,6 +146,7 @@ export async function logPrediction(p: PredictionInput): Promise<boolean> {
       user_id: p.userId ?? null,
       kickoff_iso: p.kickoffIso,
       status: "pending",
+      context,
     })
     if (error) {
       console.warn("[ml] logPrediction insert error:", error.message)
@@ -358,6 +367,7 @@ interface SettledRow {
   model_prob: number
   odds: number | null
   status: "won" | "lost"
+  context?: string | null
 }
 
 function brierFor(rows: SettledRow[]): PerfRow | null {
@@ -404,7 +414,7 @@ export async function computeBrierAndAccuracy(asOfDate?: string): Promise<PerfRo
 
   const { data, error } = await sb
     .from("predictions_log")
-    .select("league, market, model_prob, odds, status")
+    .select("league, market, model_prob, odds, status, context")
     .in("status", ["won", "lost"])
     .gte("settled_at", since)
   if (error) {
@@ -416,13 +426,21 @@ export async function computeBrierAndAccuracy(asOfDate?: string): Promise<PerfRo
 
   const results: PerfRow[] = []
 
-  // Global
-  const g = brierFor(rows)
+  // ── AISLAMIENTO POR CONTEXTO ──────────────────────────────────────────────
+  // Separamos los partidos de clubes (calibración por defecto) de los
+  // internacionales. Los scopes global/league/market se computan SÓLO sobre
+  // clubes — así un amistoso loco no contamina el ajuste de pesos del
+  // Brasileirão. Por su lado, cada contexto recibe su propio peso global.
+  const clubRows = rows.filter((r) => (r.context ?? "club") === "club")
+  const intlRows = rows.filter((r) => (r.context ?? "club") !== "club")
+
+  // Global (solo clubes — calibración base del motor)
+  const g = brierFor(clubRows)
   if (g) results.push({ ...g, scopeType: "global", scope: "all" })
 
-  // Por liga
+  // Por liga (solo clubes)
   const byLeague = new Map<string, SettledRow[]>()
-  for (const r of rows) {
+  for (const r of clubRows) {
     if (!byLeague.has(r.league)) byLeague.set(r.league, [])
     byLeague.get(r.league)!.push(r)
   }
@@ -431,15 +449,46 @@ export async function computeBrierAndAccuracy(asOfDate?: string): Promise<PerfRo
     if (p) results.push({ ...p, scopeType: "league", scope: league })
   }
 
-  // Por mercado
+  // Por mercado (solo clubes — los mercados internacionales tienen su propio scope)
   const byMarket = new Map<string, SettledRow[]>()
-  for (const r of rows) {
+  for (const r of clubRows) {
     if (!byMarket.has(r.market)) byMarket.set(r.market, [])
     byMarket.get(r.market)!.push(r)
   }
   for (const [market, mr] of byMarket) {
     const p = brierFor(mr)
     if (p) results.push({ ...p, scopeType: "market", scope: market })
+  }
+
+  // ── Por contexto ──────────────────────────────────────────────────────────
+  // Un scope por cada valor de `context` (incluye club, intl_friendly,
+  // intl_competitive). Esto alimenta `team_form_weights(scope_type='context')`
+  // y permite que el motor aplique un multiplicador específico para
+  // selecciones SIN afectar al fútbol de clubes.
+  const byContext = new Map<string, SettledRow[]>()
+  for (const r of rows) {
+    const ctx = r.context ?? "club"
+    if (!byContext.has(ctx)) byContext.set(ctx, [])
+    byContext.get(ctx)!.push(r)
+  }
+  for (const [ctx, cr] of byContext) {
+    const p = brierFor(cr)
+    if (p) results.push({ ...p, scopeType: "context", scope: ctx })
+  }
+
+  // Por mercado dentro de internacionales (clave compuesta) — informativo
+  // para auditoría. No se usa todavía como peso pero queda disponible.
+  if (intlRows.length > 0) {
+    const byIntlMarket = new Map<string, SettledRow[]>()
+    for (const r of intlRows) {
+      const key = `intl::${r.market}`
+      if (!byIntlMarket.has(key)) byIntlMarket.set(key, [])
+      byIntlMarket.get(key)!.push(r)
+    }
+    for (const [k, mr] of byIntlMarket) {
+      const p = brierFor(mr)
+      if (p) results.push({ ...p, scopeType: "market", scope: k })
+    }
   }
 
   // Upsert (clave única: as_of_date, scope_type, scope)
@@ -564,21 +613,30 @@ export async function getTeamFormWeight(scopeType: WeightScopeType, scopeKey: st
 }
 
 /**
- * Peso combinado liga × mercado (× equipo opcional) para aplicar a una
- * predicción concreta. Es la forma recomendada de consultar el aprendizaje
+ * Peso combinado liga × mercado (× equipo × context opcional) para aplicar a
+ * una predicción concreta. Es la forma recomendada de consultar el aprendizaje
  * antes de emitir una probabilidad nueva.
+ *
+ * El parámetro `context` activa la dimensión de aislamiento de selecciones:
+ * un partido marcado como `international_friendly` aplicará el peso aprendido
+ * de amistosos SIN tocar el peso aprendido de clubes.
  */
 export async function getCombinedFormWeight(args: {
   league?: string
   market?: string
   team?: string
+  context?: MatchContext | string
 }): Promise<number> {
   const map = await loadWeightCache()
-  const wl = args.league ? map.get(`league::${args.league}`) ?? 1.0 : 1.0
-  const wm = args.market ? map.get(`market::${args.market}`) ?? 1.0 : 1.0
-  const wt = args.team ? map.get(`team::${args.team}`) ?? 1.0 : 1.0
-  // Media geométrica suave para no amplificar en exceso al combinar scopes
-  const combined = Math.cbrt(wl * wm * wt)
+  const wl = args.league  ? map.get(`league::${args.league}`)   ?? 1.0 : 1.0
+  const wm = args.market  ? map.get(`market::${args.market}`)   ?? 1.0 : 1.0
+  const wt = args.team    ? map.get(`team::${args.team}`)       ?? 1.0 : 1.0
+  const wc = args.context ? map.get(`context::${args.context}`) ?? 1.0 : 1.0
+  // Media geométrica suave (raíz cuarta cuando hay context, cúbica si no)
+  // para no amplificar en exceso al combinar scopes.
+  const factors = args.context ? wl * wm * wt * wc : wl * wm * wt
+  const root = args.context ? 4 : 3
+  const combined = Math.pow(factors, 1 / root)
   return clamp(Math.round(combined * 10000) / 10000, ML.WEIGHT_MIN, ML.WEIGHT_MAX)
 }
 

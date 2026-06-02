@@ -15,6 +15,8 @@ import { authOptions } from "@/lib/auth-options"
 import { consume, getClientIp, tooManyRequests } from "@/lib/rate-limit"
 import { fetchTeamModel, analyzeMatch } from "@/lib/analysis/match-model"
 import { logPredictions, type PredictionInput } from "@/lib/learning/supabase-ml"
+import { getMatchContext } from "@/lib/match-context"
+import { inferTeamCode } from "@/lib/world-cup/elo"
 
 export const runtime = "nodejs"
 export const maxDuration = 30
@@ -52,7 +54,11 @@ export async function GET(req: NextRequest) {
       fetchTeamModel(slug, awayId),
     ])
 
-    const analysis = await analyzeMatch({ league: slug, home, away })
+    // Inferimos códigos FIFA desde los nombres para que el motor Elo tenga
+    // material de fallback cuando es un internacional con poca historia.
+    const homeCode = inferTeamCode(hname || home?.name)
+    const awayCode = inferTeamCode(aname || away?.name)
+    const analysis = await analyzeMatch({ league: slug, home, away, homeCode, awayCode })
 
     // ── Registrar predicciones en el ML loop (solo si el partido no ha empezado) ──
     //   · No registrar si el motor no tuvo datos suficientes (amistosos sin
@@ -69,6 +75,10 @@ export async function GET(req: NextRequest) {
 
       const homeName = hname || home?.name || "Local"
       const awayName = aname || away?.name || "Visitante"
+      // Derivamos el contexto desde el slug — esto etiqueta cada predicción y
+      // permite que el cron de Brier/accuracy aísle el aprendizaje de
+      // selecciones del de clubes.
+      const ctx = getMatchContext(slug).context
       const inputs: PredictionInput[] = analysis.picks.map((p) => ({
         matchId,
         league: slug,
@@ -81,6 +91,7 @@ export async function GET(req: NextRequest) {
         edge: null,
         userId,
         kickoffIso: new Date(kickoffMs).toISOString(),
+        context: ctx,
       }))
       // best-effort, no bloquea la respuesta si falla
       logPredictions(inputs).catch(() => {})

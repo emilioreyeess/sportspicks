@@ -43,6 +43,9 @@ export interface PickRecord {
   resultRecordedAt?: string
   homeScore?: number
   awayScore?: number
+  /** Contexto competitivo: "club" | "international_friendly" | "international_competitive".
+   *  Permite aislar el aprendizaje de selecciones del de clubes. */
+  context?: string
 }
 
 /** Patrón detectado en el histórico — solo se considera "actionable" si pasa los gates */
