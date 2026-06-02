@@ -17,6 +17,7 @@ import {
 } from "@/lib/engine"
 import { evaluatePick, type EvalCandidate, type EvalMatch, type PickEvaluation } from "@/lib/decision-engine"
 import { recordPublishedPicks, preloadLearningCache, type PickRecord } from "@/lib/learning"
+import { logPredictions, type PredictionInput } from "@/lib/learning/supabase-ml"
 import {
   getStore, setStatus, addLog, recordError, setDailyResults, setNextRun, isFresh,
   setYesterdayResults,
@@ -1366,6 +1367,53 @@ export function runPipeline(reason = "scheduled"): Promise<void> {
         }))
         recordPublishedPicks(records).catch((e) => addLog(`⚠️  Learning storage: ${e?.message ?? e}`))
         addLog(`📝 ${records.length} picks registrados en Learning Engine`)
+
+        // ── Supabase predictions_log ────────────────────────────────────────
+        // Logueamos cada value pick en `predictions_log` para que el cron
+        // `ml-settle` lo liquide contra ESPN y el endpoint /api/picks/history
+        // pueda devolverlo en el feed paginado. Mapeamos los nombres de
+        // mercado del value engine ("1X2", "Over/Under 2.5", "Hándicap") a la
+        // taxonomía interna del ML loop ("1x2", "goals_ou", "handicap") para
+        // que `settleMarket` los entienda al cerrarlos.
+        const supaPreds: PredictionInput[] = picks.map((p: any) => {
+          const m = data.matches.find((mm) => mm.id === p.id)
+          let market = p.market as string
+          let pick   = p.selection as string
+          if (market === "1X2") {
+            market = "1x2"
+            if (p.selection === "Empate") pick = "Draw"
+            else if (p.selection === `Gana ${p.home_team}`) pick = "Home"
+            else if (p.selection === `Gana ${p.away_team}`) pick = "Away"
+          } else if (market === "Over/Under 2.5") {
+            market = "goals_ou"
+            pick = p.selection.startsWith("Over") ? "Over 2.5" : "Under 2.5"
+          } else if (market === "Hándicap") {
+            market = "handicap"
+            // pick conserva texto completo "<team> hándicap +0.5" — settleMarket
+            // lo parsea con regex de número y heurística home/away por nombre.
+            pick = p.selection.startsWith(p.away_team)
+              ? `away ${p.selection}` : `home ${p.selection}`
+          }
+          return {
+            matchId: String(p.id),
+            league:  m?.slug ?? "",
+            homeTeam: p.home_team,
+            awayTeam: p.away_team,
+            market,
+            pick,
+            odds: p.best_odd ?? null,
+            modelProb: (p.model_prob ?? 0) / 100,  // pipeline almacena 0-100
+            edge: (p.value_edge ?? 0) / 100,
+            userId: null,  // pick del sistema, no de un usuario
+            kickoffIso: p.kickoff_utc ?? new Date().toISOString(),
+            context: m?.context ?? "club",
+          }
+        })
+        // best-effort, fire-and-forget — el pipeline no debe fallar si Supabase
+        // está caído o la columna `context` aún no ha migrado.
+        logPredictions(supaPreds)
+          .then((n) => addLog(`🗄️  ${n} pick(s) registrados en Supabase predictions_log`))
+          .catch((e) => addLog(`⚠️  Supabase log: ${e?.message ?? e}`))
       }
 
       // Segregation: combinada pool excludes matches already used as value picks

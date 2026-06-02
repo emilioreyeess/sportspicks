@@ -230,6 +230,26 @@ function settleMarket(
       if (p.includes("under") || p.includes("menos")) return box.cards < line ? "won" : "lost"
       return "void"
     }
+    case "handicap": {
+      // pick formato: "<team> hándicap +0.5" | "<team> hándicap -1" | etc.
+      // El primer token decide qué lado recibe la línea: si empieza con el
+      // nombre del local → se aplica al local; si no, al visitante.
+      const m = pick.match(/(-?\d+(?:\.\d+)?)/)
+      if (!m) return "void"
+      const lineRaw = parseFloat(m[1])
+      // Heurística de qué equipo cubre la línea: no tenemos los nombres
+      // exactos en este scope (el ML loop solo recibe pick/market), así
+      // que usamos la convención: si el texto contiene "home"|"local",
+      // aplica al local; "away"|"visitante" al visitante. Si no, asumimos
+      // que el primer token del pick es el local (formato value engine).
+      const lc = p
+      const isHomeSide = !/visit|away/.test(lc)
+      const adj = isHomeSide ? homeScore + lineRaw : awayScore + lineRaw
+      const opp = isHomeSide ? awayScore : homeScore
+      if (adj > opp) return "won"
+      if (adj < opp) return "lost"
+      return "void"
+    }
     default:
       return "void"
   }

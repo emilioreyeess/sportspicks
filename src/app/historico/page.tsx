@@ -1,35 +1,52 @@
 "use client"
 
-import { useEffect, useState } from "react"
+import { useCallback, useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { Icon } from "@/components/ui/icons"
 import { useSession } from "next-auth/react"
+import { PageHeader, Card, Button, Spinner, EmptyState, Badge } from "@/components/ui/primitives"
 
-// ── Types ─────────────────────────────────────────────────────────────────────
+/* ────────────────────────────────────────────────────────────────────────────
+   Types
+   ──────────────────────────────────────────────────────────────────────────── */
 
-type ResultType = "WIN" | "LOSS" | "VOID" | "PENDING"
+type ResultType = "WIN" | "LOSS" | "VOID"
 
-interface MonthStats {
-  won: number
-  lost: number
-  profit: number
-  winrate: number
-  topSport: string | null
-}
-
-interface HistoricalPick {
-  id?: string
-  home_team: string
-  away_team: string
-  league?: string
+interface HistoryPick {
+  id: string
+  match_id: string
+  league: string
+  home_team: string | null
+  away_team: string | null
   market: string
   selection: string
-  best_odd?: number
-  model_prob?: number
+  odd: number | null
+  model_prob: number | null   // 0..100
+  edge: number | null         // 0..100
+  kickoff_iso: string
   result: ResultType
-  home_score?: number
-  away_score?: number
-  date?: string
+  home_score: number | null
+  away_score: number | null
+  context: string | null
+}
+
+interface DayBlock {
+  date: string
+  label: string
+  picks: HistoryPick[]
+  wins: number
+  losses: number
+  voids: number
+}
+
+interface GlobalStats {
+  total_settled: number
+  wins: number
+  losses: number
+  voids: number
+  winrate_pct: number
+  avg_odd: number | null
+  roi_pct: number
 }
 
 interface PersonalBet {
@@ -42,372 +59,402 @@ interface PersonalBet {
   sport?: string
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
+/* ────────────────────────────────────────────────────────────────────────────
+   Style tokens (Apple-like)
+   ──────────────────────────────────────────────────────────────────────────── */
 
-const RESULT_STYLE: Record<ResultType, string> = {
-  WIN:     "text-emerald-400 bg-emerald-500/10 border-emerald-700/40",
-  LOSS:    "text-rose-400 bg-rose-500/10 border-rose-700/40",
-  VOID:    "text-zinc-400 bg-zinc-800/60 border-white/[0.07]",
-  PENDING: "text-amber-400 bg-amber-500/10 border-amber-700/40",
+const RESULT_TONE: Record<ResultType, { dot: string; chip: string; row: string }> = {
+  WIN:  { dot: "bg-emerald-400", chip: "bg-emerald-500/[0.10] text-emerald-300", row: "" },
+  LOSS: { dot: "bg-rose-400",    chip: "bg-rose-500/[0.10] text-rose-300",        row: "" },
+  VOID: { dot: "bg-zinc-500",    chip: "bg-zinc-800/60 text-zinc-400",            row: "" },
 }
 
-const RESULT_LABEL: Record<ResultType, string> = {
-  WIN: "WIN", LOSS: "LOSS", VOID: "VOID", PENDING: "⏳",
-}
+const RESULT_LABEL: Record<ResultType, string> = { WIN: "WIN", LOSS: "LOSS", VOID: "VOID" }
 
-const BET_STATUS_STYLE: Record<string, string> = {
-  won:     "text-emerald-400 bg-emerald-500/10 border-emerald-700/40",
-  lost:    "text-rose-400 bg-rose-500/10 border-rose-700/40",
-  void:    "text-zinc-400 bg-zinc-800/60 border-white/[0.07]",
-  pending: "text-amber-400 bg-amber-500/10 border-amber-700/40",
+const BET_STATUS_STYLE: Record<string, "emerald" | "rose" | "zinc" | "amber"> = {
+  won: "emerald", lost: "rose", void: "zinc", pending: "amber",
 }
-
 const BET_STATUS_LABEL: Record<string, string> = {
-  won: "Ganada ✓", lost: "Perdida ✗", void: "Anulada", pending: "Pendiente",
+  won: "Ganada", lost: "Perdida", void: "Anulada", pending: "Pendiente",
 }
 
-function yesterday() {
-  const d = new Date()
-  d.setDate(d.getDate() - 1)
-  return d.toISOString().split("T")[0]
-}
+/* ────────────────────────────────────────────────────────────────────────────
+   Hooks: stats + paginated history
+   ──────────────────────────────────────────────────────────────────────────── */
 
-// ── Yesterday picks — server store (most reliable) + localStorage fallback ────
-
-function useYesterdayPicks() {
-  const [picks, setPicks] = useState<HistoricalPick[]>([])
+function useGlobalStats() {
+  const [stats, setStats] = useState<GlobalStats | null>(null)
   const [loading, setLoading] = useState(true)
-
   useEffect(() => {
-    const dateKey = yesterday()
+    fetch("/api/picks/stats", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (d) setStats(d) })
+      .catch(() => {})
+      .finally(() => setLoading(false))
+  }, [])
+  return { stats, loading }
+}
 
-    // 1️⃣ Try server store first (pipeline-verified results survive cold restarts via /tmp)
-    fetch("/api/picks/yesterday")
-      .then(r => r.ok ? r.json() : null)
-      .then(d => {
-        if (d?.picks?.length) {
-          setPicks(d.picks.map((p: any) => ({ ...p, date: d.date ?? dateKey })))
-          setLoading(false)
-          return
-        }
+interface HistoryPage { days: DayBlock[]; nextCursor: string | null; count: number }
 
-        // 2️⃣ Fallback: localStorage picks enriched via ESPN
-        // Intentar clave por fecha primero (más fiable), luego alias legacy
-        const stored = (() => {
-          try {
-            const rawByDate = localStorage.getItem(`sp_picks_${dateKey}`)
-            const rawLegacy  = localStorage.getItem("sp_picks_today")
-            const raw = rawByDate ?? rawLegacy
-            if (!raw) return null
-            const parsed = JSON.parse(raw)
-            if (!parsed?.date || parsed.date !== dateKey) return null
-            return Array.isArray(parsed.picks) ? parsed.picks : null
-          } catch { return null }
-        })()
+function mergeDays(prev: DayBlock[], next: DayBlock[]): DayBlock[] {
+  const map = new Map<string, DayBlock>()
+  for (const d of prev) map.set(d.date, d)
+  for (const d of next) {
+    const ex = map.get(d.date)
+    if (!ex) { map.set(d.date, d); continue }
+    map.set(d.date, {
+      ...ex,
+      picks:  [...ex.picks, ...d.picks],
+      wins:   ex.wins   + d.wins,
+      losses: ex.losses + d.losses,
+      voids:  ex.voids  + d.voids,
+    })
+  }
+  // Conservar orden DESC por fecha
+  return Array.from(map.values()).sort((a, b) => (a.date < b.date ? 1 : -1))
+}
 
-        if (!stored || !Array.isArray(stored) || stored.length === 0) {
-          setLoading(false)
-          return
-        }
+function useHistory() {
+  const [days, setDays] = useState<DayBlock[]>([])
+  const [cursor, setCursor] = useState<string | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [done, setDone] = useState(false)
+  const fetchedFirst = useRef(false)
 
-        // Enrich stored picks with ESPN results
-        fetch("/api/picks/yesterday", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ date: dateKey, picks: stored }),
-        })
-          .then(r => r.ok ? r.json() : null)
-          .then(d2 => {
-            if (d2?.picks) setPicks(d2.picks.map((p: any) => ({ ...p, date: dateKey })))
-            else setPicks(stored.map((p: any) => ({ ...p, result: "PENDING", date: dateKey })))
-          })
-          .catch(() => setPicks(stored.map((p: any) => ({ ...p, result: "PENDING", date: dateKey }))))
-          .finally(() => setLoading(false))
-      })
-      .catch(() => setLoading(false))
+  const fetchPage = useCallback(async (before: string | null) => {
+    const qs = new URLSearchParams({ limit: "50" })
+    if (before) qs.set("before", before)
+    const r = await fetch(`/api/picks/history?${qs}`, { cache: "no-store" })
+    if (!r.ok) return null
+    return (await r.json()) as HistoryPage
   }, [])
 
-  return { picks, loading }
+  useEffect(() => {
+    if (fetchedFirst.current) return
+    fetchedFirst.current = true
+    ;(async () => {
+      const page = await fetchPage(null)
+      if (page) {
+        setDays(page.days)
+        setCursor(page.nextCursor)
+        if (!page.nextCursor) setDone(true)
+      }
+      setLoading(false)
+    })()
+  }, [fetchPage])
+
+  const loadMore = useCallback(async () => {
+    if (loadingMore || done || !cursor) return
+    setLoadingMore(true)
+    const page = await fetchPage(cursor)
+    if (page) {
+      setDays((prev) => mergeDays(prev, page.days))
+      setCursor(page.nextCursor)
+      if (!page.nextCursor || page.count === 0) setDone(true)
+    } else {
+      setDone(true)
+    }
+    setLoadingMore(false)
+  }, [cursor, done, fetchPage, loadingMore])
+
+  return { days, loading, loadingMore, done, loadMore, hasAny: days.length > 0 }
 }
 
-// ── Components ────────────────────────────────────────────────────────────────
+/* ────────────────────────────────────────────────────────────────────────────
+   Components
+   ──────────────────────────────────────────────────────────────────────────── */
 
-function PickRow({ pick }: { pick: HistoricalPick }) {
-  const result = (pick.result ?? "PENDING") as ResultType
+function HeroStats({ stats, loading }: { stats: GlobalStats | null; loading: boolean }) {
+  if (loading) {
+    return (
+      <div className="grid grid-cols-3 gap-3">
+        {[...Array(3)].map((_, i) => (
+          <div key={i} className="rounded-2xl bg-zinc-900/40 px-5 py-5 h-[90px] animate-pulse" />
+        ))}
+      </div>
+    )
+  }
+  const winrate = stats?.winrate_pct ?? 0
+  const wins    = stats?.wins ?? 0
+  const losses  = stats?.losses ?? 0
+  const roi     = stats?.roi_pct ?? 0
+
+  const cells: Array<{
+    label: string; value: string; sub?: string
+    tone: "emerald" | "rose" | "amber" | "zinc"
+  }> = [
+    {
+      label: "Aciertos globales",
+      value: `${winrate.toFixed(1)}%`,
+      sub: `${stats?.total_settled ?? 0} picks resueltos`,
+      tone: winrate >= 50 ? "emerald" : "amber",
+    },
+    { label: "Verdes", value: String(wins),   sub: "WIN totales", tone: "emerald" },
+    { label: "Rojos",  value: String(losses), sub: "LOSS totales", tone: "rose" },
+  ]
+  const toneClass = {
+    emerald: "text-emerald-400",
+    rose:    "text-rose-400",
+    amber:   "text-amber-400",
+    zinc:    "text-zinc-300",
+  }
   return (
-    <div className="px-5 py-3.5 flex items-center gap-3 border-b border-white/[0.07] last:border-0">
-      <div className="flex-1 min-w-0">
-        <p className="text-xs font-bold text-white truncate">{pick.home_team} vs {pick.away_team}</p>
-        <div className="flex items-center flex-wrap gap-x-2 gap-y-0.5 mt-0.5">
-          <span className="text-[11px] text-zinc-500">{pick.selection}</span>
-          {pick.best_odd && (
-            <span className="text-[11px] font-black text-emerald-400">@{pick.best_odd.toFixed(2)}</span>
-          )}
-          {pick.model_prob !== undefined && (
-            <span className="text-[10px] text-zinc-600">IA {Math.round(pick.model_prob)}%</span>
-          )}
-          {pick.home_score !== undefined && (
-            <span className="text-[10px] text-zinc-600">{pick.home_score}–{pick.away_score}</span>
+    <div className="grid grid-cols-3 gap-3">
+      {cells.map((c) => (
+        <div key={c.label} className="rounded-2xl bg-zinc-900/40 px-4 py-5 sm:px-5">
+          <p className={`text-[28px] sm:text-[32px] font-bold tracking-tight leading-none ${toneClass[c.tone]}`}>
+            {c.value}
+          </p>
+          <p className="text-[11px] font-semibold text-zinc-400 mt-3 uppercase tracking-wide">
+            {c.label}
+          </p>
+          {c.sub && <p className="text-[11px] text-zinc-600 mt-1">{c.sub}</p>}
+        </div>
+      ))}
+      {/* ROI secundario */}
+      {stats && (
+        <div className="col-span-3 rounded-2xl bg-zinc-900/40 px-5 py-4 flex items-center justify-between">
+          <div>
+            <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">ROI a 1u/pick</p>
+            <p className={`text-[20px] font-bold tracking-tight mt-1 ${roi >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
+              {roi >= 0 ? "+" : ""}{roi.toFixed(2)}%
+            </p>
+          </div>
+          {stats.avg_odd != null && (
+            <div className="text-right">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Cuota media</p>
+              <p className="text-[20px] font-bold tracking-tight text-zinc-200 mt-1">
+                @{stats.avg_odd.toFixed(2)}
+              </p>
+            </div>
           )}
         </div>
-      </div>
-      <span className={`text-[9px] font-black px-2 py-1 rounded-lg border shrink-0 ${RESULT_STYLE[result]}`}>
-        {RESULT_LABEL[result]}
-      </span>
+      )}
     </div>
   )
 }
 
-function BetRow({ bet }: { bet: PersonalBet }) {
-  const s = bet.status as string
-  const style = BET_STATUS_STYLE[s] ?? BET_STATUS_STYLE.pending
-  const label = BET_STATUS_LABEL[s] ?? s
+function PickRow({ pick }: { pick: HistoryPick }) {
+  const tone = RESULT_TONE[pick.result]
   return (
-    <div className="px-4 py-3 flex items-center gap-3 border-b border-white/[0.07] last:border-0">
+    <div className="flex items-center gap-3 px-5 py-3.5 border-b border-white/[0.04] last:border-0">
+      <span className={`h-2 w-2 shrink-0 rounded-full ${tone.dot}`} />
       <div className="flex-1 min-w-0">
-        <p className="text-xs font-bold text-white truncate">{bet.title}</p>
-        <div className="flex items-center gap-2 mt-0.5">
-          <span className="text-[11px] text-zinc-500">{bet.stake}€ × @{bet.combined_odds}</span>
-          {s === "won" && (
-            <span className="text-[11px] font-bold text-emerald-400">
-              +{((bet.combined_odds - 1) * bet.stake).toFixed(2)}€
+        <p className="text-[13px] font-semibold text-white truncate">
+          {pick.home_team ?? "?"} vs {pick.away_team ?? "?"}
+        </p>
+        <div className="flex items-center flex-wrap gap-x-2.5 gap-y-0.5 mt-0.5">
+          <span className="text-[11.5px] text-zinc-500 truncate">{pick.selection}</span>
+          {pick.odd != null && (
+            <span className="text-[11.5px] font-semibold text-emerald-400/90">@{pick.odd.toFixed(2)}</span>
+          )}
+          {pick.model_prob != null && (
+            <span className="text-[10.5px] text-zinc-600">IA {Math.round(pick.model_prob)}%</span>
+          )}
+          {pick.home_score != null && pick.away_score != null && (
+            <span className="text-[10.5px] text-zinc-600 tabular-nums">
+              {pick.home_score}–{pick.away_score}
             </span>
           )}
         </div>
       </div>
-      <span className={`text-[9px] font-black px-2 py-1 rounded-lg border shrink-0 ${style}`}>
-        {label}
+      <span className={`text-[10px] font-bold px-2.5 py-1 rounded-full shrink-0 ${tone.chip}`}>
+        {RESULT_LABEL[pick.result]}
       </span>
     </div>
   )
 }
 
-// ── Page ──────────────────────────────────────────────────────────────────────
-
-const SPORT_EMOJI: Record<string, string> = {
-  football: "⚽", basketball: "🏀", tennis: "🎾", baseball: "⚾", hockey: "🏒", other: "🏅",
+function DaySection({ day }: { day: DayBlock }) {
+  const settled = day.wins + day.losses
+  const wr = settled > 0 ? Math.round((day.wins / settled) * 100) : null
+  return (
+    <section>
+      {/* Divisor de fecha */}
+      <div className="flex items-baseline justify-between px-1 mb-3">
+        <h3 className="text-[14px] font-semibold text-white tracking-tight">{day.label}</h3>
+        <div className="flex items-center gap-2 text-[11px] text-zinc-500">
+          <span>
+            <strong className="text-emerald-400">{day.wins}</strong>W
+            <span className="text-zinc-700 mx-1">·</span>
+            <strong className="text-rose-400">{day.losses}</strong>L
+            {day.voids > 0 && (
+              <>
+                <span className="text-zinc-700 mx-1">·</span>
+                <strong className="text-zinc-400">{day.voids}</strong>V
+              </>
+            )}
+          </span>
+          {wr != null && (
+            <span className={`font-semibold ${wr >= 50 ? "text-emerald-400" : "text-rose-400"}`}>
+              {wr}%
+            </span>
+          )}
+        </div>
+      </div>
+      <Card variant="default" className="overflow-hidden">
+        {day.picks.map((p) => <PickRow key={p.id} pick={p} />)}
+      </Card>
+    </section>
+  )
 }
+
+function BetRow({ bet }: { bet: PersonalBet }) {
+  const tone = BET_STATUS_STYLE[bet.status] ?? "zinc"
+  const label = BET_STATUS_LABEL[bet.status] ?? bet.status
+  const profit = bet.status === "won"
+    ? ((bet.combined_odds - 1) * bet.stake)
+    : bet.status === "lost"
+    ? -bet.stake
+    : 0
+  return (
+    <div className="flex items-center gap-3 px-5 py-3.5 border-b border-white/[0.04] last:border-0">
+      <div className="flex-1 min-w-0">
+        <p className="text-[13px] font-semibold text-white truncate">{bet.title}</p>
+        <div className="flex items-center gap-2 mt-0.5">
+          <span className="text-[11.5px] text-zinc-500">
+            {bet.stake}€ × @{bet.combined_odds}
+          </span>
+          {profit !== 0 && (
+            <span className={`text-[11.5px] font-semibold ${profit > 0 ? "text-emerald-400" : "text-rose-400"}`}>
+              {profit > 0 ? "+" : ""}{profit.toFixed(2)}€
+            </span>
+          )}
+        </div>
+      </div>
+      <Badge tone={tone}>{label}</Badge>
+    </div>
+  )
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   PAGE
+   ════════════════════════════════════════════════════════════════════════════ */
 
 export default function HistoricoPage() {
   const { status } = useSession()
-  const { picks, loading: picksLoading } = useYesterdayPicks()
+  const { stats, loading: statsLoading } = useGlobalStats()
+  const { days, loading, loadingMore, done, loadMore, hasAny } = useHistory()
   const [bets, setBets] = useState<PersonalBet[]>([])
   const [betsLoading, setBetsLoading] = useState(true)
-  const [monthStats, setMonthStats] = useState<MonthStats | null>(null)
+  const sentinelRef = useRef<HTMLDivElement>(null)
 
+  // Carga de apuestas personales (independiente del feed de picks globales)
   useEffect(() => {
     if (status !== "authenticated") { setBetsLoading(false); return }
     fetch("/api/bets")
-      .then(r => r.ok ? r.json() : null)
-      .then(d => {
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
         if (d?.bets) {
-          const allBets = d.bets as PersonalBet[]
-          // Show last 10 settled bets
-          const settled = allBets
-            .filter(b => b.status === "won" || b.status === "lost")
-            .slice(0, 10)
-          setBets(settled)
-
-          // Monthly stats: current month
-          const thisMonth = new Date().toISOString().slice(0, 7) // YYYY-MM
-          const monthBets = allBets.filter(b =>
-            (b.status === "won" || b.status === "lost") &&
-            b.created_at?.startsWith(thisMonth)
-          )
-          if (monthBets.length > 0) {
-            const won = monthBets.filter(b => b.status === "won")
-            const staked = monthBets.reduce((s, b) => s + Number(b.stake || 0), 0)
-            const returned = won.reduce((s, b) => s + Number(b.stake || 0) * Number(b.combined_odds || 1), 0)
-            const sportCounts: Record<string, number> = {}
-            for (const b of monthBets) {
-              if (b.sport) sportCounts[b.sport] = (sportCounts[b.sport] ?? 0) + 1
-            }
-            const topSport = Object.entries(sportCounts).sort((a, b) => b[1] - a[1])[0]?.[0] ?? null
-            setMonthStats({
-              won: won.length,
-              lost: monthBets.length - won.length,
-              profit: Math.round((returned - staked) * 100) / 100,
-              winrate: Math.round((won.length / monthBets.length) * 1000) / 10,
-              topSport,
-            })
-          }
+          const all = d.bets as PersonalBet[]
+          setBets(all
+            .filter((b) => b.status === "won" || b.status === "lost")
+            .slice(0, 10))
         }
       })
       .catch(() => {})
       .finally(() => setBetsLoading(false))
   }, [status])
 
-  const wins = picks.filter(p => p.result === "WIN").length
-  const settled = picks.filter(p => p.result !== "PENDING").length
+  // Scroll infinito — IntersectionObserver sobre el sentinel
+  useEffect(() => {
+    const el = sentinelRef.current
+    if (!el) return
+    const io = new IntersectionObserver((entries) => {
+      if (entries.some((e) => e.isIntersecting)) loadMore()
+    }, { rootMargin: "200px 0px" })
+    io.observe(el)
+    return () => io.disconnect()
+  }, [loadMore])
 
   return (
-    <div className="safe-x pb-24">
-      {/* Header */}
-      <div className="px-4 pt-6 pb-4">
-        <span className="section-label">Histórico</span>
-        <h1 className="text-xl font-black text-white mt-0.5">Picks de ayer</h1>
-        <p className="text-xs text-zinc-500 mt-1">
-          Value picks del día anterior con resultados reales de ESPN.
-        </p>
-      </div>
+    <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 sm:py-10 safe-x pb-24">
+      <PageHeader
+        icon="activity"
+        title="Histórico"
+        subtitle="Todos los picks del modelo, agrupados por día. Resultados verificados contra ESPN."
+      />
 
-      {/* Summary stats */}
-      {settled > 0 && (
-        <div className="px-4 pb-4">
-          <div className="grid grid-cols-3 gap-2.5">
-            {[
-              { label: "Total picks", value: picks.length.toString(), color: "text-white" },
-              { label: "WIN", value: wins.toString(), color: "text-emerald-400" },
-              { label: "Winrate", value: `${Math.round((wins / settled) * 100)}%`, color: wins / settled >= 0.5 ? "text-emerald-400" : "text-rose-400" },
-            ].map(s => (
-              <div key={s.label} className="rounded-xl border border-white/[0.07] bg-zinc-900/60 p-3 text-center">
-                <p className={`text-xl font-black ${s.color}`}>{s.value}</p>
-                <p className="text-[10px] text-zinc-500 mt-0.5">{s.label}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      <div className="space-y-7">
+        {/* ── Hero stats globales ─────────────────────────────────────────── */}
+        <HeroStats stats={stats} loading={statsLoading} />
 
-      {/* Monthly performance */}
-      {monthStats && (
-        <section className="mx-4 mb-5 rounded-2xl border border-white/[0.07] bg-zinc-900/60 overflow-hidden">
-          <div className="px-5 pt-4 pb-3 border-b border-white/[0.07] flex items-center justify-between">
-            <p className="text-sm font-black text-white">Este mes</p>
-            <p className="text-[10px] text-zinc-500">{new Date().toLocaleDateString("es-ES", { month: "long", year: "numeric" })}</p>
-          </div>
-          <div className="p-4 grid grid-cols-4 gap-2 text-center">
-            <div className="rounded-xl bg-zinc-800/60 p-2.5 border border-white/[0.07]">
-              <p className={`text-lg font-black ${monthStats.profit >= 0 ? "text-emerald-400" : "text-rose-400"}`}>
-                {monthStats.profit >= 0 ? "+" : ""}{monthStats.profit}€
-              </p>
-              <p className="text-[9px] text-zinc-500 mt-0.5 uppercase">Profit</p>
-            </div>
-            <div className="rounded-xl bg-zinc-800/60 p-2.5 border border-white/[0.07]">
-              <p className={`text-lg font-black ${monthStats.winrate >= 50 ? "text-emerald-400" : "text-rose-400"}`}>
-                {monthStats.winrate}%
-              </p>
-              <p className="text-[9px] text-zinc-500 mt-0.5 uppercase">Winrate</p>
-            </div>
-            <div className="rounded-xl bg-zinc-800/60 p-2.5 border border-white/[0.07]">
-              <p className="text-lg font-black text-emerald-400">{monthStats.won}</p>
-              <p className="text-[9px] text-zinc-500 mt-0.5 uppercase">Ganadas</p>
-            </div>
-            <div className="rounded-xl bg-zinc-800/60 p-2.5 border border-white/[0.07]">
-              <p className="text-lg font-black text-rose-400">{monthStats.lost}</p>
-              <p className="text-[9px] text-zinc-500 mt-0.5 uppercase">Perdidas</p>
-            </div>
-          </div>
-          {monthStats.topSport && (
-            <div className="px-4 pb-3">
-              <p className="text-[10px] text-zinc-600 text-center">
-                Deporte favorito: {SPORT_EMOJI[monthStats.topSport] ?? "🏅"} {monthStats.topSport}
-              </p>
-            </div>
-          )}
-        </section>
-      )}
-
-      {/* Yesterday picks */}
-      <section className="mx-4 mb-6 rounded-2xl border border-amber-700/40 bg-gradient-to-br from-amber-500/5 via-zinc-900/80 to-zinc-950 overflow-hidden">
-        <div className="px-5 pt-5 pb-4 border-b border-amber-800/30 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <span className="grid place-items-center w-9 h-9 rounded-xl bg-amber-500/15 border border-amber-700/40">
-              <Icon name="star" className="w-4.5 h-4.5 text-amber-400" strokeWidth={2.5} />
-            </span>
-            <div>
-              <p className="text-sm font-black text-white">Value picks — ayer</p>
-              <p className="text-[10px] text-zinc-500">{yesterday()}</p>
-            </div>
-          </div>
-          <Link href="/value" className="text-[11px] font-bold text-amber-400 hover:text-amber-300 transition-colors tap">
-            Ver hoy →
-          </Link>
-        </div>
-
-        {picksLoading ? (
-          <div className="divide-y divide-white/[0.07]">
-            {[...Array(4)].map((_, i) => (
-              <div key={i} className="px-5 py-3.5 flex items-center gap-3 animate-pulse">
-                <div className="h-3 bg-white/[0.06] rounded flex-1" />
-                <div className="h-5 w-12 bg-white/[0.06] rounded" />
-              </div>
-            ))}
-          </div>
-        ) : picks.length > 0 ? (
-          <div>
-            {picks.map((p, i) => <PickRow key={p.id ?? i} pick={p} />)}
-          </div>
-        ) : (
-          <div className="flex flex-col items-center justify-center py-10 text-center px-4">
-            <p className="text-sm font-bold text-zinc-400">Sin picks guardados de ayer</p>
-            <p className="text-xs text-zinc-600 mt-1">
-              Los picks se guardan automáticamente cuando visitas la página de Value Picks.
-            </p>
-            <Link href="/value" className="mt-4 text-xs font-bold text-amber-400 hover:text-amber-300 tap">
-              Ver picks de hoy →
-            </Link>
-          </div>
-        )}
-      </section>
-
-      {/* Personal bet history */}
-      {status === "authenticated" && (
-        <section className="mx-4 mb-6 rounded-2xl border border-white/[0.07] bg-zinc-900/60 overflow-hidden">
-          <div className="px-5 pt-5 pb-4 border-b border-white/[0.07] flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <span className="grid place-items-center w-9 h-9 rounded-xl bg-zinc-800/60 border border-white/[0.07]">
-                <Icon name="ticket" className="w-4.5 h-4.5 text-zinc-400" strokeWidth={2} />
-              </span>
-              <div>
-                <p className="text-sm font-black text-white">Mis apuestas recientes</p>
-                <p className="text-[10px] text-zinc-500">Últimas resueltas</p>
-              </div>
-            </div>
-            <Link href="/bets" className="text-[11px] font-bold text-zinc-400 hover:text-zinc-200 transition-colors tap">
-              Ver todas →
-            </Link>
-          </div>
-
-          {betsLoading ? (
-            <div className="divide-y divide-white/[0.07]">
-              {[...Array(3)].map((_, i) => (
-                <div key={i} className="px-4 py-3 flex items-center gap-3 animate-pulse">
-                  <div className="h-3 bg-white/[0.06] rounded flex-1" />
-                  <div className="h-5 w-14 bg-white/[0.06] rounded" />
+        {/* ── Timeline agrupado por fecha ────────────────────────────────── */}
+        <section className="space-y-6">
+          {loading ? (
+            <div className="space-y-6">
+              {[...Array(2)].map((_, i) => (
+                <div key={i} className="space-y-3">
+                  <div className="h-4 w-40 rounded bg-zinc-900/40 animate-pulse" />
+                  <div className="h-36 rounded-2xl bg-zinc-900/40 animate-pulse" />
                 </div>
               ))}
             </div>
-          ) : bets.length > 0 ? (
-            <div>
-              {bets.map(b => <BetRow key={b.id} bet={b} />)}
-            </div>
+          ) : hasAny ? (
+            <>
+              {days.map((d) => <DaySection key={d.date} day={d} />)}
+              {/* Sentinel + estado de paginación */}
+              <div ref={sentinelRef} className="flex items-center justify-center py-6">
+                {loadingMore ? (
+                  <Spinner className="w-5 h-5" />
+                ) : done ? (
+                  <p className="text-[11px] text-zinc-600">Fin del histórico.</p>
+                ) : (
+                  <Button variant="ghost" size="sm" onClick={loadMore}>
+                    Cargar más
+                  </Button>
+                )}
+              </div>
+            </>
           ) : (
-            <div className="flex flex-col items-center justify-center py-8 text-center px-4">
-              <p className="text-sm font-bold text-zinc-500">Sin apuestas resueltas</p>
-              <Link href="/bets" className="mt-2 text-xs font-bold text-emerald-400 hover:text-emerald-300 tap">
-                Registrar una apuesta →
-              </Link>
-            </div>
+            <Card variant="flat" className="px-6 py-14">
+              <EmptyState
+                icon="activity"
+                title="Aún no hay picks resueltos"
+                hint="En cuanto el pipeline diario genere picks y el cron los liquide contra ESPN, aparecerán aquí agrupados por fecha."
+                action={
+                  <Button variant="premium" size="md" iconRight="arrowRight" href="/value">
+                    Ver picks de hoy
+                  </Button>
+                }
+              />
+            </Card>
           )}
         </section>
-      )}
 
-      {/* CTA */}
-      <div className="px-4 pb-4">
-        <Link href="/value"
-          className="flex items-center gap-4 rounded-2xl border border-emerald-700/40 bg-zinc-900/60 hover:border-emerald-600/50 p-4 tap transition-colors">
-          <span className="grid place-items-center w-10 h-10 rounded-xl bg-emerald-500/15 border border-emerald-700/40 text-emerald-400 shrink-0">
-            <Icon name="value" className="w-5 h-5" strokeWidth={2} />
-          </span>
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-black text-white">Value picks de hoy</p>
-            <p className="text-xs text-zinc-500 mt-0.5">
-              Ver los picks del día con cuotas reales y modelo Poisson.
-            </p>
-          </div>
-          <Icon name="arrowRight" className="w-4.5 h-4.5 text-emerald-400 shrink-0" strokeWidth={2.4} />
-        </Link>
+        {/* ── Apuestas personales (solo logueados) ───────────────────────── */}
+        {status === "authenticated" && (
+          <section>
+            <div className="flex items-baseline justify-between px-1 mb-3">
+              <h3 className="text-[14px] font-semibold text-white tracking-tight">Mis apuestas recientes</h3>
+              <Link href="/bets" className="text-[11px] font-medium text-zinc-500 hover:text-zinc-300 transition-colors tap">
+                Ver todas →
+              </Link>
+            </div>
+            {betsLoading ? (
+              <div className="h-28 rounded-2xl bg-zinc-900/40 animate-pulse" />
+            ) : bets.length > 0 ? (
+              <Card variant="default" className="overflow-hidden">
+                {bets.map((b) => <BetRow key={b.id} bet={b} />)}
+              </Card>
+            ) : (
+              <Card variant="flat" className="px-6 py-8">
+                <EmptyState
+                  icon="ticket"
+                  title="Sin apuestas resueltas"
+                  hint="Cuando registres y liquides tus apuestas personales, aparecerán aquí."
+                  action={
+                    <Button variant="secondary" size="md" iconRight="arrowRight" href="/bets">
+                      Registrar una apuesta
+                    </Button>
+                  }
+                />
+              </Card>
+            )}
+          </section>
+        )}
       </div>
     </div>
   )
