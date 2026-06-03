@@ -65,3 +65,42 @@ export function isInternationalSlug(slug: string | null | undefined): boolean {
   if (!slug) return false
   return getMatchContext(slug).context !== "club"
 }
+
+/* ── Inferidor por nombre de competición (ESPN) ──────────────────────────────
+   Mientras consumimos la API pública de ESPN (no API-Football), la única señal
+   fiable del nombre de competición es el string que devuelve ESPN. Analizamos
+   substrings característicos de fútbol de SELECCIONES para activar el fallback
+   bandera/siglas del TeamCrest y evitar escudos rotos. */
+
+const INTL_NAME_PATTERNS = [
+  "friendly", "amistoso",
+  "international", "internacional",
+  "world cup", "mundial", "fifa",
+  "nations league", "nations", "naciones",
+  "copa america", "conmebol",          // acentos eliminados por normalización
+  "euro", "eurocopa",
+  "qualif", "clasificator", "clasificacion",
+  "concacaf", "afcon", "africa cup", "asian cup", "gold cup",
+  "seleccion",
+]
+
+/**
+ * Infiere si una competición es de selecciones a partir del string que devuelve
+ * ESPN (`league_name` o similar). Hace matching por substring tras normalizar
+ * (lowercase + sin acentos).
+ *
+ * Exclusión deliberada: cualquier competición que contenga "club" se trata como
+ * fútbol de clubes aunque incluya "world" (ej. "FIFA Club World Cup" /
+ * "Mundial de Clubes") — esas SÍ tienen escudos válidos en ESPN.
+ */
+export function inferIsInternationalFromESPN(competition: string | null | undefined): boolean {
+  if (!competition) return false
+  const s = competition
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[̀-ͯ]/g, "")   // quita diacríticos
+    .trim()
+  if (!s) return false
+  if (s.includes("club")) return false  // Mundial de Clubes ≠ selecciones
+  return INTL_NAME_PATTERNS.some((p) => s.includes(p))
+}

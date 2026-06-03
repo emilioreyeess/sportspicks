@@ -11,6 +11,8 @@ import { Icon } from "@/components/ui/icons"
 import { Modal, Spinner } from "@/components/ui/primitives"
 import { useLiveMatches } from "@/hooks/useLiveMatches"
 import { AdBanner } from "@/components/ads/AdBanner"
+import { TeamCrest } from "@/components/teams/TeamCrest"
+import { inferIsInternationalFromESPN } from "@/lib/teams/crest"
 
 const AD_SLOT_FEED = process.env.NEXT_PUBLIC_ADSENSE_SLOT_FEED ?? ""
 
@@ -254,6 +256,9 @@ function MatchCard({ match, live, onClick }: { match: TodayMatch; live?: any; on
   const as = live?.away_score ?? match.away_score
   const clock = live?.clock ?? match.clock
   const detail = live?.status_detail ?? match.status_detail
+  // ESPN no da escudos fiables de selección → inferimos por el nombre de
+  // competición para activar el fallback bandera/siglas del TeamCrest.
+  const isIntl = inferIsInternationalFromESPN(match.league_name)
 
   return (
     <button
@@ -286,9 +291,12 @@ function MatchCard({ match, live, onClick }: { match: TodayMatch; live?: any; on
         {[{ name: match.home_team, logo: match.home_logo, score: hs, isHome: true },
           { name: match.away_team, logo: match.away_logo, score: as, isHome: false }].map((t, i) => (
           <div key={i} className="flex items-center gap-2.5">
-            {t.logo
-              ? <img src={t.logo} alt="" className="w-6 h-6 object-contain shrink-0" loading="lazy" />
-              : <span className="w-6 h-6 rounded-full bg-white/[0.06] shrink-0" />}
+            <TeamCrest
+              teamName={t.name}
+              logoUrl={t.logo}
+              isInternational={isIntl}
+              size="sm"
+            />
             <span className="flex-1 min-w-0 truncate text-[14px] font-semibold text-white">{t.name}</span>
             {(isLive || isPost) && (
               <span className="text-[15px] font-black tabular-nums text-white">{t.score}</span>
