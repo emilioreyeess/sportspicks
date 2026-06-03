@@ -119,6 +119,39 @@ is_published=true ─ visible públicamente (futuro: feed social)
 
 ---
 
+### Invariante de negocio R1 — manejo del `stake` (a prueba de balas)
+
+> **El `stake` jamás se inventa ni se rellena con un default.** Su ausencia se
+> trata de forma RADICALMENTE distinta según el origen de la apuesta. Esta
+> asimetría es intencional y debe respetarse en backend Y frontend.
+
+| Dimensión              | Flujo OCR (visión artificial)                              | Flujo Manual (formulario humano)                           |
+|------------------------|------------------------------------------------------------|------------------------------------------------------------|
+| Origen                 | `POST /api/bets/auto-extract` (imagen → Claude Vision)     | `POST /api/bets` (humano rellena el form)                  |
+| Stake ausente / `<= 0` | Se persiste `stake = NULL`. **Es esperado** — la IA puede no leer el importe. | **Error de usuario**. No hay nada que rescatar.            |
+| Reacción del backend   | `needs_review = true` (forzado por validación cruzada) + `is_published = false`. El bet se guarda como **borrador de rescate**. | **Rechazo duro**: `HTTP 400 "Validation Error: Stake is required and must be greater than 0"`. **No se inserta nada**. |
+| Confianza < 0.7        | También fuerza `needs_review = true`.                      | N/A (no hay scoring de confianza en entrada humana).       |
+| Estado resultante      | Fila en `bets` con `stake NULL`, esperando edición visual. | Sin fila. El usuario corrige el formulario y reintenta.    |
+
+**Experiencia de usuario (UX) — implicaciones para la UI:**
+
+- **OCR**: tras subir el boleto, si la respuesta trae `review.needsReview === true`,
+  la UI abre el **editor visual** con el campo `stake` **vacío y marcado como
+  requerido** (icono de alerta). El botón "Publicar" permanece **deshabilitado**
+  hasta que el usuario introduzca un stake `> 0`. Cero valores por defecto a la vista.
+- **Manual**: el formulario debe validar en cliente `stake > 0` antes de enviar, y
+  además **respetar el 400 del backend** mostrando el mensaje de error inline. El
+  backend es la última línea de defensa — la validación de cliente es UX, no seguridad.
+
+> **Razón de la asimetría**: `needs_review` es un mecanismo de **rescate del OCR**
+> (la IA falló al leer una imagen → guardamos lo extraído para que el humano lo
+> complete). En la entrada manual NO hay nada que rescatar: el humano tiene el dato
+> delante, así que un stake ausente es simplemente un error de validación que se
+> rechaza de inmediato. Usar `needs_review` para entrada manual generaría borradores
+> basura indistinguibles de extracciones OCR legítimas.
+
+---
+
 ## 4. Estados del histórico (picks del modelo)
 
 ```

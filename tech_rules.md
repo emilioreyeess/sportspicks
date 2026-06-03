@@ -166,6 +166,25 @@ Las RPCs `get_picks_*` son `SECURITY DEFINER` con `grant execute … to service_
 - **CN-013**: tokens/códigos con `crypto.randomBytes`, no `Math.random`.
 - **CN-031**: si `CRON_SECRET` no está seteado o tiene <16 chars → cron devuelve 401 (fail-closed).
 
+### Contrato de la API — `stake` (regla R1, validación asimétrica)
+
+El campo `stake` se valida de forma **distinta según el endpoint**. Esto es contrato, no detalle de implementación:
+
+| Endpoint                       | Origen   | `stake` ausente / `<= 0`                                          | Respuesta |
+|--------------------------------|----------|-------------------------------------------------------------------|-----------|
+| `POST /api/bets`               | Manual   | **Validación estricta `stake > 0`**. Si `null`/`undefined`/no-numérico/`<= 0` → **NO inserta**. | `HTTP 400` `NextResponse` con `{ error: "Validation Error: Stake is required and must be greater than 0" }` |
+| `POST /api/bets/auto-extract`  | OCR      | Persiste `stake = NULL` + `needs_review = true` (validación cruzada) + `is_published = false`. | `HTTP 201` con `{ bet, review: { needsReview: true, … } }` |
+| `PATCH /api/bets/[id]`         | Edición  | Si se intenta `is_published = true` con `stake == null` → rechazo. | `HTTP 422` (pendiente — tarea E2) |
+
+**Detalles técnicos del guard manual** (`POST /api/bets`):
+
+- Guarda explícita de `body.stake === null \|\| body.stake === undefined` **antes** de `Number()` — evita el bug `Number(null) === 0` que dejaba pasar stakes ausentes.
+- Constante `MIN_STAKE_MANUAL = 0.01` (estricto `> 0`), sustituye al antiguo `MIN_STAKE = 0` ("tracking-only").
+- `stake > MAX_STAKE` conserva su propio mensaje (`"Stake demasiado alto"`), no se mezcla con el de "required".
+- El INSERT manual **no** setea `needs_review` → default `false`. Todo ingreso manual válido va a `status: 'pending'`.
+
+**Tipado**: el payload de `auto-extract` declara `stake: number | null` y `potential_return: number | null` explícitamente, alineado con `bets-stake-nullable-migration.sql` (que ejecutó `DROP DEFAULT` sobre ambas columnas). El endpoint manual usa `stake: number` (garantizado `> 0` por el guard previo).
+
 ---
 
 ## 4. Optimización de caché Next.js
