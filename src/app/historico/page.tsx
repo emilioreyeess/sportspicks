@@ -49,6 +49,15 @@ interface GlobalStats {
   roi_pct: number
 }
 
+interface BetLeg {
+  id: string
+  match: string | null
+  market: string | null
+  selection: string
+  odds: number
+  status: string
+}
+
 interface PersonalBet {
   id: string
   title: string
@@ -57,6 +66,11 @@ interface PersonalBet {
   status: string
   created_at: string
   sport?: string
+  image_url?: string | null
+  needs_review?: boolean
+  ai_confidence?: number | null
+  notes?: string | null
+  bet_legs?: BetLeg[]
 }
 
 /* ────────────────────────────────────────────────────────────────────────────
@@ -301,7 +315,8 @@ function DaySection({ day }: { day: DayBlock }) {
   )
 }
 
-function BetRow({ bet }: { bet: PersonalBet }) {
+function BetCard({ bet }: { bet: PersonalBet }) {
+  const [open, setOpen] = useState(false)
   const tone = BET_STATUS_STYLE[bet.status] ?? "zinc"
   const label = BET_STATUS_LABEL[bet.status] ?? bet.status
   const profit = bet.status === "won"
@@ -309,22 +324,112 @@ function BetRow({ bet }: { bet: PersonalBet }) {
     : bet.status === "lost"
     ? -bet.stake
     : 0
+  const legs = bet.bet_legs ?? []
+  const hasDetails = legs.length > 0 || bet.image_url || bet.notes
+
   return (
-    <div className="flex items-center gap-3 px-5 py-3.5 border-b border-white/[0.04] last:border-0">
-      <div className="flex-1 min-w-0">
-        <p className="text-[13px] font-semibold text-white truncate">{bet.title}</p>
-        <div className="flex items-center gap-2 mt-0.5">
-          <span className="text-[11.5px] text-zinc-500">
-            {bet.stake}€ × @{bet.combined_odds}
-          </span>
-          {profit !== 0 && (
-            <span className={`text-[11.5px] font-semibold ${profit > 0 ? "text-emerald-400" : "text-rose-400"}`}>
-              {profit > 0 ? "+" : ""}{profit.toFixed(2)}€
+    <div className="border-b border-white/[0.04] last:border-0">
+      {/* Cabecera — click para expandir */}
+      <button
+        onClick={() => hasDetails && setOpen((v) => !v)}
+        className="w-full flex items-center gap-3 px-5 py-3.5 text-left hover:bg-white/[0.02] transition-colors tap disabled:cursor-default"
+        disabled={!hasDetails}
+      >
+        <div className="flex-1 min-w-0">
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="text-[13.5px] font-semibold text-white truncate">{bet.title}</p>
+            {legs.length > 1 && (
+              <span className="text-[10px] font-semibold text-zinc-500 bg-zinc-800/60 px-1.5 py-0.5 rounded">
+                {legs.length} selecciones
+              </span>
+            )}
+            {bet.needs_review && (
+              <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-amber-300 bg-amber-500/[0.10] px-2 py-0.5 rounded-full">
+                <Icon name="alert" className="w-3 h-3" strokeWidth={2.2} />
+                revisar
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-2 mt-1">
+            <span className="text-[11.5px] text-zinc-500">
+              {bet.stake}€ × @{bet.combined_odds}
             </span>
+            {profit !== 0 && (
+              <span className={`text-[11.5px] font-semibold ${profit > 0 ? "text-emerald-400" : "text-rose-400"}`}>
+                {profit > 0 ? "+" : ""}{profit.toFixed(2)}€
+              </span>
+            )}
+            {bet.image_url && !open && (
+              <span className="inline-flex items-center gap-1 text-[11px] text-zinc-500">
+                <Icon name="image" className="w-3 h-3" strokeWidth={2} />
+                boleto
+              </span>
+            )}
+          </div>
+        </div>
+        <Badge tone={tone}>{label}</Badge>
+        {hasDetails && (
+          <Icon
+            name={open ? "chevronUp" : "chevronDown"}
+            className="w-4 h-4 text-zinc-500 shrink-0"
+            strokeWidth={2}
+          />
+        )}
+      </button>
+
+      {/* Detalle expandido */}
+      {open && hasDetails && (
+        <div className="px-5 pb-4 -mt-1 space-y-4 animate-fade-in">
+          {legs.length > 0 && (
+            <div className="rounded-2xl bg-zinc-950/40 overflow-hidden">
+              {legs.map((leg) => {
+                const legTone = BET_STATUS_STYLE[leg.status] ?? "zinc"
+                const legLabel = BET_STATUS_LABEL[leg.status] ?? leg.status
+                return (
+                  <div key={leg.id} className="flex items-start gap-3 px-4 py-3 border-b border-white/[0.04] last:border-0">
+                    <div className="flex-1 min-w-0">
+                      {leg.match && (
+                        <p className="text-[12.5px] font-semibold text-white truncate">{leg.match}</p>
+                      )}
+                      <div className="flex items-center flex-wrap gap-x-2.5 gap-y-0.5 mt-0.5">
+                        <span className="text-[11px] text-zinc-400 truncate">
+                          {leg.market ? `${leg.market} · ${leg.selection}` : leg.selection}
+                        </span>
+                        <span className="text-[11px] font-semibold text-emerald-400/90">@{Number(leg.odds).toFixed(2)}</span>
+                      </div>
+                    </div>
+                    <Badge tone={legTone}>{legLabel}</Badge>
+                  </div>
+                )
+              })}
+            </div>
+          )}
+
+          {bet.notes && (
+            <p className="text-[12px] text-zinc-400 leading-relaxed px-1">{bet.notes}</p>
+          )}
+
+          {bet.image_url && (
+            <div className="rounded-2xl overflow-hidden bg-zinc-950/40">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500 px-3 pt-2.5 pb-1.5">
+                Captura del boleto
+              </p>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={bet.image_url}
+                alt="Boleto"
+                className="w-full max-h-[420px] object-contain bg-zinc-950"
+                loading="lazy"
+              />
+              {bet.ai_confidence != null && (
+                <p className="text-[10px] text-zinc-600 px-3 py-2">
+                  Extracción IA · confianza {Math.round(bet.ai_confidence * 100)}%
+                </p>
+              )}
+            </div>
           )}
         </div>
-      </div>
-      <Badge tone={tone}>{label}</Badge>
+      )}
     </div>
   )
 }
@@ -437,7 +542,7 @@ export default function HistoricoPage() {
               <div className="h-28 rounded-2xl bg-zinc-900/40 animate-pulse" />
             ) : bets.length > 0 ? (
               <Card variant="default" className="overflow-hidden">
-                {bets.map((b) => <BetRow key={b.id} bet={b} />)}
+                {bets.map((b) => <BetCard key={b.id} bet={b} />)}
               </Card>
             ) : (
               <Card variant="flat" className="px-6 py-8">

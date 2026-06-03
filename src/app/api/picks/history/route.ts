@@ -20,10 +20,53 @@
  *   }
  */
 import { NextRequest, NextResponse } from "next/server"
+import { revalidatePath } from "next/cache"
 import { createServiceClient } from "@/lib/supabase/client"
+import { settleGroundTruth } from "@/lib/learning/supabase-ml"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
+
+/* ── Lazy refresh: throttle in-memory por instancia ───────────────────────
+   El cron ml-settle solo corre 1×/día (limitación Hobby). Cuando un user
+   abre /historico antes del cron, intentamos liquidar los pending vencidos
+   on-the-fly. Throttle de 5 min por instancia para no martillear ESPN. */
+let lastLazyRefreshAt = 0
+const LAZY_REFRESH_MIN_INTERVAL_MS = 5 * 60_000
+
+async function maybeLazyRefresh(): Promise<void> {
+  const now = Date.now()
+  if (now - lastLazyRefreshAt < LAZY_REFRESH_MIN_INTERVAL_MS) return
+  lastLazyRefreshAt = now
+
+  // Pre-check: ¿hay value_picks pending cuyo kickoff ya pasó hace >130min?
+  // Si NO, no perdemos tiempo invocando settleGroundTruth (escanea hasta 80
+  // filas y hace fetch a ESPN). Esto mantiene el GET barato cuando todo
+  // está al día.
+  try {
+    const sb = createServiceClient()
+    const cutoff = new Date(now - 130 * 60_000).toISOString()
+    const { count } = await sb
+      .from("predictions_log")
+      .select("id", { count: "exact", head: true })
+      .eq("status", "pending")
+      .eq("source", "value_pick")
+      .lte("kickoff_iso", cutoff)
+    if (!count || count === 0) return
+
+    const result = await settleGroundTruth()
+    if (result.settled > 0 || result.void > 0) {
+      // Purgamos caché de las rutas dependientes para que el siguiente
+      // request del cliente vea los datos frescos sin esperar TTL.
+      try {
+        revalidatePath("/historico")
+        revalidatePath("/value")
+      } catch { /* fuera de App Router context — no crítico */ }
+    }
+  } catch (e: any) {
+    console.warn("[/api/picks/history] lazy refresh warn:", e?.message ?? e)
+  }
+}
 
 const MAX_LIMIT = 200
 const DEFAULT_LIMIT = 50
@@ -100,6 +143,10 @@ export async function GET(req: NextRequest) {
     : DEFAULT_LIMIT
   const contextParam = (sp.get("context") ?? "club").trim()
   const context = contextParam === "all" ? null : contextParam
+
+  // Antes de leer, intenta liquidar pendings vencidos (throttled).
+  // Esto evita esperar al cron diario para ver picks recién finalizados.
+  await maybeLazyRefresh()
 
   try {
     const sb = createServiceClient()

@@ -13,6 +13,7 @@
  * Seguridad: requiere `Authorization: Bearer ${CRON_SECRET}` (≥16 chars).
  */
 import { NextRequest, NextResponse } from "next/server"
+import { revalidatePath, revalidateTag } from "next/cache"
 import { runMlCycle } from "@/lib/learning/supabase-ml"
 import { refreshYesterdayPicks } from "@/lib/yesterday-refresh"
 
@@ -45,7 +46,26 @@ async function handle(req: NextRequest) {
     } catch (e: any) {
       yesterdayRefresh = { ran: false, reason: `error: ${e?.message ?? e}` }
     }
-    return NextResponse.json({ ok: true, ...result, yesterdayRefresh })
+
+    // ── Invalidación de caché ────────────────────────────────────────────
+    // El backend acaba de cambiar el estado de N picks: forzamos a Next.js
+    // a regenerar las rutas/ tags que los leen. Sin esto, los users podían
+    // seguir viendo "pendiente" hasta que la página caducara naturalmente.
+    // Trabajamos sobre TODOS los frontends afectados.
+    const revalidated: string[] = []
+    try {
+      for (const path of ["/historico", "/value", "/"]) {
+        revalidatePath(path); revalidated.push(path)
+      }
+      for (const tag of ["picks-history", "picks-stats", "picks-yesterday"]) {
+        revalidateTag(tag)
+      }
+    } catch (e: any) {
+      // revalidatePath puede fallar fuera de App Router context — no crítico
+      console.warn("[cron/ml-settle] revalidate warn:", e?.message ?? e)
+    }
+
+    return NextResponse.json({ ok: true, ...result, yesterdayRefresh, revalidated })
   } catch (e: any) {
     console.error("[cron/ml-settle] error:", e?.message ?? e)
     return NextResponse.json({ ok: false, error: e?.message ?? "unknown" }, { status: 500 })
