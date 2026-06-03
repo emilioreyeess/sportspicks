@@ -1,4 +1,4 @@
-import { NextRequest } from "next/server"
+import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "next-auth"
 import { authOptions } from "@/lib/auth-options"
 import { createServiceClient } from "@/lib/supabase/client"
@@ -46,7 +46,10 @@ export async function GET() {
 
 // ── Validation constants ──────────────────────────────────────────────────────
 const MAX_STAKE = 100_000        // €100k max stake
-const MIN_STAKE = 0              // Allow 0 stake (tracking-only bet)
+// Entrada MANUAL: el stake lo introduce un humano en un formulario. A diferencia
+// del OCR (que puede dejar stake NULL → needs_review como borrador de rescate),
+// aquí exigimos un stake real > 0. Sin stake válido → HTTP 400, no borrador.
+const MIN_STAKE_MANUAL = 0.01    // mínimo estricto para ingreso manual (> 0)
 const MAX_ODDS  = 10_000         // @10000 max odds
 const MIN_ODDS  = 1.00           // @1.00 min odds
 const MAX_LEGS  = 20             // max combinada legs
@@ -76,9 +79,29 @@ export async function POST(req: NextRequest) {
   if (body.title.length > 200) {
     return Response.json({ error: "Título demasiado largo (máx. 200 caracteres)" }, { status: 400 })
   }
+  // ── HARD VALIDATION del stake (entrada manual) ─────────────────────────────
+  // null / undefined / no-numérico / <= 0  → rechazo inmediato 400.
+  // NO se crea un borrador con needs_review: ese flag es exclusivo del rescate
+  // OCR cuando la IA no puede leer la imagen. Un humano rellenando el form
+  // debe aportar un stake real.
+  if (body.stake === null || body.stake === undefined) {
+    return NextResponse.json(
+      { error: "Validation Error: Stake is required and must be greater than 0" },
+      { status: 400 },
+    )
+  }
   const stake = Number(body.stake)
-  if (!isFinite(stake) || stake < 0 || stake > MAX_STAKE) {
-    return Response.json({ error: `Stake inválido (0–${MAX_STAKE})` }, { status: 400 })
+  if (!isFinite(stake) || stake < MIN_STAKE_MANUAL) {
+    return NextResponse.json(
+      { error: "Validation Error: Stake is required and must be greater than 0" },
+      { status: 400 },
+    )
+  }
+  if (stake > MAX_STAKE) {
+    return NextResponse.json(
+      { error: `Stake demasiado alto (máx. ${MAX_STAKE})` },
+      { status: 400 },
+    )
   }
   const combinedOdds = Number(body.combined_odds)
   if (!isFinite(combinedOdds) || combinedOdds < MIN_ODDS || combinedOdds > MAX_ODDS) {
