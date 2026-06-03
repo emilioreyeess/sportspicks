@@ -229,44 +229,88 @@ export async function POST(req: NextRequest) {
       ? Math.round(Number(extracted.combinedOdds) * 100) / 100
       : productOdds(safeLegs) ?? 1
 
-  const stake =
-    extracted.totalStake != null && Number(extracted.totalStake) >= 0
+  // ── REGLA R1 (stake null-safe) ────────────────────────────────────────────
+  // Si Vision NO detectó el stake (totalStake == null) o devolvió algo no
+  // numérico, `stakeValue` queda `null` — NUNCA 0. Un 0 sería un stake
+  // fantasma indistinguible de una apuesta real de 0€. El null fuerza el
+  // input manual del usuario en el editor de revisión.
+  const stakeValue: number | null =
+    extracted.totalStake != null && isFinite(Number(extracted.totalStake)) && Number(extracted.totalStake) >= 0
       ? Math.min(100_000, Math.round(Number(extracted.totalStake) * 100) / 100)
-      : 0
+      : null
 
   const cleanBet: ExtractedBet = {
     title: (extracted.title ?? "").toString().slice(0, 200) || "Apuesta sin título",
     sport: extracted.sport && VALID_SPORTS.includes(extracted.sport) ? extracted.sport : sport,
-    totalStake: stake,
+    totalStake: stakeValue,           // number | null — coherente con ExtractedBet
     combinedOdds,
     legs: safeLegs,
     bookmaker: extracted.bookmaker ? extracted.bookmaker.toString().slice(0, 60) : null,
     notes: extracted.notes ? extracted.notes.toString().slice(0, 500) : null,
   }
   const { confidence, reasons } = scoreExtraction(cleanBet)
-  const needsReview = confidence < 0.70 || extracted.totalStake == null || extracted.combinedOdds == null
+
+  // ── VALIDACIÓN CRUZADA OBLIGATORIA ────────────────────────────────────────
+  // needs_review se fuerza a `true` si CUALQUIERA de estas condiciones se cumple:
+  //   · confianza global del OCR < 0.7
+  //   · stake no detectado (stakeValue === null)   ← regla R1
+  //   · cuota combinada no detectada
+  // No hay forma de que un bet con stake null llegue a producción sin revisión.
+  const needsReview: boolean =
+    confidence < 0.70 ||
+    stakeValue === null ||
+    extracted.combinedOdds == null
+
+  // potential_return solo se calcula si HAY stake; si es null, queda null
+  // (no inventamos un retorno sobre un stake fantasma).
+  const potentialReturn: number | null =
+    stakeValue !== null
+      ? Math.round(stakeValue * (cleanBet.combinedOdds ?? 1) * 100) / 100
+      : null
 
   /* ── 5. INSERT bets + bet_legs ────────────────────────────────────── */
+  // Payload tipado explícitamente: stake y potential_return admiten null
+  // (alineado con la migración bets-stake-nullable-migration.sql que quitó
+  // el DEFAULT 0). is_published nunca true mientras needsReview sea true.
+  const betPayload: {
+    user_email: string
+    title: string
+    stake: number | null
+    combined_odds: number
+    potential_return: number | null
+    status: string
+    is_pre_match: boolean
+    is_published: boolean
+    ai_analyzed: boolean
+    sport: string
+    notes: string | null
+    image_url: string
+    needs_review: boolean
+    ai_confidence: number
+    ai_extracted_at: string
+    created_at: string
+  } = {
+    user_email:       session.user.email,
+    title:            cleanBet.title,
+    stake:            stakeValue,                   // number | null — sin fallback a 0
+    combined_odds:    cleanBet.combinedOdds ?? 1,
+    potential_return: potentialReturn,              // number | null
+    status:           "pending",
+    is_pre_match:     true,
+    is_published:     publish && !needsReview,      // jamás publica si needs_review
+    ai_analyzed:      true,
+    sport:            cleanBet.sport ?? sport,
+    notes:            cleanBet.notes,
+    image_url:        imageUrl,
+    needs_review:     needsReview,                  // forzado por validación cruzada
+    ai_confidence:    confidence,
+    ai_extracted_at:  new Date().toISOString(),
+    created_at:       new Date().toISOString(),
+  }
+
   const { data: insertedBet, error: betErr } = await sb
     .from("bets")
-    .insert({
-      user_email:       session.user.email,
-      title:            cleanBet.title,
-      stake:            cleanBet.totalStake ?? 0,
-      combined_odds:    cleanBet.combinedOdds,
-      potential_return: (cleanBet.totalStake ?? 0) * (cleanBet.combinedOdds ?? 1),
-      status:           "pending",
-      is_pre_match:     true,
-      is_published:     publish && !needsReview,  // no publica si necesita revisión
-      ai_analyzed:      true,
-      sport:            cleanBet.sport ?? sport,
-      notes:            cleanBet.notes,
-      image_url:        imageUrl,
-      needs_review:     needsReview,
-      ai_confidence:    confidence,
-      ai_extracted_at:  new Date().toISOString(),
-      created_at:       new Date().toISOString(),
-    })
+    .insert(betPayload)
     .select()
     .single()
 
