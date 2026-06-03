@@ -22,14 +22,10 @@
 
 ### Bloque B · Selecciones sin escudos rotos (R2)
 
-- [ ] **B1.** Crear helper `src/lib/teams/crest.ts` con:
-  - `getTeamFlag(name: string): { emoji: string | null; code: string | null }` — usa `inferTeamCode` (ya existente en `world-cup/elo.ts`) + tabla `WC_TEAMS.flagEmoji`. Devuelve `{ emoji: '🇪🇸', code: 'ESP' }` o `{ emoji: null, code: null }` si no se reconoce.
-  - `isInternationalContext(slug: string): boolean` — reutiliza `getMatchContext`.
-- [ ] **B2.** Crear componente `src/components/teams/TeamCrest.tsx` (client, sin estado):
-  - Props: `{ name: string; logoUrl?: string | null; context?: MatchContext; size?: 'sm'|'md'|'lg' }`.
-  - Si `context` es internacional o `logoUrl` está vacío → render `<span>` con emoji bandera + sigla FIFA (`tracking-wider font-semibold`).
-  - Si es club + tiene `logoUrl` válida → `<img>` con `onError` que cae al fallback tipográfico (sigla derivada de inicial mayúscula del nombre).
-  - Variantes tamaño: `sm` 20px, `md` 24px, `lg` 28px.
+- [x] **B1.** Crear helper `src/lib/teams/crest.ts` + componente `src/components/teams/TeamCrest.tsx`. — **HECHO** (fusionado por directiva):
+  - `crest.ts`: `getTeamCrest(name) → { code, emoji, initials }` usando `inferTeamCode` + `WC_TEAMS_BY_CODE`; `deriveInitials()` ("Real Madrid"→"RM", "Arsenal"→"ARS"); `isInternationalSlug()` vía `getMatchContext`.
+  - `TeamCrest.tsx` (client): props **`teamName`, `logoUrl: string|null`, `isInternational: boolean`, `size`**. Interceptación: `isInternational===true` → ignora logoUrl, fallback bandera/siglas. Club con logo → `<img>` + `onError` que cae al fallback. Estética: circular `rounded-full`, `bg-white/5 border-white/10`, siglas `text-xs font-medium text-white/70`. `tsc --noEmit` exit 0, build limpio.
+- [x] **B2.** ~~Crear componente TeamCrest~~ — **fusionado en B1** por directiva del usuario.
 - [ ] **B3.** Reemplazar `<img src=match.home_logo>` y `<img src=match.away_logo>` en `src/components/matches/TodayMatches.tsx:MatchCard` por `<TeamCrest>`. Pasar `context` desde el `league` slug. Smoke test: cargar `/` con un amistoso en feed → no rota.
 - [ ] **B4.** En `src/app/historico/page.tsx:PickRow`, añadir avatar con `<TeamCrest>` al lado del partido (hoy solo hay nombre). Solo cuando el pick tiene `home_team`/`away_team` con código reconocible. No romper layout en mobile.
 - [ ] **B5.** En `BetCard` expandido (mismo archivo), si cualquier `bet_legs.match` matchea una selección conocida → mostrar bandera + sigla a la izquierda del leg. Si es club o desconocido, el row mantiene su layout actual.
