@@ -5,6 +5,8 @@ import Link from "next/link"
 import { Icon } from "@/components/ui/icons"
 import { useSession } from "next-auth/react"
 import { PageHeader, Card, Button, Spinner, EmptyState, Badge } from "@/components/ui/primitives"
+import { TeamCrest } from "@/components/teams/TeamCrest"
+import { inferIsInternationalFromESPN } from "@/lib/teams/crest"
 
 /* ────────────────────────────────────────────────────────────────────────────
    Types
@@ -252,9 +254,28 @@ function HeroStats({ stats, loading }: { stats: GlobalStats | null; loading: boo
 
 function PickRow({ pick }: { pick: HistoryPick }) {
   const tone = RESULT_TONE[pick.result]
+  // ESPN no da escudos fiables de selección → inferimos por la competición
+  // asociada al pick (slug en `league`) para activar el fallback bandera/siglas.
+  const isIntl = inferIsInternationalFromESPN(pick.league)
   return (
     <div className="flex items-center gap-3 px-5 py-3.5 border-b border-white/[0.04] last:border-0">
       <span className={`h-2 w-2 shrink-0 rounded-full ${tone.dot}`} />
+      {/* Par de crests (home + away) ligeramente solapados. shrink-0 para que
+          NUNCA se compriman; el bloque de texto conserva su truncate. */}
+      <div className="flex items-center -space-x-1.5 shrink-0">
+        <TeamCrest
+          teamName={pick.home_team ?? "?"}
+          isInternational={isIntl}
+          size="sm"
+          className="ring-2 ring-zinc-950"
+        />
+        <TeamCrest
+          teamName={pick.away_team ?? "?"}
+          isInternational={isIntl}
+          size="sm"
+          className="ring-2 ring-zinc-950"
+        />
+      </div>
       <div className="flex-1 min-w-0">
         <p className="text-[13px] font-semibold text-white truncate">
           {pick.home_team ?? "?"} vs {pick.away_team ?? "?"}
