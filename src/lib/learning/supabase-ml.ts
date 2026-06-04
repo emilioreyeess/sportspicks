@@ -100,8 +100,13 @@ const ML = {
   WINDOW_DAYS: 120,
   /** Antigüedad mínima tras el kickoff antes de intentar liquidar (min). */
   SETTLE_GRACE_MIN: 130,
-  /** Máximo de predicciones a liquidar por ejecución (rate-limit ESPN). */
-  SETTLE_BATCH: 80,
+  /**
+   * Máximo de predicciones a liquidar por ejecución (rate-limit ESPN).
+   * Reducido a 10: con paralelismo de 5 y ~500ms por fetch ESPN,
+   * el peor caso son 2 chunks × 500ms = ~1s, muy por debajo del
+   * límite de 10s del plan Vercel Hobby.
+   */
+  SETTLE_BATCH: 10,
 } as const
 
 function clamp(v: number, lo: number, hi: number): number {
@@ -361,27 +366,38 @@ export async function settleGroundTruth(): Promise<SettleResult> {
     byMatch.get(key)!.rows.push(row)
   }
 
-  for (const { slug, matchId, rows } of byMatch.values()) {
-    const final = await fetchFinalFromEspn(slug, matchId)
-    if (!final) { out.stillPending += rows.length; continue }
-    if (!final.completed) { out.stillPending += rows.length; continue }
+  // Procesamos los partidos en chunks paralelos de 5 (concurrencia controlada).
+  // JS es single-threaded → las mutaciones sobre `out` dentro de cada promesa
+  // son seguras sin locks. Cada chunk se await-ea antes de pasar al siguiente
+  // para no acumular más de 5 fetches ESPN en vuelo simultáneamente.
+  const PARALLEL_CHUNK = 5
+  const matchEntries = [...byMatch.values()]
+  for (let i = 0; i < matchEntries.length; i += PARALLEL_CHUNK) {
+    const chunk = matchEntries.slice(i, i + PARALLEL_CHUNK)
+    await Promise.all(
+      chunk.map(async ({ slug, matchId, rows }) => {
+        const final = await fetchFinalFromEspn(slug, matchId)
+        if (!final) { out.stillPending += rows.length; return }
+        if (!final.completed) { out.stillPending += rows.length; return }
 
-    for (const row of rows) {
-      const verdict = settleMarket(row.market, row.pick, final.homeScore, final.awayScore, final.box)
-      const status = verdict === "void" ? "void" : verdict
-      const { error: upErr } = await sb
-        .from("predictions_log")
-        .update({
-          status,
-          home_score: final.homeScore,
-          away_score: final.awayScore,
-          settled_at: new Date().toISOString(),
-        })
-        .eq("id", row.id)
-      if (upErr) { out.errors.push(`update ${row.id}: ${upErr.message}`); continue }
-      if (verdict === "void") out.void++
-      else out.settled++
-    }
+        for (const row of rows) {
+          const verdict = settleMarket(row.market, row.pick, final.homeScore, final.awayScore, final.box)
+          const status = verdict === "void" ? "void" : verdict
+          const { error: upErr } = await sb
+            .from("predictions_log")
+            .update({
+              status,
+              home_score: final.homeScore,
+              away_score: final.awayScore,
+              settled_at: new Date().toISOString(),
+            })
+            .eq("id", row.id)
+          if (upErr) { out.errors.push(`update ${row.id}: ${upErr.message}`); continue }
+          if (verdict === "void") out.void++
+          else out.settled++
+        }
+      }),
+    )
   }
 
   return out
