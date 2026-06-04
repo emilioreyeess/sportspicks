@@ -2,82 +2,111 @@ import { MetadataRoute } from "next"
 
 const BASE = "https://sportspicks.app"
 
-export default function sitemap(): MetadataRoute.Sitemap {
-  const now = new Date()
+// Fechas estáticas por sección — `new Date()` en build-time es ignorado por
+// Google (siempre ve la misma fecha = hoy). Usamos fechas de última revisión
+// real para que la señal de frescura sea honesta y estable entre deploys.
+const DATES = {
+  home:        "2026-06-04",
+  product:     "2026-06-04",  // value, bot, combinadas — actualizados esta sesión
+  tools:       "2026-06-04",  // stats, retos, historico
+  seasonal:    "2026-06-04",  // world-cup-2026
+  marketing:   "2026-06-04",  // pricing, about
+  legal:       "2026-05-01",  // raramente cambian
+} as const
 
+export default function sitemap(): MetadataRoute.Sitemap {
   return [
-    // ─── Páginas principales ──────────────────────────────────────────────
+    // ─── Core producto (diario) ───────────────────────────────────────────
     {
       url: BASE,
-      lastModified: now,
+      lastModified: DATES.home,
       changeFrequency: "daily",
       priority: 1.0,
     },
     {
-      url: `${BASE}/picks`,
-      lastModified: now,
+      url: `${BASE}/value`,           // ruta real de picks — /picks no existe
+      lastModified: DATES.product,
       changeFrequency: "daily",
-      priority: 0.95,
+      priority: 1.0,
     },
     {
-      url: `${BASE}/retos`,
-      lastModified: now,
-      changeFrequency: "weekly",
-      priority: 0.85,
-    },
-    {
-      url: `${BASE}/world-cup-2026`,
-      lastModified: now,
+      url: `${BASE}/combinadas`,
+      lastModified: DATES.product,
       changeFrequency: "daily",
       priority: 0.90,
     },
     {
-      url: `${BASE}/combinadas`,
-      lastModified: now,
+      url: `${BASE}/bot`,
+      lastModified: DATES.product,
+      changeFrequency: "weekly",
+      priority: 0.90,
+    },
+    {
+      url: `${BASE}/world-cup-2026`,
+      lastModified: DATES.seasonal,
       changeFrequency: "daily",
+      priority: 0.85,
+    },
+    // ─── Herramientas y análisis ──────────────────────────────────────────
+    {
+      url: `${BASE}/stats`,
+      lastModified: DATES.tools,
+      changeFrequency: "weekly",
       priority: 0.80,
+    },
+    {
+      url: `${BASE}/retos`,
+      lastModified: DATES.tools,
+      changeFrequency: "weekly",
+      priority: 0.75,
+    },
+    {
+      url: `${BASE}/historico`,
+      lastModified: DATES.tools,
+      changeFrequency: "daily",
+      priority: 0.70,
     },
     // ─── Marketing ───────────────────────────────────────────────────────
     {
       url: `${BASE}/pricing`,
-      lastModified: now,
+      lastModified: DATES.marketing,
       changeFrequency: "monthly",
-      priority: 0.75,
+      priority: 0.80,
     },
     {
       url: `${BASE}/about`,
-      lastModified: now,
+      lastModified: DATES.marketing,
       changeFrequency: "monthly",
       priority: 0.50,
     },
     // ─── Legal ───────────────────────────────────────────────────────────
     {
       url: `${BASE}/legal/privacy`,
-      lastModified: now,
+      lastModified: DATES.legal,
       changeFrequency: "yearly",
       priority: 0.20,
     },
     {
       url: `${BASE}/legal/terms`,
-      lastModified: now,
+      lastModified: DATES.legal,
       changeFrequency: "yearly",
       priority: 0.20,
     },
     {
       url: `${BASE}/legal/cookies`,
-      lastModified: now,
+      lastModified: DATES.legal,
       changeFrequency: "yearly",
       priority: 0.15,
     },
     {
       url: `${BASE}/legal/responsible-gaming`,
-      lastModified: now,
+      lastModified: DATES.legal,
       changeFrequency: "yearly",
       priority: 0.20,
     },
     {
       url: `${BASE}/legal/gdpr`,
-      lastModified: now,
+      lastModified: DATES.legal,
       changeFrequency: "yearly",
       priority: 0.15,
     },
