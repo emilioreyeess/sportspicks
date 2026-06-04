@@ -18,8 +18,7 @@ export const viewport: Viewport = {
   colorScheme: "dark",
   width: "device-width",
   initialScale: 1,
-  maximumScale: 1,
-  userScalable: false,
+  // maximumScale y userScalable eliminados — penalizaban accesibilidad y Mobile Usability score
   viewportFit: "cover",
 }
 
@@ -32,10 +31,7 @@ export const metadata: Metadata = {
   },
   description:
     "Plataforma de análisis deportivo cuantitativo. Value picks con cuotas reales, modelo estadístico Poisson y motor de motivación. Contenido informativo, no es una casa de apuestas. +18.",
-  keywords: [
-    "value picks", "análisis deportivo", "estadísticas fútbol", "cuotas",
-    "modelo estadístico", "Poisson", "combinadas", "apuestas deportivas análisis",
-  ],
+  // keywords eliminado — Google lo ignora desde 2009, aumenta peso HTML sin beneficio
   manifest: "/manifest.webmanifest",
   icons: {
     icon: [{ url: "/icon.svg", type: "image/svg+xml" }],
@@ -61,6 +57,7 @@ export const metadata: Metadata = {
     card: "summary_large_image",
     title: "SportsPicks Analytics",
     description: "Análisis deportivo cuantitativo con datos reales. Value picks, combinadas y bot IA.",
+    images: ["/opengraph-image.png"],
   },
   category: "sports",
   // Google AdSense verification — no carga cookies por sí sola
