@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next"
 import { Inter } from "next/font/google"
+import { JsonLd } from "@/components/seo/JsonLd"
 import { AppShell } from "@/components/ui/AppShell"
 import { AgeGate } from "@/components/legal/AgeGate"
 import { CookieConsent } from "@/components/legal/CookieConsent"
@@ -69,6 +70,10 @@ export const metadata: Metadata = {
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="es" className="dark">
+      <head>
+        {/* Schema.org base — Organization + WebSite. Server Component, 0 JS cliente. */}
+        <JsonLd />
+      </head>
       <body className={`${inter.className} bg-zinc-950 text-white antialiased`}>
         <SessionWrapper>
           <PlanProvider>
