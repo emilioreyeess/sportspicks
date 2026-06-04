@@ -43,6 +43,12 @@ export default function BetsPage() {
   const [uploadingImage, setUploadingImage] = useState(false)
   const [scanningImage, setScanningImage] = useState(false)
   const [scanError, setScanError] = useState<string | null>(null)
+  // ── Bloque E: pipeline OCR end-to-end (POST /api/bets/auto-extract) ────────
+  // Flujo premium: el usuario sube UNA imagen, el backend la procesa con
+  // Claude Vision y devuelve el bet creado (201) — sin tocar el form manual.
+  const [isExtracting, setIsExtracting] = useState(false)
+  const [extractError, setExtractError] = useState<string | null>(null)
+  const autoExtractInputRef = useRef<HTMLInputElement>(null)
   const [expanded, setExpanded] = useState<string | null>(null)
   const [filter, setFilter] = useState<"all" | "pending" | "won" | "lost">("all")
   const [showAnalysis, setShowAnalysis] = useState(false)
@@ -100,6 +106,93 @@ export default function BetsPage() {
       img.onerror = reject
       img.src = url
     })
+
+  /**
+   * ── Bloque E: Auto-extracción OCR end-to-end ───────────────────────────────
+   * Sube la imagen a /api/bets/auto-extract (multipart/form-data, campo "file").
+   * El endpoint guarda la imagen en Storage, llama a Claude Vision, inserta
+   * `bets`+`bet_legs` y devuelve `{ ok, bet, review }` con status 201.
+   * Aquí hacemos optimistic insert: el bet aparece al instante en la lista.
+   * Si `needs_review: true`, el ReviewEditor del Bloque D se monta solo.
+   */
+  const handleAutoExtract = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    // limpia cualquier error previo apenas el usuario elige un archivo nuevo
+    setExtractError(null)
+    if (!file) return
+    if (isExtracting) return
+    if (!file.type.startsWith("image/")) {
+      setExtractError("El archivo debe ser una imagen (JPG/PNG/WebP).")
+      e.target.value = ""
+      return
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setExtractError("La imagen no puede superar 5 MB.")
+      e.target.value = ""
+      return
+    }
+
+    setIsExtracting(true)
+    try {
+      const fd = new FormData()
+      fd.append("file", file)
+      const res = await fetch("/api/bets/auto-extract", { method: "POST", body: fd })
+      const payload: {
+        ok?: boolean
+        bet?: {
+          id: string
+          title: string
+          stake: number | null
+          combined_odds: number
+          legs?: Array<{ match: string; market?: string | null; selection: string; odds: number }>
+          image_url: string
+          needs_review: boolean
+          ai_confidence?: number
+          bookmaker?: string | null
+        }
+        error?: string
+      } = await res.json().catch(() => ({}))
+
+      if (!res.ok || !payload.bet) {
+        setExtractError(
+          payload.error ??
+          "No se pudo procesar la imagen, inténtalo de nuevo o súbela manualmente."
+        )
+        return
+      }
+
+      // Optimistic insert — mapea la respuesta del endpoint a la interfaz Bet
+      // del cliente. El endpoint NO devuelve `status` ni `created_at`, así que
+      // los sintetizamos: status=pending (lo fija el insert del backend) y
+      // created_at=ahora. Próximo `load()` los confirmará desde el servidor.
+      const nowIso = new Date().toISOString()
+      const newBet: Bet = {
+        id: payload.bet.id,
+        title: payload.bet.title,
+        stake: payload.bet.stake,
+        combined_odds: payload.bet.combined_odds,
+        status: "pending",
+        sport: "football",
+        image_url: payload.bet.image_url,
+        created_at: nowIso,
+        needs_review: payload.bet.needs_review,
+        is_published: false,
+        bet_legs: (payload.bet.legs ?? []).map((l, i) => ({
+          id: `tmp-${payload.bet!.id}-${i}`,
+          match: l.match,
+          selection: l.selection,
+          odds: l.odds,
+          status: "pending",
+        })),
+      }
+      setBets(prev => [newBet, ...prev])
+    } catch {
+      setExtractError("Error de conexión. Comprueba tu red e inténtalo de nuevo.")
+    } finally {
+      setIsExtracting(false)
+      e.target.value = ""
+    }
+  }
 
   const handleImageUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
@@ -261,13 +354,77 @@ export default function BetsPage() {
           <h1 className="text-lg font-bold">Mis Apuestas</h1>
           <p className="text-xs text-zinc-500">Historial y seguimiento</p>
         </div>
-        <button
-          onClick={() => setShowForm(s => !s)}
-          className="bg-emerald-500 hover:bg-emerald-400 text-zinc-950 text-sm font-semibold px-4 py-2 rounded-xl transition"
-        >
-          + Nueva
-        </button>
+        <div className="flex items-center gap-2">
+          {/* Botón premium: escaneo OCR end-to-end vía /api/bets/auto-extract */}
+          <button
+            type="button"
+            onClick={() => autoExtractInputRef.current?.click()}
+            disabled={isExtracting}
+            className="flex items-center gap-2 bg-cyan-500 hover:bg-cyan-400 disabled:opacity-60 disabled:cursor-wait text-zinc-950 text-sm font-semibold px-4 py-2 rounded-xl transition shadow-[0_0_0_1px_rgba(34,211,238,0.25)]"
+          >
+            {isExtracting ? (
+              <>
+                <span className="w-3.5 h-3.5 rounded-full border-2 border-zinc-950 border-t-transparent animate-spin" />
+                Analizando boleto…
+              </>
+            ) : (
+              <>
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h2l2-2h6l2 2h2a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                  <circle cx="12" cy="13" r="3.5" strokeLinecap="round" strokeLinejoin="round" />
+                </svg>
+                Escanear boleto
+              </>
+            )}
+          </button>
+          {/* Fallback manual — pidió el usuario en todo.md D4 */}
+          <button
+            type="button"
+            onClick={() => setShowForm(s => !s)}
+            className="bg-zinc-800/70 border border-white/[0.07] hover:border-white/[0.16] text-zinc-300 text-sm font-semibold px-3 py-2 rounded-xl transition"
+          >
+            Manual
+          </button>
+          {/* Input oculto reutilizado por el botón cyan */}
+          <input
+            ref={autoExtractInputRef}
+            type="file"
+            accept="image/*"
+            className="sr-only"
+            onChange={handleAutoExtract}
+            disabled={isExtracting}
+          />
+        </div>
       </div>
+
+      {/* Banner de error del auto-extract — visible justo bajo el header */}
+      {extractError && (
+        <div className="max-w-2xl mx-auto px-4 pt-3">
+          <div className="rounded-xl border border-red-500/30 bg-red-500/10 text-red-300 text-xs px-3 py-2.5 flex items-start gap-2">
+            <svg className="w-4 h-4 shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m9-.75a9 9 0 11-18 0 9 9 0 0118 0zm-9 3.75h.008v.008H12v-.008z" />
+            </svg>
+            <div className="flex-1">
+              <p className="font-medium">{extractError}</p>
+              <button
+                type="button"
+                onClick={() => { setExtractError(null); setShowForm(true) }}
+                className="mt-1 text-[11px] underline underline-offset-2 text-red-200 hover:text-white"
+              >
+                Subir manualmente
+              </button>
+            </div>
+            <button
+              type="button"
+              onClick={() => setExtractError(null)}
+              className="text-red-300/70 hover:text-red-100 text-base leading-none"
+              aria-label="Cerrar"
+            >
+              ×
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className="max-w-2xl mx-auto px-4 pt-4 space-y-4">
         {/* Stats bar */}
