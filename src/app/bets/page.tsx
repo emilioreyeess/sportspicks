@@ -5,11 +5,13 @@ import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import { usePlan } from "@/lib/plan"
 import { TeamCrest } from "@/components/teams/TeamCrest"
+import { ReviewEditor } from "@/components/bets/ReviewEditor"
 
 interface BetLeg { id: string; match: string; selection: string; odds: number; status: string }
 interface Bet {
-  id: string; title: string; stake: number; combined_odds: number; status: string
+  id: string; title: string; stake: number | null; combined_odds: number | null; status: string
   sport: string; notes?: string; image_url?: string; created_at: string; settled_at?: string
+  needs_review?: boolean; is_published?: boolean
   bet_legs?: BetLeg[]
 }
 interface Stats { total: number; settled: number; won: number; winrate: number; yield: number; profit: number }
@@ -492,13 +494,21 @@ export default function BetsPage() {
                         <span className={`text-xs px-2 py-0.5 rounded-full border ${STATUS_COLORS[bet.status]}`}>
                           {STATUS_LABEL[bet.status]}
                         </span>
-                        <span className="text-xs text-zinc-500">{bet.stake}€ × {bet.combined_odds}</span>
-                        {bet.status === "won" && (
+                        {bet.stake != null
+                          ? <span className="text-xs text-zinc-500">{bet.stake}€ × {bet.combined_odds ?? "—"}</span>
+                          : <span className="text-xs text-amber-400/80 font-medium">Stake pendiente</span>
+                        }
+                        {bet.needs_review && (
+                          <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-400 border border-amber-500/25">
+                            Revisar
+                          </span>
+                        )}
+                        {bet.status === "won" && bet.stake != null && bet.combined_odds != null && (
                           <span className="text-xs text-green-400 font-semibold">
                             +{((bet.combined_odds - 1) * bet.stake).toFixed(2)}€
                           </span>
                         )}
-                        {bet.status === "lost" && (
+                        {bet.status === "lost" && bet.stake != null && (
                           <span className="text-xs text-red-400 font-semibold">-{bet.stake}€</span>
                         )}
                       </div>
@@ -553,6 +563,16 @@ export default function BetsPage() {
                       {new Date(bet.created_at).toLocaleDateString("es-ES", { day: "numeric", month: "short", year: "numeric" })}
                     </div>
                   </div>
+                )}
+
+                {/* ReviewEditor — visible siempre que needs_review=true, fuera del toggle */}
+                {bet.needs_review && (
+                  <ReviewEditor
+                    bet={{ id: bet.id, stake: bet.stake, combined_odds: bet.combined_odds }}
+                    onSaved={(patch) =>
+                      setBets(prev => prev.map(b => b.id === bet.id ? { ...b, ...patch } : b))
+                    }
+                  />
                 )}
               </div>
             ))}
