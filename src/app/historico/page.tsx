@@ -407,7 +407,8 @@ function BetCard({ bet }: { bet: PersonalBet }) {
                 const legTone = BET_STATUS_STYLE[leg.status] ?? "zinc"
                 const legLabel = BET_STATUS_LABEL[leg.status] ?? leg.status
                 return (
-                  <div key={leg.id} className="flex items-start gap-3 px-4 py-3 border-b border-white/[0.04] last:border-0">
+                  <div key={leg.id} className="flex items-center gap-3 px-4 py-3 border-b border-white/[0.04] last:border-0">
+                    <TeamCrest teamName={leg.match ?? ""} size="sm" />
                     <div className="flex-1 min-w-0">
                       {leg.match && (
                         <p className="text-[12.5px] font-semibold text-white truncate">{leg.match}</p>

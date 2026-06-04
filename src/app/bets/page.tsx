@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from "react"
 import { useSession } from "next-auth/react"
 import { useRouter } from "next/navigation"
 import { usePlan } from "@/lib/plan"
+import { TeamCrest } from "@/components/teams/TeamCrest"
 
 interface BetLeg { id: string; match: string; selection: string; odds: number; status: string }
 interface Bet {
@@ -513,7 +514,8 @@ export default function BetsPage() {
                     {bet.bet_legs && bet.bet_legs.length > 0 ? (
                       <div className="space-y-2">
                         {bet.bet_legs.map((leg, i) => (
-                          <div key={i} className="flex items-start gap-2 text-xs bg-zinc-800/50 border border-white/[0.06] rounded-[9px] px-3 py-2">
+                          <div key={i} className="flex items-center gap-2 text-xs bg-zinc-800/50 border border-white/[0.06] rounded-[9px] px-3 py-2">
+                            <TeamCrest teamName={leg.match} size="sm" />
                             <div className="flex-1 min-w-0">
                               <div className="text-zinc-400 truncate">{leg.match}</div>
                               <div className="font-semibold text-white">{leg.selection}</div>
