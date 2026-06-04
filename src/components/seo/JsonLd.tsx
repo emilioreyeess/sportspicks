@@ -26,10 +26,10 @@ const schema = {
       logo: {
         "@type": "ImageObject",
         "@id": `${BASE}/#logo`,
-        url: `${BASE}/opengraph-image.png`,
-        contentUrl: `${BASE}/opengraph-image.png`,
-        width: 1200,
-        height: 630,
+        url: `${BASE}/logo.png`,
+        contentUrl: `${BASE}/logo.png`,
+        width: 512,
+        height: 512,
         caption: "SportsPicks Analytics",
       },
       description:
