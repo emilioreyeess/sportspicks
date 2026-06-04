@@ -19,7 +19,7 @@
  *     count: number
  *   }
  */
-import { NextRequest, NextResponse } from "next/server"
+import { NextRequest, NextResponse, after } from "next/server"
 import { revalidatePath } from "next/cache"
 import { createServiceClient } from "@/lib/supabase/client"
 import { settleGroundTruth } from "@/lib/learning/supabase-ml"
@@ -27,10 +27,17 @@ import { settleGroundTruth } from "@/lib/learning/supabase-ml"
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
+/* ── C2: margen de liquidación — constante nombrada ───────────────────────
+   90' partido + 15' descanso + ~10' añadido + 15' buffer = ~130'.
+   Mirrors ML.SETTLE_GRACE_MIN in supabase-ml.ts — si se cambia allí,
+   actualizar aquí también. */
+const MATCH_SETTLE_MARGIN_MIN = 130
+
 /* ── Lazy refresh: throttle in-memory por instancia ───────────────────────
    El cron ml-settle solo corre 1×/día (limitación Hobby). Cuando un user
    abre /historico antes del cron, intentamos liquidar los pending vencidos
-   on-the-fly. Throttle de 5 min por instancia para no martillear ESPN. */
+   on-the-fly via after() — sin bloquear la respuesta HTTP (C1).
+   Throttle de 5 min por instancia para no martillear ESPN. */
 let lastLazyRefreshAt = 0
 const LAZY_REFRESH_MIN_INTERVAL_MS = 5 * 60_000
 
@@ -39,13 +46,11 @@ async function maybeLazyRefresh(): Promise<void> {
   if (now - lastLazyRefreshAt < LAZY_REFRESH_MIN_INTERVAL_MS) return
   lastLazyRefreshAt = now
 
-  // Pre-check: ¿hay value_picks pending cuyo kickoff ya pasó hace >130min?
-  // Si NO, no perdemos tiempo invocando settleGroundTruth (escanea hasta 80
-  // filas y hace fetch a ESPN). Esto mantiene el GET barato cuando todo
-  // está al día.
+  // C4: Pre-check — COUNT antes de invocar settleGroundTruth (hasta 80 filas
+  // + fetch ESPN). Si no hay pendientes vencidos, el after() es un no-op barato.
   try {
     const sb = createServiceClient()
-    const cutoff = new Date(now - 130 * 60_000).toISOString()
+    const cutoff = new Date(now - MATCH_SETTLE_MARGIN_MIN * 60_000).toISOString()
     const { count } = await sb
       .from("predictions_log")
       .select("id", { count: "exact", head: true })
@@ -56,8 +61,7 @@ async function maybeLazyRefresh(): Promise<void> {
 
     const result = await settleGroundTruth()
     if (result.settled > 0 || result.void > 0) {
-      // Purgamos caché de las rutas dependientes para que el siguiente
-      // request del cliente vea los datos frescos sin esperar TTL.
+      // Purgamos caché tras settle para que el siguiente request sea fresco.
       try {
         revalidatePath("/historico")
         revalidatePath("/value")
@@ -144,12 +148,31 @@ export async function GET(req: NextRequest) {
   const contextParam = (sp.get("context") ?? "club").trim()
   const context = contextParam === "all" ? null : contextParam
 
-  // Antes de leer, intenta liquidar pendings vencidos (throttled).
-  // Esto evita esperar al cron diario para ver picks recién finalizados.
-  await maybeLazyRefresh()
+  const sb = createServiceClient()
+
+  // C1: Comprobar si hay pendientes vencidos ANTES de responder (COUNT rápido,
+  // índice parcial ~5ms). Resultado viaja al cliente como `hasPendingSettles`
+  // para que <LazyRefreshTrigger> decida si programar un re-fetch silencioso.
+  let hasPendingSettles = false
+  if (!before) {
+    // Solo en la primera página — las siguientes páginas ya no tienen picks recientes.
+    try {
+      const cutoff = new Date(Date.now() - MATCH_SETTLE_MARGIN_MIN * 60_000).toISOString()
+      const { count } = await sb
+        .from("predictions_log")
+        .select("id", { count: "exact", head: true })
+        .eq("status", "pending")
+        .eq("source", "value_pick")
+        .lte("kickoff_iso", cutoff)
+      hasPendingSettles = (count ?? 0) > 0
+    } catch { /* non-critical — hint opcional */ }
+  }
+
+  // C1: Liquidar en background DESPUÉS de enviar la respuesta — cero bloqueo.
+  // maybeLazyRefresh() tiene throttle propio de 5min; after() es fire-and-forget.
+  after(() => maybeLazyRefresh())
 
   try {
-    const sb = createServiceClient()
     const { data, error } = await sb.rpc("get_picks_history_page", {
       p_before:  before || null,
       p_limit:   limit,
@@ -159,7 +182,7 @@ export async function GET(req: NextRequest) {
 
     if (error) {
       console.error("[/api/picks/history] rpc error:", error.message)
-      return NextResponse.json({ days: [], nextCursor: null, count: 0 }, { status: 200 })
+      return NextResponse.json({ days: [], nextCursor: null, count: 0, hasPendingSettles: false }, { status: 200 })
     }
 
     const rows = (data ?? []) as RpcRow[]
@@ -211,9 +234,10 @@ export async function GET(req: NextRequest) {
       days,
       nextCursor,
       count: rows.length,
+      hasPendingSettles,
     })
   } catch (e: any) {
     console.error("[/api/picks/history] error:", e?.message ?? e)
-    return NextResponse.json({ days: [], nextCursor: null, count: 0 }, { status: 200 })
+    return NextResponse.json({ days: [], nextCursor: null, count: 0, hasPendingSettles: false }, { status: 200 })
   }
 }

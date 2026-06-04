@@ -7,6 +7,7 @@ import { useSession } from "next-auth/react"
 import { PageHeader, Card, Button, Spinner, EmptyState, Badge } from "@/components/ui/primitives"
 import { TeamCrest } from "@/components/teams/TeamCrest"
 import { inferIsInternationalFromESPN } from "@/lib/teams/crest"
+import { LazyRefreshTrigger } from "@/components/picks/LazyRefreshTrigger"
 
 /* ────────────────────────────────────────────────────────────────────────────
    Types
@@ -111,7 +112,7 @@ function useGlobalStats() {
   return { stats, loading }
 }
 
-interface HistoryPage { days: DayBlock[]; nextCursor: string | null; count: number }
+interface HistoryPage { days: DayBlock[]; nextCursor: string | null; count: number; hasPendingSettles?: boolean }
 
 function mergeDays(prev: DayBlock[], next: DayBlock[]): DayBlock[] {
   const map = new Map<string, DayBlock>()
@@ -137,6 +138,7 @@ function useHistory() {
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
   const [done, setDone] = useState(false)
+  const [hasPendingSettles, setHasPendingSettles] = useState(false)
   const fetchedFirst = useRef(false)
 
   const fetchPage = useCallback(async (before: string | null) => {
@@ -156,9 +158,26 @@ function useHistory() {
         setDays(page.days)
         setCursor(page.nextCursor)
         if (!page.nextCursor) setDone(true)
+        setHasPendingSettles(page.hasPendingSettles ?? false)
       }
       setLoading(false)
     })()
+  }, [fetchPage])
+
+  // Re-fetch silencioso del bloque más reciente — disparado por LazyRefreshTrigger
+  // tras el after() del servidor. Reemplaza los días ya cargados con datos frescos
+  // (nuevos picks liquidados) sin mostrar ningún spinner ni resetear el scroll.
+  const silentRefreshTop = useCallback(async () => {
+    try {
+      const page = await fetchPage(null)
+      if (!page) return
+      setDays(prev => {
+        const refreshedDates = new Set(page.days.map(d => d.date))
+        const olderPages = prev.filter(d => !refreshedDates.has(d.date))
+        return [...page.days, ...olderPages].sort((a, b) => (a.date < b.date ? 1 : -1))
+      })
+      setHasPendingSettles(false)
+    } catch { /* silent — no bloquear al usuario en ningún caso */ }
   }, [fetchPage])
 
   const loadMore = useCallback(async () => {
@@ -175,7 +194,7 @@ function useHistory() {
     setLoadingMore(false)
   }, [cursor, done, fetchPage, loadingMore])
 
-  return { days, loading, loadingMore, done, loadMore, hasAny: days.length > 0 }
+  return { days, loading, loadingMore, done, loadMore, hasAny: days.length > 0, hasPendingSettles, silentRefreshTop }
 }
 
 /* ────────────────────────────────────────────────────────────────────────────
@@ -463,7 +482,7 @@ function BetCard({ bet }: { bet: PersonalBet }) {
 export default function HistoricoPage() {
   const { status } = useSession()
   const { stats, loading: statsLoading } = useGlobalStats()
-  const { days, loading, loadingMore, done, loadMore, hasAny } = useHistory()
+  const { days, loading, loadingMore, done, loadMore, hasAny, hasPendingSettles, silentRefreshTop } = useHistory()
   const [bets, setBets] = useState<PersonalBet[]>([])
   const [betsLoading, setBetsLoading] = useState(true)
   const sentinelRef = useRef<HTMLDivElement>(null)
@@ -498,6 +517,9 @@ export default function HistoricoPage() {
 
   return (
     <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8 sm:py-10 safe-x pb-24">
+      {/* C1 — Trigger invisible: si el servidor detectó picks pendientes vencidos,
+          re-fetch silencioso 8s después de que el after() los liquide en background. */}
+      <LazyRefreshTrigger hasPendingSettles={hasPendingSettles} onRefresh={silentRefreshTop} />
       <PageHeader
         icon="activity"
         title="Histórico"
