@@ -6,6 +6,7 @@
  */
 import { NextRequest } from "next/server"
 import { createServiceClient } from "@/lib/supabase/client"
+import { withLlmCache } from "@/lib/infrastructure/llmCache"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -78,16 +79,19 @@ export async function GET(req: NextRequest) {
       if (dup) continue
 
       try {
-        const Anthropic = (await import("@anthropic-ai/sdk")).default
-        const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
-
-        // Use Claude to generate a summary for the embedding content
-        const summary = await client.messages.create({
-          model: "claude-haiku-4-5-20251001",
-          max_tokens: 200,
-          messages: [{ role: "user", content: `Resume en 1 frase el patrón de esta apuesta ganadora:\n${content}` }],
+        // Caché read-through (TTL 24h): boletos con el mismo `content`
+        // producen el mismo resumen → sin coste de tokens en repeticiones.
+        const summaryPrompt = `Resume en 1 frase el patrón de esta apuesta ganadora:\n${content}`
+        const summaryText = await withLlmCache(summaryPrompt, async () => {
+          const Anthropic = (await import("@anthropic-ai/sdk")).default
+          const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+          const summary = await client.messages.create({
+            model: "claude-haiku-4-5-20251001",
+            max_tokens: 200,
+            messages: [{ role: "user", content: summaryPrompt }],
+          })
+          return (summary.content[0] as any).text ?? content
         })
-        const summaryText = (summary.content[0] as any).text ?? content
 
         // Store without vector for now (vector requires separate embedding model)
         await sb.from("ai_learning_embeddings").insert({

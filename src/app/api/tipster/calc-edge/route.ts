@@ -8,6 +8,7 @@
 import { NextRequest } from "next/server"
 import Anthropic from "@anthropic-ai/sdk"
 import { consume, getClientIp, tooManyRequests } from "@/lib/rate-limit"
+import { withLlmCache } from "@/lib/infrastructure/llmCache"
 
 export const runtime = "nodejs"
 
@@ -63,14 +64,17 @@ Responde SOLO con JSON, sin markdown ni explicaciones:
 }`
 
   try {
-    const client = new Anthropic({ apiKey })
-    const msg = await client.messages.create({
-      model: "claude-haiku-4-5-20251001",
-      max_tokens: 256,
-      messages: [{ role: "user", content: prompt }],
+    // Caché read-through (TTL 24h): el mismo boleto produce el mismo prompt
+    // determinista → respuesta cacheada, sin coste de tokens en repeticiones.
+    const raw = await withLlmCache(prompt, async () => {
+      const client = new Anthropic({ apiKey })
+      const msg = await client.messages.create({
+        model: "claude-haiku-4-5-20251001",
+        max_tokens: 256,
+        messages: [{ role: "user", content: prompt }],
+      })
+      return (msg.content[0] as any).text?.trim() ?? ""
     })
-
-    const raw = (msg.content[0] as any).text?.trim() ?? ""
     const match = raw.match(/\{[\s\S]*\}/)
     if (!match) return Response.json({ error: "No JSON in response" }, { status: 422 })
 
