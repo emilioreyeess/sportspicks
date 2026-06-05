@@ -8,6 +8,7 @@
 
 import type { Metadata } from "next"
 import { getFixtures, type Fixture } from "@/lib/infrastructure/footballApi"
+import { PremiumGate } from "@/components/paywall/PremiumGate"
 
 // La vista depende de datos en vivo por fecha → render dinámico, sin prerender.
 export const dynamic = "force-dynamic"
@@ -193,6 +194,36 @@ export default async function PartidosPage() {
               : "// sin partidos registrados para esta fecha"}
           </p>
         </div>
+      )}
+
+      {/* ── Análisis cuantitativo (gateado Premium) ───────────────────── */}
+      {fixtures.length > 0 && (
+        <section className="mt-8" aria-label="Análisis cuantitativo">
+          <PremiumGate
+            feature="Análisis cuantitativo del día"
+            hint="Distribución de partidos con datos estadísticos completos y cobertura del modelo. Disponible con Premium."
+          >
+            <div className="border border-zinc-700 bg-zinc-950">
+              <div className="border-b border-zinc-800 bg-zinc-900 px-4 py-2">
+                <span className="font-mono text-[10px] font-bold uppercase tracking-[0.2em] text-zinc-500">
+                  Análisis cuantitativo del día
+                </span>
+              </div>
+              <div className="grid grid-cols-2 sm:grid-cols-3">
+                {[
+                  { label: "Partidos con stats", value: fixtures.filter((f) => f.stats != null).length },
+                  { label: "En juego ahora",     value: live },
+                  { label: "Cobertura datos",    value: `${Math.round((fixtures.filter((f) => f.stats != null).length / fixtures.length) * 100)}%` },
+                ].map((m, i) => (
+                  <div key={m.label} className={`px-4 py-4 ${i > 0 ? "border-l border-zinc-800" : ""}`}>
+                    <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.15em] text-zinc-600">{m.label}</p>
+                    <p className="font-mono text-2xl font-black tabular-nums leading-none text-white">{m.value}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </PremiumGate>
+        </section>
       )}
 
       {/* ── Pie técnico ───────────────────────────────────────────────── */}

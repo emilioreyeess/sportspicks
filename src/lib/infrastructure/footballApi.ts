@@ -16,6 +16,7 @@
  */
 
 import { createServiceClient } from "@/lib/supabase/client"
+import { isMatchValid } from "@/lib/infrastructure/footballFilter"
 
 const API_BASE = "https://v3.football.api-sports.io"
 
@@ -38,6 +39,7 @@ export interface Fixture {
 interface ApiFootballFixture {
   fixture: { id: number; date: string; status: { short: string } }
   teams:   { home: { name: string }; away: { name: string } }
+  league?: { name?: string | null; type?: string | null }
   statistics?: unknown
 }
 
@@ -126,7 +128,10 @@ export async function fetchFixturesFromApi(date: string): Promise<Fixture[]> {
   const json = (await res.json()) as ApiFootballResponse
   const nowIso = new Date().toISOString()
 
-  return (json.response ?? []).map((item) => ({
+  // Blindaje: descarta amistosos ANTES de mapear/upsert → nunca tocan la BD.
+  const valid = (json.response ?? []).filter((item) => isMatchValid(item))
+
+  return valid.map((item) => ({
     fixture_id: item.fixture.id,
     home_team:  item.teams?.home?.name ?? null,
     away_team:  item.teams?.away?.name ?? null,
