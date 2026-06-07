@@ -416,8 +416,8 @@ function PlanCard({ planId, billing, currentPlan, justSet, checkoutLoading, onCh
         {(p.priceMonthly === 0 || billing === "monthly") && <div className="h-4" />}
       </div>
 
-      {/* Badge de prueba gratis — SOLO plan Pro (Premium va a pago inmediato) */}
-      {planId === "pro" && (
+      {/* Badge de prueba gratis — SOLO plan Premium (Pro va a pago inmediato) */}
+      {planId === "premium" && (
         <div className="mb-3 inline-flex items-center gap-1.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 px-3 py-1">
           <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
           <span className="text-[11px] font-bold text-emerald-300">Incluye 3 días de prueba gratis · no pagas hoy</span>
@@ -435,7 +435,7 @@ function PlanCard({ planId, billing, currentPlan, justSet, checkoutLoading, onCh
           : done ? "✓ Activado"
           : planId === "free" ? "Empezar gratis"
           : STRIPE_ENABLED
-            ? planId === "pro" ? "Probar 3 días gratis" : "Comprar ahora"
+            ? planId === "premium" ? "Probar 3 días gratis" : "Comprar ahora"
           : `Activar ${p.name}`}
       </button>
 

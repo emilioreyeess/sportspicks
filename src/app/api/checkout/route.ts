@@ -54,11 +54,11 @@ export async function POST(req: NextRequest) {
     const stripe = getStripe()
     const origin = req.headers.get("origin") ?? "http://localhost:3000"
 
-    // Prueba gratuita SOLO para el plan Pro. Premium va a pago inmediato.
+    // Prueba gratuita SOLO para el plan Premium. Pro va a pago inmediato.
     const subscriptionData: { metadata: { plan: string }; trial_period_days?: number } = {
       metadata: { plan },
     }
-    if (plan === "pro") {
+    if (plan === "premium") {
       subscriptionData.trial_period_days = 3
     }
 
