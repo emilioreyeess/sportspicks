@@ -4,7 +4,8 @@ import { useState, useEffect, useCallback } from "react"
 import { Icon } from "@/components/ui/icons"
 import { useSession } from "next-auth/react"
 import Link from "next/link"
-import { extractBetData, type ExtractedBet } from "@/lib/bets/ocr-mock"
+import type { ExtractedBet } from "@/lib/bets/ocr-mock"
+import { extractBetDataReal } from "@/lib/actions/ocr-action"
 import { BetConfirmationModal, type ConfirmedBet } from "@/components/bets/BetConfirmationModal"
 
 // ── Types ─────────────────────────────────────────────────────
@@ -287,8 +288,27 @@ function ChatView({ group, onBack }: { group: Group; onBack: () => void }) {
       const upJson = up.ok ? await up.json().catch(() => ({})) : {}
       setOcrImageUrl(upJson.url ?? null)
 
-      // MOCK: lectura del ticket con IA (2s). Reemplazar por Vision API real.
-      const data = await extractBetData(file)
+      // OCR REAL: Claude Vision vía Server Action. Ante fallo devuelve nulls
+      // (modal vacío para relleno manual) — nunca crashea el cliente.
+      const fd = new FormData()
+      fd.append("image", file)
+      let ocr: { match_text: string | null; odds: number | null; stake: number | null }
+      try {
+        ocr = await extractBetDataReal(fd)
+      } catch {
+        ocr = { match_text: null, odds: null, stake: null }
+      }
+
+      const detected = ocr.match_text ?? ""
+      const data: ExtractedBet = {
+        match: detected,
+        matchOptions: [
+          ...(detected ? [detected] : []),
+          "Otro / corregir manualmente",
+        ],
+        stake: ocr.stake ?? 0,
+        odds: ocr.odds ?? 0,
+      }
       setOcrData(data)
       setShowBetModal(true)
     } catch {
