@@ -6,13 +6,13 @@ import { usePathname } from "next/navigation"
 import { useEffect, useState } from "react"
 import { useSession } from "next-auth/react"
 import { Icon } from "@/components/ui/icons"
-import { NAV_MAIN, NAV_MORE, TIPSTER_NAV_ITEM, isActive } from "@/components/ui/nav-items"
+import { NAV_MAIN, NAV_MORE, isActive } from "@/components/ui/nav-items"
 import { usePlan } from "@/lib/plan"
 import { PLANS } from "@/lib/plans"
 
 export function Sidebar() {
   const path = usePathname()
-  const { plan, isVipTipster } = usePlan()
+  const { plan } = usePlan()
   const planDef = PLANS[plan]
   const { data: session } = useSession()
   const [picksCount, setPicksCount] = useState<number | null>(null)
@@ -75,12 +75,6 @@ export function Sidebar() {
           <SideLink key={item.href} item={item} active={isActive(path, item.href)} />
         ))}
 
-        {isVipTipster && (
-          <>
-            <p className="apple-eyebrow px-2.5 pt-4 pb-2 text-zinc-600">Tipster</p>
-            <SideLink item={TIPSTER_NAV_ITEM} active={isActive(path, TIPSTER_NAV_ITEM.href)} />
-          </>
-        )}
       </nav>
 
       {/* User profile */}

@@ -65,9 +65,10 @@ export async function POST(req: NextRequest) {
       // Localización española
       locale: "es",
       billing_address_collection: "required",
-      // Pruebas: test clock override si fuera necesario
+      // Prueba gratuita de 3 días antes del primer cobro
       subscription_data: {
         metadata: { plan },
+        trial_period_days: 3,
       },
     })
 

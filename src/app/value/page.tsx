@@ -301,9 +301,14 @@ export default function ValuePage() {
   const avgOdd   = total ? (picks.reduce((s, p) => s + (p.best_odd ?? 0), 0) / total).toFixed(2) : "—"
   const bestEdge = total ? Math.max(...picks.map((p) => p.value_edge ?? 0)).toFixed(1) : "—"
 
-  const FREE_PICKS = 3
-  const visible = isPremium ? filtered : filtered.slice(0, FREE_PICKS)
-  const locked  = isPremium ? [] : filtered.slice(FREE_PICKS)
+  // Soft-paywall: el usuario gratuito ve solo los 4 picks de MAYOR VALOR (edge).
+  // Ordenamos una copia por edge para garantizar que los 4 visibles son los top,
+  // independientemente del orden elegido en el selector.
+  const FREE_PICKS = 4
+  const byEdge  = [...filtered].sort((a, b) => (b.value_edge ?? -1) - (a.value_edge ?? -1))
+  const freeIds = new Set(byEdge.slice(0, FREE_PICKS).map((p) => p.id))
+  const visible = isPremium ? filtered : filtered.filter((p) => freeIds.has(p.id))
+  const locked  = isPremium ? [] : filtered.filter((p) => !freeIds.has(p.id))
 
   return (
     <div className="px-4 sm:px-6 py-8 max-w-5xl mx-auto safe-x">
@@ -399,7 +404,10 @@ export default function ValuePage() {
           {/* Free plan banner */}
           {!isPremium && !loading && locked.length > 0 && (
             <div className="mb-4">
-              <UpgradeBanner text={`Ves ${visible.length} de ${filtered.length} value picks. Desbloquea el análisis completo con Premium ⭐`} />
+              <UpgradeBanner
+                text={`Ves los ${visible.length} picks de mayor valor de ${filtered.length}. Hay ${locked.length} más bloqueados.`}
+                cta="Suscríbete a Premium para ver todos los picks"
+              />
             </div>
           )}
 

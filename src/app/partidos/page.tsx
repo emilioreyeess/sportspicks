@@ -9,6 +9,7 @@
 import type { Metadata } from "next"
 import { getFixtures, type Fixture } from "@/lib/infrastructure/footballApi"
 import { PremiumGate } from "@/components/paywall/PremiumGate"
+import { FixturesAccordion } from "@/components/partidos/FixturesAccordion"
 
 // La vista depende de datos en vivo por fecha → render dinámico, sin prerender.
 export const dynamic = "force-dynamic"
@@ -26,17 +27,6 @@ export const metadata: Metadata = {
 
 const TZ = "Europe/Madrid"
 
-function fmtTime(iso: string | null): string {
-  if (!iso) return "--:--"
-  try {
-    return new Intl.DateTimeFormat("es-ES", {
-      hour: "2-digit", minute: "2-digit", timeZone: TZ,
-    }).format(new Date(iso))
-  } catch {
-    return "--:--"
-  }
-}
-
 function todayMadrid(): string {
   // YYYY-MM-DD en zona Europe/Madrid (es-CA da formato ISO-like).
   return new Intl.DateTimeFormat("en-CA", {
@@ -53,58 +43,6 @@ function statusLabel(status: string | null): { text: string; tone: "live" | "don
   return { text: "PROGRAMADO", tone: "scheduled" }
 }
 
-/** Extrae un resumen estadístico compacto y seguro del jsonb arbitrario. */
-function statSummary(stats: unknown): string {
-  if (!stats) return "—"
-  if (Array.isArray(stats)) return `${stats.length} métricas`
-  if (typeof stats === "object") {
-    const keys = Object.keys(stats as Record<string, unknown>)
-    return keys.length ? `${keys.length} campos` : "—"
-  }
-  return "—"
-}
-
-// ── Subcomponentes ────────────────────────────────────────────────────────────
-
-function StatusTag({ status }: { status: string | null }) {
-  const { text, tone } = statusLabel(status)
-  const cls =
-    tone === "live"
-      ? "text-black bg-emerald-400"
-      : tone === "done"
-      ? "text-zinc-500 bg-zinc-900 border border-zinc-700"
-      : "text-zinc-300 bg-zinc-800 border border-zinc-700"
-  return (
-    <span className={`inline-block px-2 py-0.5 text-[10px] font-bold uppercase tracking-[0.12em] ${cls}`}>
-      {text}
-    </span>
-  )
-}
-
-function FixtureRow({ f }: { f: Fixture }) {
-  return (
-    <tr className="border-b border-zinc-800 hover:bg-zinc-900/60 transition-colors">
-      <td className="px-4 py-3 font-mono text-[13px] text-zinc-400 tabular-nums whitespace-nowrap border-r border-zinc-800/60">
-        {fmtTime(f.match_date)}
-      </td>
-      <td className="px-4 py-3 border-r border-zinc-800/60">
-        <StatusTag status={f.status} />
-      </td>
-      <td className="px-4 py-3 text-[14px] font-semibold text-white text-right border-r border-zinc-800/60">
-        {f.home_team ?? "—"}
-      </td>
-      <td className="px-3 py-3 text-[11px] font-mono text-zinc-600 text-center border-r border-zinc-800/60">
-        VS
-      </td>
-      <td className="px-4 py-3 text-[14px] font-semibold text-white border-r border-zinc-800/60">
-        {f.away_team ?? "—"}
-      </td>
-      <td className="px-4 py-3 font-mono text-[12px] text-zinc-500 tabular-nums whitespace-nowrap">
-        {statSummary(f.stats)}
-      </td>
-    </tr>
-  )
-}
 
 // ── Página ────────────────────────────────────────────────────────────────────
 
@@ -163,28 +101,10 @@ export default async function PartidosPage() {
         ))}
       </div>
 
-      {/* ── Tabla de datos ────────────────────────────────────────────── */}
+      {/* ── Acordeón de partidos (ligas TOP + "Ver más", pronóstico lazy) ── */}
       {fixtures.length > 0 ? (
-        <div className="overflow-x-auto border-x border-b border-zinc-800">
-          <table className="w-full border-collapse">
-            <thead>
-              <tr className="bg-zinc-900 border-b-2 border-zinc-700">
-                {["Hora", "Estado", "Local", "", "Visitante", "Stats"].map((h, i) => (
-                  <th
-                    key={i}
-                    className={`px-4 py-2.5 text-[10px] font-bold uppercase tracking-[0.15em] text-zinc-500 ${
-                      i === 2 ? "text-right" : i === 3 ? "text-center" : "text-left"
-                    } ${i < 5 ? "border-r border-zinc-800/60" : ""}`}
-                  >
-                    {h}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {fixtures.map((f) => <FixtureRow key={f.fixture_id} f={f} />)}
-            </tbody>
-          </table>
+        <div className="mt-0">
+          <FixturesAccordion fixtures={fixtures} />
         </div>
       ) : (
         <div className="border-x border-b border-zinc-800 px-6 py-16 text-center">
