@@ -1,0 +1,27 @@
+-- ─────────────────────────────────────────────────────────────────────────────
+-- Modelo conceptual: separación personal_bet vs group_bet
+-- ─────────────────────────────────────────────────────────────────────────────
+-- (Documentación — el esquema ya existe; este archivo NO crea nada.)
+--
+-- PERSONAL_BET  →  tabla `bets` (+ `bet_legs`)
+--   · Una apuesta privada del usuario. Es la fuente de verdad de "Mi Historial".
+--   · Columnas clave: user_email, title, stake, combined_odds, status, image_url,
+--     needs_review, is_published, created_at.
+--
+-- GROUP_BET     →  tabla `group_bets`
+--   · NO duplica la apuesta: es un VÍNCULO (share) de un `bets.id` a un `groups.id`.
+--   · Columnas clave: group_id, bet_id (FK→bets), shared_by, is_pre_match, shared_at.
+--   · Alimenta "Apuestas del Grupo" y el ranking aislado del grupo.
+--
+-- Flujo OCR de ticket (andamiaje actual, mock):
+--   1. El usuario sube la foto del ticket en el chat del grupo.
+--   2. extractBetData(image) [mock → Vision API] devuelve {match, stake, odds}.
+--   3. BetConfirmationModal permite corregir y confirmar.
+--   4. (Hoy) se publica como tarjeta en el chat (mensaje [bet]{json}[/bet]).
+--   5. (Futuro) al confirmar se creará un `bets` (personal_bet) y, si procede,
+--      su correspondiente `group_bets` (group_bet) — manteniendo la separación.
+--
+-- Invariante: un group_bet SIEMPRE referencia un personal_bet existente
+-- (group_bets.bet_id → bets.id). Nunca se almacenan datos de apuesta sueltos
+-- en group_bets; así "Mi Historial" y "Apuestas del Grupo" comparten la misma
+-- fuente sin divergir.

@@ -4,6 +4,8 @@ import { useState, useEffect, useCallback } from "react"
 import { Icon } from "@/components/ui/icons"
 import { useSession } from "next-auth/react"
 import Link from "next/link"
+import { extractBetData, type ExtractedBet } from "@/lib/bets/ocr-mock"
+import { BetConfirmationModal, type ConfirmedBet } from "@/components/bets/BetConfirmationModal"
 
 // ── Types ─────────────────────────────────────────────────────
 interface Group {
@@ -81,6 +83,33 @@ interface GroupBetEntry {
 }
 interface GroupBetRankingEntry { email: string; name: string; avatar_url?: string; picks: number; won: number; winrate: number; yield: number; profit: number }
 
+/** Tarjeta de apuesta en el chat (mensajes con formato [bet]{json}[/bet]). */
+function BetCard({ raw }: { raw: string }) {
+  let data: { match?: string; stake?: number; odds?: number; image?: string | null } = {}
+  try { data = JSON.parse(raw) } catch { /* json corrupto → tarjeta mínima */ }
+  const ret = (data.stake ?? 0) * (data.odds ?? 0)
+  return (
+    <div className="w-[230px] rounded-2xl border border-emerald-700/40 bg-gradient-to-b from-emerald-500/[0.10] to-zinc-900/40 overflow-hidden">
+      {data.image && (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img src={data.image} alt="Ticket" className="w-full max-h-32 object-contain bg-zinc-950 border-b border-white/[0.06]" />
+      )}
+      <div className="px-3 py-2.5">
+        <div className="flex items-center gap-1.5 mb-1">
+          <Icon name="ticket" className="w-3.5 h-3.5 text-emerald-400" strokeWidth={2} />
+          <span className="text-[10px] font-black uppercase tracking-widest text-emerald-400">Apuesta</span>
+        </div>
+        <p className="text-[13px] font-bold text-white leading-tight">{data.match ?? "Partido"}</p>
+        <div className="mt-2 flex items-center gap-3 text-[11px] text-zinc-400">
+          <span>Stake: <b className="text-white">{data.stake ?? "—"}€</b></span>
+          <span>Cuota: <b className="text-emerald-400">@{data.odds ?? "—"}</b></span>
+        </div>
+        {ret > 0 && <p className="text-[10px] text-zinc-500 mt-1">Retorno potencial: {ret.toFixed(2)}€</p>}
+      </div>
+    </div>
+  )
+}
+
 // ── Chat view ─────────────────────────────────────────────────
 function ChatView({ group, onBack }: { group: Group; onBack: () => void }) {
   const [tab, setTab] = useState<ChatTab>("chat")
@@ -102,6 +131,15 @@ function ChatView({ group, onBack }: { group: Group; onBack: () => void }) {
   const [shareError, setShareError] = useState("")
   const [shareSuccess, setShareSuccess] = useState("")
   const [showSharePicker, setShowSharePicker] = useState(false)
+  // ── Flujo OCR de ticket (andamiaje, mock) ──────────────────────────────────
+  const [ocrLoading, setOcrLoading] = useState(false)
+  const [ocrData, setOcrData] = useState<ExtractedBet | null>(null)
+  const [ocrImageUrl, setOcrImageUrl] = useState<string | null>(null)
+  const [showBetModal, setShowBetModal] = useState(false)
+  const [savingBet, setSavingBet] = useState(false)
+  // ── Separación de historiales en la pestaña de apuestas ────────────────────
+  const [betsSubTab, setBetsSubTab] = useState<"group" | "mine">("group")
+  const [betsBannerOpen, setBetsBannerOpen] = useState(true)
   const { data: session } = useSession()
 
   const loadMessages = useCallback(async () => {
@@ -232,6 +270,56 @@ function ChatView({ group, onBack }: { group: Group; onBack: () => void }) {
     e.target.value = ""
   }
 
+  // ── Flujo OCR: subir ticket → "Analizando…" → modal de confirmación ────────
+  const handleBetTicketSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ""   // permite re-seleccionar el mismo archivo
+    if (!file || ocrLoading) return
+    if (!file.type.startsWith("image/")) { alert("El archivo debe ser una imagen."); return }
+    if (file.size > 5 * 1024 * 1024) { alert("La imagen no puede superar 5 MB"); return }
+
+    setOcrLoading(true)
+    try {
+      // Subimos la imagen para tener una URL persistente (preview + tarjeta).
+      const form = new FormData()
+      form.append("file", file)
+      const up = await fetch("/api/groups/upload", { method: "POST", body: form })
+      const upJson = up.ok ? await up.json().catch(() => ({})) : {}
+      setOcrImageUrl(upJson.url ?? null)
+
+      // MOCK: lectura del ticket con IA (2s). Reemplazar por Vision API real.
+      const data = await extractBetData(file)
+      setOcrData(data)
+      setShowBetModal(true)
+    } catch {
+      alert("No se pudo analizar el ticket. Inténtalo de nuevo.")
+    } finally {
+      setOcrLoading(false)
+    }
+  }
+
+  const handleBetConfirm = async (bet: ConfirmedBet) => {
+    setSavingBet(true)
+    try {
+      // Andamiaje: la apuesta confirmada se publica en el chat como tarjeta
+      // estructurada (formato [bet]{json}[/bet]) que el render del chat dibuja.
+      const payload = JSON.stringify({ ...bet, image: ocrImageUrl ?? null })
+      await fetch(`/api/groups/${group.id}/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: `[bet]${payload}[/bet]` }),
+      })
+      setShowBetModal(false)
+      setOcrData(null)
+      setOcrImageUrl(null)
+      loadMessages()
+    } catch {
+      alert("No se pudo publicar la apuesta.")
+    } finally {
+      setSavingBet(false)
+    }
+  }
+
   const TABS: { id: ChatTab; label: string; icon: string }[] = [
     { id: "chat",    label: "Chat",         icon: "groups"      },
     { id: "members", label: "Participantes", icon: "user"        },
@@ -301,7 +389,9 @@ function ChatView({ group, onBack }: { group: Group; onBack: () => void }) {
                   </div>
                   <div className={`max-w-[75%] ${isMe ? "items-end" : "items-start"} flex flex-col gap-0.5`}>
                     {!isMe && <span className="text-[10px] text-zinc-500 px-1">{msg.sender_name}</span>}
-                    {msg.content?.startsWith("[img]") && msg.content?.endsWith("[/img]") ? (
+                    {msg.content?.startsWith("[bet]") && msg.content?.endsWith("[/bet]") ? (
+                      <BetCard raw={msg.content.slice(5, -6)} />
+                    ) : msg.content?.startsWith("[img]") && msg.content?.endsWith("[/img]") ? (
                       <img
                         src={msg.content.slice(5, -6)}
                         alt="imagen"
@@ -321,10 +411,24 @@ function ChatView({ group, onBack }: { group: Group; onBack: () => void }) {
               )
             })}
           </div>
+          {/* Overlay de análisis OCR */}
+          {ocrLoading && (
+            <div className="shrink-0 mx-4 mb-2 flex items-center gap-2.5 rounded-xl border border-emerald-700/40 bg-emerald-500/[0.08] px-3.5 py-2.5">
+              <span className="inline-block w-4 h-4 rounded-full border-2 border-emerald-400 border-t-transparent animate-spin shrink-0" />
+              <p className="text-[12px] font-bold text-emerald-300">Analizando ticket con IA…</p>
+            </div>
+          )}
           {/* Input */}
           <div className="shrink-0 px-4 py-3 border-t border-white/[0.07] bg-zinc-950/80 backdrop-blur-sm">
             <div className="flex items-center gap-2">
-              {/* Image upload */}
+              {/* Subir Apuesta (ticket → OCR) */}
+              <label className={`tap inline-flex items-center gap-1.5 px-3 py-2.5 rounded-xl bg-emerald-500/15 border border-emerald-700/40 text-emerald-400 hover:bg-emerald-500/25 transition-all cursor-pointer shrink-0 ${ocrLoading ? "opacity-40 pointer-events-none" : ""}`}
+                title="Subir foto de tu apuesta — la IA leerá las cuotas">
+                <input type="file" accept="image/*" className="sr-only" onChange={handleBetTicketSelect} disabled={ocrLoading} />
+                <Icon name="ticket" className="w-4 h-4" strokeWidth={2} />
+                <span className="text-[11px] font-bold hidden sm:inline">Subir apuesta</span>
+              </label>
+              {/* Imagen normal */}
               <label className={`tap p-2.5 rounded-xl border border-white/[0.07] hover:border-white/[0.14] text-zinc-500 hover:text-zinc-300 transition-all cursor-pointer shrink-0 ${uploadingImage ? "opacity-40 pointer-events-none" : ""}`}>
                 <input type="file" accept="image/*" className="sr-only" onChange={handleImageUpload} disabled={uploadingImage} />
                 {uploadingImage ? (
@@ -436,6 +540,36 @@ function ChatView({ group, onBack }: { group: Group; onBack: () => void }) {
             </div>
           ) : (
             <div className="px-4 pt-4 pb-24 space-y-4">
+              {/* Banner explicativo colapsable */}
+              <div className="rounded-xl border border-emerald-800/40 bg-emerald-500/[0.06] overflow-hidden">
+                <button onClick={() => setBetsBannerOpen(v => !v)}
+                  className="w-full flex items-center gap-2 px-3.5 py-2.5 text-left">
+                  <Icon name="spark" className="w-4 h-4 text-emerald-400 shrink-0" strokeWidth={2} />
+                  <span className="flex-1 text-[12px] font-bold text-emerald-300">¿Cómo funcionan las apuestas del grupo?</span>
+                  <Icon name={betsBannerOpen ? "chevronUp" : "chevronDown"} className="w-4 h-4 text-emerald-400/70 shrink-0" strokeWidth={2} />
+                </button>
+                {betsBannerOpen && (
+                  <p className="px-3.5 pb-3 text-[11.5px] text-zinc-400 leading-relaxed">
+                    Sube la captura de tu apuesta. La IA leerá las cuotas y verificaremos los resultados automáticamente.
+                  </p>
+                )}
+              </div>
+
+              {/* Sub-tabs: separación de historiales */}
+              <div className="flex gap-1.5 p-1 rounded-xl bg-zinc-900/60 border border-white/[0.06]">
+                {([
+                  { id: "group", label: "Apuestas del Grupo" },
+                  { id: "mine",  label: "Mi Historial" },
+                ] as const).map((st) => (
+                  <button key={st.id} onClick={() => setBetsSubTab(st.id)}
+                    className={`flex-1 py-2 rounded-lg text-[12px] font-bold transition-colors ${betsSubTab === st.id ? "bg-emerald-500/20 text-emerald-300" : "text-zinc-500 hover:text-zinc-300"}`}>
+                    {st.label}
+                  </button>
+                ))}
+              </div>
+
+              {betsSubTab === "group" && (
+              <div className="space-y-4">
               {/* Share bet CTA */}
               <button
                 onClick={() => { setShowSharePicker(v => !v); setShareError(""); loadMyBets() }}
@@ -635,10 +769,56 @@ function ChatView({ group, onBack }: { group: Group; onBack: () => void }) {
                   El servidor valida que la apuesta sea pendiente al compartirla. Los resultados cuentan en el ranking aislado del grupo.
                 </p>
               </div>
+              </div>
+              )}
+
+              {/* ── Mi Historial ── */}
+              {betsSubTab === "mine" && (
+                <div className="space-y-2">
+                  {myBetsLoading ? (
+                    <div className="flex items-center justify-center py-12">
+                      <div className="w-6 h-6 rounded-full border-2 border-emerald-500 border-t-transparent animate-spin" />
+                    </div>
+                  ) : myBets.length === 0 ? (
+                    <p className="text-xs text-zinc-600 text-center py-10">
+                      Aún no tienes apuestas registradas.
+                    </p>
+                  ) : (
+                    myBets.map((b) => (
+                      <div key={b.id} className="flex items-center gap-2.5 rounded-xl border border-white/[0.07] bg-zinc-900/40 px-3 py-2.5">
+                        {b.image_url && <img src={b.image_url} alt="" className="w-9 h-9 rounded-lg object-cover shrink-0 border border-white/[0.07]" />}
+                        <div className="flex-1 min-w-0">
+                          <p className="text-xs font-bold text-white truncate">{b.title}</p>
+                          <p className="text-[10px] text-zinc-500">
+                            {b.stake}€ @{b.combined_odds} · {new Date(b.created_at).toLocaleDateString("es-ES", { day: "numeric", month: "short" })}
+                          </p>
+                        </div>
+                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full shrink-0 ${
+                          b.status === "won" ? "bg-emerald-500/15 text-emerald-400"
+                          : b.status === "lost" ? "bg-rose-500/15 text-rose-400"
+                          : "bg-zinc-700/40 text-zinc-400"
+                        }`}>
+                          {b.status === "won" ? "Ganada" : b.status === "lost" ? "Perdida" : "Pendiente"}
+                        </span>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
             </div>
           )}
         </div>
       )}
+
+      {/* Modal de confirmación tras el OCR del ticket */}
+      <BetConfirmationModal
+        open={showBetModal}
+        data={ocrData}
+        imagePreview={ocrImageUrl}
+        saving={savingBet}
+        onConfirm={handleBetConfirm}
+        onClose={() => { setShowBetModal(false); setOcrData(null); setOcrImageUrl(null) }}
+      />
     </div>
   )
 }
