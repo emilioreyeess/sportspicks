@@ -26,8 +26,8 @@
       "schedule": "0 3 * * *"
     },
     {
-      "path": "/api/cron/live-sync",
-      "schedule": "0 11 * * *"
+      "path": "/api/cron/update",
+      "schedule": "0 10 * * *"
     },
     {
       "path": "/api/cron/warm-cache",

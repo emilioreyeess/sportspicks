@@ -31,6 +31,7 @@ export interface Fixture {
   away_team:  string | null
   match_date: string | null   // ISO timestamptz
   status:     string | null
+  league:     string | null   // nombre de la competición (API-Football league.name)
   stats:      unknown          // jsonb — forma libre de API-Football
   updated_at: string
 }
@@ -137,6 +138,7 @@ export async function fetchFixturesFromApi(date: string): Promise<Fixture[]> {
     away_team:  item.teams?.away?.name ?? null,
     match_date: item.fixture?.date ?? null,
     status:     item.fixture?.status?.short ?? null,
+    league:     item.league?.name ?? null,
     stats:      item.statistics ?? null,
     updated_at: nowIso,
   }))

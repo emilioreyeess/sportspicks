@@ -17,7 +17,7 @@ const WELCOME: BotMessage = {
   role: "assistant",
   content: `¡Hola! Soy el **Bot IA de SportsPicks** 🤖
 
-Analizo tus combinadas con **datos reales de ESPN**:
+Analizo tus combinadas con **datos reales de nuestra base de datos**:
 
 - 📸 **Sube una foto** de tu boleto
 - 🖼️ **Pega una imagen** (Ctrl/Cmd+V)
@@ -118,7 +118,7 @@ export default function BotPage() {
               <p className="text-sm font-bold text-white leading-tight">Bot IA</p>
               <p className="text-[10px] text-zinc-500 leading-tight flex items-center gap-1">
                 <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                Análisis con datos reales de ESPN
+                Análisis con datos reales de nuestra base de datos
               </p>
             </div>
           </div>
