@@ -18,7 +18,7 @@ export function BottomNav() {
   return (
     <nav className="lg:hidden fixed bottom-0 inset-x-0 z-40 ios-tab-bar border-t border-white/[0.07] safe-bottom">
       <div className="flex items-stretch justify-around h-16 max-w-md mx-auto px-1">
-        {NAV_MAIN.map((item) => {
+        {NAV_MAIN.filter((item) => item.href !== "/partidos").map((item) => {
           const active  = isActive(path, item.href)
           const isCenter = item.href === "/bot"
           const c = tabConfig(item.href)

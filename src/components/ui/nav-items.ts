@@ -1,12 +1,14 @@
 export interface NavItem { href: string; label: string; short: string; icon: string }
 
 /**
- * Navegación principal — barra inferior móvil (5 slots, Bot en el centro).
+ * Navegación principal de la sección "Plataforma" (sidebar).
+ * La barra inferior móvil (BottomNav) usa esta lista PERO filtra `/partidos`
+ * para mantener 5 slots con Bot en el centro — ver BottomNav.tsx.
  * Inicio: accesible tocando el nombre/logo en el TopBar.
- * Estadísticas: en sidebar / menú móvil (NAV_MORE).
  */
 export const NAV_MAIN: NavItem[] = [
   { href: "/value",          label: "Value Picks",  short: "Value",   icon: "value"    },
+  { href: "/partidos",       label: "Partidos",     short: "Partidos", icon: "calendar" },
   { href: "/combinadas",     label: "Combinadas",   short: "Combinadas",  icon: "combinadas" },
   { href: "/bot",            label: "Bot IA",       short: "Bot IA",  icon: "bot"      },
   { href: "/retos",          label: "Retos",        short: "Retos",   icon: "trophy"   },

@@ -47,6 +47,7 @@ const PATHS: Record<string, ReactNode> = {
   twitter: <><path d="M22 4s-.7 2.1-2 3.4c1.6 10-9.4 17.3-18 11.6 2.2.1 4.4-.6 6-2C3 15.5.5 9.6 3 5c2.2 2.7 5.5 4.4 9 4.5-.9-4.2 4-6.6 7-3.8 1.1 0 3-1.2 3-1.7z" /></>,
   search: <><circle cx="11" cy="11" r="7" /><path d="m21 21-4.3-4.3" /></>,
   clock: <><circle cx="12" cy="12" r="9" /><path d="M12 7v5l3 2" /></>,
+  calendar: <><rect x="3.5" y="5" width="17" height="16" rx="2" /><path d="M3.5 9.5h17" /><path d="M8 3v4M16 3v4" /><path d="M7.5 13.5h3M13.5 13.5h3M7.5 17h3M13.5 17h3" /></>,
   refresh: <><path d="M21 12a9 9 0 1 1-2.6-6.4M21 4v4h-4" /></>,
   activity: <><path d="M22 12h-4l-3 9L9 3l-3 9H2" /></>,
 }
