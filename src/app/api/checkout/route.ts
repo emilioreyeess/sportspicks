@@ -54,6 +54,14 @@ export async function POST(req: NextRequest) {
     const stripe = getStripe()
     const origin = req.headers.get("origin") ?? "http://localhost:3000"
 
+    // Prueba gratuita SOLO para el plan Pro. Premium va a pago inmediato.
+    const subscriptionData: { metadata: { plan: string }; trial_period_days?: number } = {
+      metadata: { plan },
+    }
+    if (plan === "pro") {
+      subscriptionData.trial_period_days = 3
+    }
+
     const session = await stripe.checkout.sessions.create({
       mode: "subscription",
       payment_method_types: ["card"],
@@ -65,11 +73,7 @@ export async function POST(req: NextRequest) {
       // Localización española
       locale: "es",
       billing_address_collection: "required",
-      // Prueba gratuita de 3 días antes del primer cobro
-      subscription_data: {
-        metadata: { plan },
-        trial_period_days: 3,
-      },
+      subscription_data: subscriptionData,
     })
 
     return NextResponse.json({ url: session.url })

@@ -91,27 +91,32 @@ async function fetchDailyData(): Promise<DailyData> {
   }
   const raw: RawMatch[] = []
 
+  // ── AUDITORÍA: contadores del embudo de ingesta (ver por qué entran/salen) ──
+  const audit = { eventsSeen: 0, skipCompletedOrNoComp: 0, skipNoTeams: 0, skipBadDate: 0, skipNotToday: 0, skipNoOdds: 0, accepted: 0 }
+
   for (const slug of ALL_SLUGS) {
     const data = await fetchJSON(`https://site.api.espn.com/apis/site/v2/sports/soccer/${slug}/scoreboard`)
-    for (const ev of data?.events ?? []) {
+    const events = data?.events ?? []
+    if (!data) console.warn(`[pipeline] ${slug}: fetch ESPN devolvió null (posible fallo silencioso)`)
+    for (const ev of events) {
+      audit.eventsSeen++
       const comp = ev.competitions?.[0]
-      if (!comp || comp.status?.type?.completed) continue
+      if (!comp || comp.status?.type?.completed) { audit.skipCompletedOrNoComp++; continue }
       const home = comp.competitors?.find((c: any) => c.homeAway === "home")
       const away = comp.competitors?.find((c: any) => c.homeAway === "away")
-      if (!home?.team?.id || !away?.team?.id) continue
+      if (!home?.team?.id || !away?.team?.id) { audit.skipNoTeams++; continue }
       // Validación: fecha de inicio válida
-      if (!ev.date || isNaN(new Date(ev.date).getTime())) continue
+      if (!ev.date || isNaN(new Date(ev.date).getTime())) { audit.skipBadDate++; continue }
       // Solo partidos de HOY — descartar pasados Y futuros (días siguientes)
       const kickoffDate = ev.date?.slice(0, 10)
-      const now = new Date()
-      const todayUTC = now.toISOString().split("T")[0]
       // Allow today in UTC and also today-1 in case of timezone offset (UTC vs local)
       const yesterdayUTC = new Date(Date.now() - 86400000).toISOString().split("T")[0]
       const tomorrowUTC = new Date(Date.now() + 86400000).toISOString().split("T")[0]
       // Only accept TODAY (strict)
-      if (!kickoffDate || kickoffDate === yesterdayUTC || kickoffDate >= tomorrowUTC) continue
+      if (!kickoffDate || kickoffDate === yesterdayUTC || kickoffDate >= tomorrowUTC) { audit.skipNotToday++; continue }
       const odds = extractOdds(comp)
-      if (!odds) continue
+      if (!odds) { audit.skipNoOdds++; continue }   // ← descarte clave: sin cuotas no hay value pick
+      audit.accepted++
       raw.push({
         ev, slug,
         homeName: home.team.displayName, awayName: away.team.displayName,
@@ -119,6 +124,14 @@ async function fetchDailyData(): Promise<DailyData> {
         odds,
       })
     }
+  }
+
+  // Log del embudo: cuántos partidos se vieron y dónde se cayeron.
+  console.log("[pipeline] embudo de ingesta:", JSON.stringify(audit))
+  if (audit.accepted === 0) {
+    console.warn(`[pipeline] ⚠️ 0 partidos aceptados de ${audit.eventsSeen} vistos ` +
+      `(sin cuotas: ${audit.skipNoOdds}, no-hoy: ${audit.skipNotToday}, finalizados/sin comp: ${audit.skipCompletedOrNoComp}). ` +
+      `Posible causa de un array de matches vacío.`)
   }
 
   // Forma reciente real de cada equipo (acotado para limitar llamadas)
@@ -187,6 +200,12 @@ async function fetchDailyData(): Promise<DailyData> {
       contextProfile,
     }
   })
+
+  console.log(`[pipeline] embudo final: aceptados=${audit.accepted} → conForma=${withForm.length} → matches=${matches.length}` +
+    `${skippedNoData > 0 ? ` (omitidos por datos: ${skippedNoData})` : ""}`)
+  if (matches.length === 0) {
+    console.warn("[pipeline] ⚠️ matches vacío — no se generarán value picks este ciclo.")
+  }
 
   return { matches, leagueAvg: globalAvg, fetchedAt: new Date().toISOString() }
 }

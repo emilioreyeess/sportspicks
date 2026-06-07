@@ -114,10 +114,10 @@ function MatchRow({ f, isPremium, intl }: { f: Fixture; isPremium: boolean; intl
   const center = finished && gh != null && ga != null ? `${gh} - ${ga}` : fmtTime(f.match_date)
 
   return (
-    <div className="border-b border-zinc-800 last:border-0">
+    <div className="border-b border-white/[0.05] last:border-0">
       <button
         onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center gap-2 px-3 py-3 text-left hover:bg-zinc-900/60 transition-colors"
+        className="w-full flex items-center gap-2 px-3 py-3 text-left hover:bg-white/[0.02] transition-colors"
       >
         {/* Local: nombre + escudo, alineado a la derecha */}
         <div className="flex-1 flex items-center justify-end gap-2 min-w-0">
@@ -127,10 +127,10 @@ function MatchRow({ f, isPremium, intl }: { f: Fixture; isPremium: boolean; intl
 
         {/* Centro: resultado o hora */}
         <div className="shrink-0 w-[64px] text-center">
-          <span className={`block font-mono tabular-nums leading-none ${finished ? "text-[15px] font-bold text-white" : "text-[13px] text-zinc-300"}`}>
+          <span className={`block tabular-nums leading-none ${finished ? "text-[15px] font-bold text-white" : "text-[13px] font-semibold text-zinc-300"}`}>
             {center}
           </span>
-          <span className="block text-[9px] font-mono uppercase tracking-wider text-zinc-600 mt-0.5">{f.status ?? ""}</span>
+          <span className="block text-[9px] uppercase tracking-wider text-zinc-600 mt-0.5">{f.status ?? ""}</span>
         </div>
 
         {/* Visitante: escudo + nombre, alineado a la izquierda */}
@@ -143,11 +143,11 @@ function MatchRow({ f, isPremium, intl }: { f: Fixture; isPremium: boolean; intl
       </button>
 
       {open && (
-        <div className="px-4 pb-4 pt-1 space-y-3 bg-zinc-950/40">
+        <div className="px-4 pb-4 pt-1 space-y-3 bg-white/[0.015]">
           {/* Frecuencia de anotación + posición + racha (público) */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[12px]">
             {[{ n: home, st: hSt }, { n: away, st: aSt }].map(({ n, st }) => (
-              <div key={n} className="border border-zinc-800 px-3 py-2">
+              <div key={n} className="rounded-xl border border-white/[0.06] bg-zinc-900/40 px-3 py-2">
                 <p className="font-bold text-white text-[12.5px] mb-1 truncate">{n}</p>
                 <p className="text-zinc-500">
                   {st ? `${st.rank}º · ${st.points} pts${st.form ? ` · racha ${st.form}` : ""}` : "posición no disponible"}
@@ -160,11 +160,11 @@ function MatchRow({ f, isPremium, intl }: { f: Fixture; isPremium: boolean; intl
           {/* Pronóstico Poisson — PREMIUM */}
           {isPremium ? (
             markets ? (
-              <div className="border border-emerald-700/30 bg-emerald-500/[0.04] px-3 py-2.5">
+              <div className="rounded-xl border border-emerald-700/30 bg-emerald-500/[0.04] px-3 py-2.5">
                 <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-500/70 mb-1.5">
                   Pronóstico cuantitativo (Poisson sobre goles)
                 </p>
-                <div className="grid grid-cols-3 gap-2 text-[12px] font-mono text-zinc-300">
+                <div className="grid grid-cols-3 gap-2 text-[12px] text-zinc-300 tabular-nums">
                   <span>1: <b className="text-white">{pct(markets.pHome)}</b></span>
                   <span>X: <b className="text-white">{pct(markets.pDraw)}</b></span>
                   <span>2: <b className="text-white">{pct(markets.pAway)}</b></span>
@@ -173,15 +173,15 @@ function MatchRow({ f, isPremium, intl }: { f: Fixture; isPremium: boolean; intl
                 </div>
               </div>
             ) : (
-              <p className="text-[11px] text-zinc-600 font-mono">// datos de goles insuficientes para el pronóstico</p>
+              <p className="text-[11px] text-zinc-600">Datos de goles insuficientes para el pronóstico.</p>
             )
           ) : (
-            <div className="border border-zinc-700 bg-zinc-900/60 px-4 py-4 text-center">
-              <p className="text-[11px] font-mono uppercase tracking-widest text-zinc-600 mb-1">// pronóstico bloqueado</p>
+            <div className="rounded-xl border border-white/[0.06] bg-zinc-900/60 px-4 py-4 text-center">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 mb-1">Pronóstico bloqueado</p>
               <p className="text-[13px] text-zinc-300 mb-2">BTTS, Over/Under y 1X2 con modelo Poisson</p>
               <p className="text-[11px] font-bold text-emerald-400 mb-3">✦ 3 días de prueba gratis · no pagas hoy</p>
-              <Link href="/pricing" className="inline-block border border-emerald-400 bg-emerald-400 px-5 py-2 text-[12px] font-black uppercase tracking-wider text-black hover:bg-emerald-300 transition-colors">
-                Empezar Prueba Gratis
+              <Link href="/pricing" className="inline-block rounded-xl bg-emerald-400 px-5 py-2 text-[12px] font-bold text-black hover:bg-emerald-300 transition-colors">
+                Empezar prueba gratis
               </Link>
             </div>
           )}
@@ -215,12 +215,12 @@ export function FixturesAccordion({ fixtures }: { fixtures: Fixture[] }) {
       const intl = inferIsInternationalFromESPN(league)
       const leagueLogo = ((list[0]?.stats ?? null) as FixtureStats | null)?.league_logo ?? null
       return (
-        <section key={league} className="mb-3 rounded-lg overflow-hidden border border-zinc-800 bg-zinc-900/40">
+        <section key={league} className="mb-3 rounded-2xl overflow-hidden border border-white/[0.05] bg-zinc-900/40">
           {/* Encabezado de liga estilo FotMob */}
-          <h2 className="flex items-center gap-2.5 bg-zinc-900 border-b border-zinc-800 px-4 py-2.5">
+          <h2 className="flex items-center gap-2.5 border-b border-white/[0.05] px-4 py-2.5">
             <LeagueLogo url={leagueLogo} name={league} />
             <span className="text-[12px] font-bold text-zinc-200 truncate">{league}</span>
-            <span className="ml-auto text-[10px] font-mono text-zinc-600 tabular-nums">{list.length}</span>
+            <span className="ml-auto text-[10px] text-zinc-600 tabular-nums">{list.length}</span>
           </h2>
           {list.map((f) => <MatchRow key={f.fixture_id} f={f} isPremium={isPremium} intl={intl} />)}
         </section>
@@ -230,8 +230,8 @@ export function FixturesAccordion({ fixtures }: { fixtures: Fixture[] }) {
   return (
     <div>
       {top.length > 0 ? renderGroups(groupByLeague(top)) : (
-        <div className="border-x border-b border-zinc-800 px-6 py-10 text-center font-mono text-[12px] text-zinc-600">
-          // no hay partidos de ligas top hoy
+        <div className="rounded-2xl border border-white/[0.05] bg-zinc-900/40 px-6 py-10 text-center text-[13px] text-zinc-500">
+          No hay partidos de ligas top hoy.
         </div>
       )}
 
@@ -240,7 +240,7 @@ export function FixturesAccordion({ fixtures }: { fixtures: Fixture[] }) {
           {!showOthers ? (
             <button
               onClick={() => setShowOthers(true)}
-              className="w-full border border-zinc-800 px-4 py-3 text-[12px] font-bold uppercase tracking-wider text-zinc-400 hover:bg-zinc-900/60 transition-colors"
+              className="w-full rounded-2xl border border-white/[0.05] bg-zinc-900/40 px-4 py-3 text-[13px] font-semibold text-zinc-400 hover:bg-white/[0.02] hover:text-zinc-200 transition-colors"
             >
               Ver más ligas (+{others.length} partidos)
             </button>
