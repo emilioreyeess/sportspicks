@@ -6,6 +6,7 @@ import { consume, getClientIp, tooManyRequests } from "@/lib/rate-limit"
 import { getStore } from "@/lib/store"
 import { createServiceClient } from "@/lib/supabase/client"
 import { getGrantedPlan } from "@/lib/plan-grants"
+import { getFixtures, type Fixture } from "@/lib/infrastructure/footballApi"
 
 export const runtime = "nodejs"
 export const maxDuration = 60
@@ -450,12 +451,69 @@ Fecha/Hora: ${date}
 Estadio: ${venue}`
 }
 
+/**
+ * Consulta los partidos de NUESTRA base de datos (tabla `fixtures` de Supabase,
+ * poblada desde API-Football vía read-through). Esta es la fuente de verdad
+ * interna — el bot debe basar su análisis en estos datos, no en su conocimiento.
+ */
+async function getFixturesFromDb(teamName?: string): Promise<string> {
+  // Fecha actual en Europe/Madrid (coherente con cómo se cachean los fixtures).
+  const date = new Intl.DateTimeFormat("en-CA", {
+    year: "numeric", month: "2-digit", day: "2-digit", timeZone: "Europe/Madrid",
+  }).format(new Date())
+
+  let fixtures: Fixture[]
+  try {
+    fixtures = await getFixtures(date)
+  } catch {
+    return "La base de datos de partidos no está disponible ahora mismo. NO inventes partidos ni datos — indica que no se pudo consultar."
+  }
+
+  if (!fixtures.length) {
+    return `No hay partidos registrados en la base de datos para hoy (${date}). NO inventes partidos.`
+  }
+
+  // Filtro opcional por nombre de equipo (substring, normalizado).
+  let rows = fixtures
+  if (teamName && teamName.trim()) {
+    const q = norm(teamName)
+    rows = fixtures.filter((f) =>
+      norm(f.home_team ?? "").includes(q) || norm(f.away_team ?? "").includes(q),
+    )
+    if (!rows.length) {
+      return `No encontré "${teamName}" en los partidos de hoy en la base de datos (${date}). NO inventes el partido — puede no jugar hoy o el nombre no coincide.`
+    }
+  }
+
+  const fmtTime = (iso: string | null) => {
+    if (!iso) return "--:--"
+    try {
+      return new Intl.DateTimeFormat("es-ES", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Madrid" }).format(new Date(iso))
+    } catch { return "--:--" }
+  }
+
+  const lines = rows.slice(0, 60).map((f) => {
+    const stats = f.stats != null ? "· con stats" : "· sin stats"
+    return `• ${f.home_team ?? "?"} vs ${f.away_team ?? "?"} — ${fmtTime(f.match_date)} · estado: ${f.status ?? "?"} ${stats}`
+  })
+
+  return `📊 Partidos en NUESTRA base de datos para hoy (${date}) — fuente interna fixtures (API-Football), ${rows.length} partido(s):
+${lines.join("\n")}
+
+Basa tu análisis ESTRICTAMENTE en estos datos. Si necesitas forma reciente o clasificación de un equipo, usa get_recent_form / get_standings.`
+}
+
 // ─── Definición de herramientas ────────────────────────────────────────────────
 
 const TOOLS: Anthropic.Tool[] = [
   {
+    name: "get_fixtures_db",
+    description: "FUENTE DE VERDAD INTERNA. Consulta los partidos de HOY directamente en nuestra base de datos (tabla `fixtures` de Supabase, alimentada desde API-Football). Úsala SIEMPRE EN PRIMER LUGAR antes de cualquier análisis o de mencionar qué partidos hay: te dice qué partidos existen hoy y su estado actual según NUESTROS datos, no tu conocimiento de entrenamiento. Pasa `team_name` para filtrar por un equipo concreto. Si un partido no aparece aquí, NO existe hoy — no lo inventes.",
+    input_schema: { type: "object" as const, properties: { team_name: { type: "string", description: "Opcional. Filtra los partidos por nombre de equipo (acepta substrings)." } }, required: [] },
+  },
+  {
     name: "get_today_matches",
-    description: "Obtiene TODOS los partidos de HOY en tiempo real de ESPN (más de 20 ligas). Úsala SIEMPRE cuando el usuario pregunte '¿qué partidos hay hoy?', '¿hay algún partido de X hoy?', o para verificar qué partidos existen antes de analizar. Devuelve liga, equipos, hora y estado actual (programado/en juego/finalizado).",
+    description: "Obtiene TODOS los partidos de HOY en tiempo real de ESPN (más de 20 ligas). Fuente SECUNDARIA — usa get_fixtures_db primero. Útil si necesitas cobertura de una liga que no esté en nuestra base de datos. Devuelve liga, equipos, hora y estado actual (programado/en juego/finalizado).",
     input_schema: { type: "object" as const, properties: {}, required: [] },
   },
   {
@@ -492,6 +550,7 @@ const TOOLS: Anthropic.Tool[] = [
 
 async function executeTool(name: string, input: Record<string, string>): Promise<string> {
   try {
+    if (name === "get_fixtures_db")  return await getFixturesFromDb(input.team_name)
     if (name === "get_today_matches") return await getTodayMatches()
     if (name === "search_team")      return await searchTeam(input.team_name)
     if (name === "get_standings")    return await getStandings(input.league)
@@ -561,8 +620,22 @@ const SYSTEM_PROMPT = `Eres PicksBot, analista de fútbol global con acceso a da
 REGLA Nº1 — CERO INVENCIÓN
 ═══════════════════════════════════
 PROHIBIDO inventar estadísticas, posiciones, cuotas, árbitros, lesiones, alineaciones o xG.
-TODO dato debe venir de las herramientas. Si una herramienta no devuelve un dato:
+PROHIBIDO usar tu conocimiento de entrenamiento sobre partidos, plantillas o resultados:
+está DESFASADO. TODO dato debe venir de las herramientas en tiempo de ejecución.
+Si una herramienta no devuelve un dato:
 → di "ese dato no está disponible" y baja la confianza. NUNCA lo rellenes inventando.
+
+═══════════════════════════════════
+REGLA Nº0 — FUENTE DE VERDAD: NUESTRA BASE DE DATOS
+═══════════════════════════════════
+SIEMPRE, antes de hablar de qué partidos hay o de analizar cualquier encuentro,
+llama PRIMERO a get_fixtures_db (lee nuestra tabla "fixtures" de Supabase, datos
+reales de API-Football). Es la fuente de verdad interna.
+→ Si un partido NO aparece en get_fixtures_db, NO se juega hoy: no lo analices ni lo inventes.
+→ Solo si necesitas una liga no cubierta por nuestra base de datos, recurre a
+  get_today_matches (ESPN) como fuente secundaria.
+NUNCA afirmes que "consultas ESPN" si no has llamado a una herramienta; describe
+los datos por lo que son, sin atribuirlos a una fuente que no usaste.
 
 ═══════════════════════════════════
 COBERTURA GLOBAL
@@ -586,11 +659,12 @@ PROTOCOLO OBLIGATORIO (ANTES DE RESPONDER)
 ═══════════════════════════════════
 Cuando el usuario mencione un partido o equipo:
 
-PASO 0 — VERIFICAR QUE EL PARTIDO EXISTE HOY:
-→ Si preguntan por picks del día, partidos de hoy, o no hay contexto de cuándo es el partido:
-   get_today_matches() → lista en tiempo real de todos los partidos de hoy en ESPN.
+PASO 0 — VERIFICAR QUE EL PARTIDO EXISTE HOY (NUESTRA BASE DE DATOS):
+→ get_fixtures_db() → partidos de hoy según nuestra tabla "fixtures" (Supabase / API-Football).
+   Es la PRIMERA llamada SIEMPRE. Pasa team_name para filtrar por un equipo.
    Úsala para CONFIRMAR si el partido existe antes de analizarlo.
-   NUNCA analices un partido que no aparezca en ESPN — significaría que no se juega hoy.
+   NUNCA analices un partido que no aparezca aquí — significaría que no se juega hoy.
+→ Solo si la liga no está en nuestra base de datos: get_today_matches() (ESPN, secundaria).
 
 SI NO CONOCES LA LIGA:
 0. search_team(nombre_equipo) → descubre liga y slug
