@@ -6,11 +6,71 @@ import { getStore } from "@/lib/store"
 import { ensureWarm } from "@/lib/pipeline"
 import { consume, getClientIp, tooManyRequests } from "@/lib/rate-limit"
 import { sseEvent } from "@/lib/jobs"
+import { createServiceClient } from "@/lib/supabase/client"
+import type { Fixture, FixtureStats } from "@/lib/infrastructure/footballApi"
 
 export const runtime = "nodejs"
 export const maxDuration = 60
 
 const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
+
+// ── Enriquecimiento de combinadas con datos reales de fixtures (exact-match) ────
+
+/** Normaliza un nombre de equipo para comparación EXACTA (lowercase, sin acentos). */
+function normTeam(s: string): string {
+  return (s ?? "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/\s+/g, " ").trim()
+}
+
+/** Parte "TeamA vs TeamB" en [home, away]. Devuelve null si no hay exactamente 2 partes. */
+function parseMatch(match: string): [string, string] | null {
+  const parts = (match ?? "").split(/\s+vs\.?\s+/i)
+  if (parts.length !== 2) return null
+  const [h, a] = parts.map((x) => x.trim())
+  if (!h || !a) return null
+  return [h, a]
+}
+
+/**
+ * Carga los fixtures de hoy (Europe/Madrid) y devuelve un mapa por clave EXACTA
+ * `normHome|normAway` → FixtureStats. Best-effort, nunca lanza.
+ */
+async function loadTodayStatsMap(): Promise<Map<string, FixtureStats>> {
+  const out = new Map<string, FixtureStats>()
+  try {
+    const date = new Intl.DateTimeFormat("en-CA", {
+      year: "numeric", month: "2-digit", day: "2-digit", timeZone: "Europe/Madrid",
+    }).format(new Date())
+    const sb = createServiceClient()
+    const { data } = await sb
+      .from("fixtures")
+      .select("home_team, away_team, stats")
+      .gte("match_date", `${date}T00:00:00.000Z`)
+      .lte("match_date", `${date}T23:59:59.999Z`)
+    for (const f of (data ?? []) as Fixture[]) {
+      if (!f.home_team || !f.away_team || !f.stats) continue
+      out.set(`${normTeam(f.home_team)}|${normTeam(f.away_team)}`, f.stats as FixtureStats)
+    }
+  } catch { /* best-effort — sin enriquecimiento si falla */ }
+  return out
+}
+
+/**
+ * Devuelve un texto compacto de stats SOLO si hay match EXACTO de ambos equipos
+ * y existe clasificación. Cualquier duda → null (cero invención).
+ */
+function exactStatsFor(matchStr: string, map: Map<string, FixtureStats>): string | null {
+  const parsed = parseMatch(matchStr)
+  if (!parsed) return null
+  const key = `${normTeam(parsed[0])}|${normTeam(parsed[1])}`
+  const s = map.get(key)
+  if (!s) return null
+  const h = s.home?.standing, a = s.away?.standing
+  if (!h && !a) return null
+  const fmt = (label: string, st: typeof h) =>
+    st ? `${label}: ${st.rank}º, ${st.points}pts${st.form ? `, racha ${st.form}` : ""}` : null
+  const parts = [fmt("Local", h), fmt("Visitante", a)].filter(Boolean)
+  return parts.length ? parts.join(" · ") : null
+}
 
 /**
  * Combinada IA — Motor Inteligente de Decisión de Mercado.
@@ -101,16 +161,25 @@ export async function POST(req: NextRequest) {
 
   // ── 5. Construir vista del pool para Claude (compacta, solo datos reales) ──
 
-  const items = pool.map((p: any, i: number) => ({
-    i,
-    match: p.match,
-    league: p.league,
-    market: p.market,
-    selection: p.selection,
-    odd: Number(p.odd.toFixed(2)),
-    prob: Math.round(p.prob * 100),
-    reasoning: p.reasoning?.slice(0, 100),
-  }))
+  // Enriquecimiento exact-match: stats reales de fixtures solo si el partido
+  // coincide al 100% (ambos equipos). Si hay la mínima duda, se omite.
+  const statsMap = await loadTodayStatsMap()
+
+  const items = pool.map((p: any, i: number) => {
+    const realStats = exactStatsFor(p.match ?? "", statsMap)
+    return {
+      i,
+      match: p.match,
+      league: p.league,
+      market: p.market,
+      selection: p.selection,
+      odd: Number(p.odd.toFixed(2)),
+      prob: Math.round(p.prob * 100),
+      reasoning: p.reasoning?.slice(0, 100),
+      // Presente SOLO con match exacto verificado contra nuestra base de datos.
+      ...(realStats ? { stats_reales: realStats } : {}),
+    }
+  })
 
   // ── 6. Prompt para Claude — analista profesional, no rellena ──────────────
 
@@ -156,6 +225,10 @@ ${oddInfo ? `- ${oddInfo}` : ""}
 RAZONAMIENTO OBLIGATORIO
 ═══════════════════════════════════
 Para cada pata seleccionada, explica en 1 línea por qué la elegiste (edge, forma, contexto).
+Si una selección incluye el campo "stats_reales" (posición y racha verificadas de
+nuestra base de datos oficial), ÚSALO en tu razonamiento citándolo. Si una selección
+NO tiene "stats_reales", NO inventes posición ni forma para ella — limítate al edge y
+la probabilidad del modelo.
 
 ═══════════════════════════════════
 FORMATO DE RESPUESTA
