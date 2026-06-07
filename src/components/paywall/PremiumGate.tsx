@@ -54,16 +54,22 @@ export function PremiumGate({ feature = "Contenido premium", hint, children }: P
         <h3 className="mb-2 text-[18px] font-black uppercase tracking-tight text-white">
           Desbloquea {feature}
         </h3>
-        <p className="mx-auto mb-7 max-w-sm text-[13px] leading-relaxed text-zinc-500">
+        <p className="mx-auto mb-4 max-w-sm text-[13px] leading-relaxed text-zinc-500">
           {hint ?? "Este análisis está disponible con el plan Premium. Datos cuantitativos completos, sin recortes."}
         </p>
+
+        {/* Badge de prueba gratis */}
+        <div className="mb-5 inline-flex items-center gap-1.5 border border-emerald-500/40 bg-emerald-500/10 px-3 py-1">
+          <span className="h-1.5 w-1.5 bg-emerald-400" />
+          <span className="text-[11px] font-black uppercase tracking-wider text-emerald-300">Incluye 3 días de prueba gratis</span>
+        </div>
 
         {/* CTA brutalista → /pricing (checkout Stripe) */}
         <Link
           href="/pricing"
-          className="inline-flex items-center gap-2 border border-emerald-400 bg-emerald-400 px-7 py-3 text-[13px] font-black uppercase tracking-wider text-black transition-colors hover:bg-emerald-300"
+          className="flex items-center justify-center gap-2 border border-emerald-400 bg-emerald-400 px-7 py-3 text-[13px] font-black uppercase tracking-wider text-black transition-colors hover:bg-emerald-300"
         >
-          Upgrade to Premium
+          Empezar Prueba de 3 Días Gratis
           <svg className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={3} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <path d="M5 12h14M12 5l7 7-7 7" />
           </svg>

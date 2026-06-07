@@ -406,7 +406,7 @@ export default function ValuePage() {
             <div className="mb-4">
               <UpgradeBanner
                 text={`Ves los ${visible.length} picks de mayor valor de ${filtered.length}. Hay ${locked.length} más bloqueados.`}
-                cta="Suscríbete a Premium para ver todos los picks"
+                cta="Empezar prueba gratis (3 días) y ver todos"
               />
             </div>
           )}

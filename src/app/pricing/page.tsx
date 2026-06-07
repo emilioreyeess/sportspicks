@@ -416,6 +416,14 @@ function PlanCard({ planId, billing, currentPlan, justSet, checkoutLoading, onCh
         {(p.priceMonthly === 0 || billing === "monthly") && <div className="h-4" />}
       </div>
 
+      {/* Badge de prueba gratis — solo planes de pago */}
+      {p.priceMonthly > 0 && (
+        <div className="mb-3 inline-flex items-center gap-1.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 px-3 py-1">
+          <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+          <span className="text-[11px] font-bold text-emerald-300">Incluye 3 días de prueba gratis · no pagas hoy</span>
+        </div>
+      )}
+
       {/* CTA */}
       <button onClick={() => onChoose(planId)} disabled={(isCurrent && planId === "free") || loading}
         className={`w-full py-2.5 rounded-[11px] text-[14px] font-semibold tap transition-all inline-flex items-center justify-center gap-2 mb-5 disabled:opacity-50 ${styles.btn}`}>
@@ -426,10 +434,7 @@ function PlanCard({ planId, billing, currentPlan, justSet, checkoutLoading, onCh
         ) : isCurrent ? "✓ Plan actual"
           : done ? "✓ Activado"
           : planId === "free" ? "Empezar gratis"
-          : STRIPE_ENABLED
-            ? billing === "annual"
-              ? `Suscribirse — ${p.priceAnnual}€/año`
-              : `Suscribirse — ${p.priceMonthly}€/mes`
+          : STRIPE_ENABLED ? "Empezar Prueba de 3 Días Gratis"
           : `Activar ${p.name}`}
       </button>
 

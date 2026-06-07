@@ -46,6 +46,12 @@ export function UpgradeModal({ open, onClose, feature }: {
         <p className="text-sm text-zinc-400 text-center mt-1.5 leading-snug">
           Desbloquea esta función y todo el motor cuantitativo con el plan {plan.name}.
         </p>
+        <div className="flex justify-center mt-3">
+          <span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 px-3 py-1">
+            <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+            <span className="text-[11px] font-bold text-emerald-300">3 días de prueba gratis · no pagas hoy</span>
+          </span>
+        </div>
         <ul className="mt-4 space-y-2">
           {plan.perks.slice(0, 4).map((p) => (
             <li key={p} className="flex items-start gap-2 text-sm text-zinc-300">
@@ -57,7 +63,7 @@ export function UpgradeModal({ open, onClose, feature }: {
         <div className="mt-5 space-y-2">
           <Link href="/pricing" onClick={onClose}
             className="flex items-center justify-center gap-2 w-full py-3 rounded-xl bg-gradient-to-r from-emerald-500 to-cyan-500 text-zinc-950 font-bold text-sm tap">
-            Ver planes — desde {plan.priceMonthly}€{plan.period}
+            Empezar Prueba de 3 Días Gratis
             <Icon name="arrowRight" className="w-4 h-4" strokeWidth={2.4} />
           </Link>
           <button onClick={onClose}
@@ -91,10 +97,11 @@ export function LockedSection({ feature, title, hint, children }: {
           <p className="text-xs text-zinc-400 mt-1 leading-snug">
             {hint ?? "Desbloquea el análisis completo con un plan superior."}
           </p>
+          <p className="text-[11px] font-bold text-emerald-400 mt-2">✦ Incluye 3 días de prueba gratis</p>
           <Link href="/pricing"
             className="inline-flex items-center gap-1.5 mt-3 px-4 py-2 rounded-xl bg-gradient-to-r from-emerald-500 to-cyan-500 text-zinc-950 font-bold text-xs tap">
             <Icon name="crown" className="w-3.5 h-3.5" strokeWidth={2.2} />
-            Desbloquear
+            Empezar prueba gratis
           </Link>
         </div>
       </div>

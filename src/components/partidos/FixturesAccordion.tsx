@@ -15,6 +15,8 @@
 import { useState } from "react"
 import Link from "next/link"
 import { usePlan } from "@/lib/plan"
+import { TeamCrest } from "@/components/teams/TeamCrest"
+import { inferIsInternationalFromESPN } from "@/lib/teams/crest"
 import type { Fixture, FixtureStats, StandingRow } from "@/lib/infrastructure/footballApi"
 
 // ── Ligas TOP (match por substring sobre league.name de API-Football) ──────────
@@ -84,7 +86,9 @@ function rate(st: StandingRow | null): string {
 }
 
 // ── Item de acordeón ────────────────────────────────────────────────────────────
-function MatchRow({ f, isPremium }: { f: Fixture; isPremium: boolean }) {
+const FINISHED = new Set(["FT", "AET", "PEN"])
+
+function MatchRow({ f, isPremium, intl }: { f: Fixture; isPremium: boolean; intl: boolean }) {
   const [open, setOpen] = useState(false)
   const s = (f.stats ?? null) as FixtureStats | null
   const home = f.home_team ?? "?", away = f.away_team ?? "?"
@@ -93,18 +97,38 @@ function MatchRow({ f, isPremium }: { f: Fixture; isPremium: boolean }) {
   // Lazy: el cálculo Poisson solo ocurre cuando el acordeón está abierto.
   const markets = open && isPremium ? deriveMarkets(hSt, aSt) : null
 
+  // Centro: resultado si el partido terminó, si no la hora.
+  const finished = FINISHED.has((f.status ?? "").toUpperCase())
+  const gh = s?.goals?.home, ga = s?.goals?.away
+  const center = finished && gh != null && ga != null ? `${gh} - ${ga}` : fmtTime(f.match_date)
+
   return (
     <div className="border-b border-zinc-800 last:border-0">
       <button
         onClick={() => setOpen((v) => !v)}
-        className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-zinc-900/60 transition-colors"
+        className="w-full flex items-center gap-2 px-3 py-3 text-left hover:bg-zinc-900/60 transition-colors"
       >
-        <span className="font-mono text-[12px] text-zinc-500 tabular-nums w-12 shrink-0">{fmtTime(f.match_date)}</span>
-        <span className="flex-1 min-w-0 text-[13px] text-white truncate">
-          {home} <span className="text-zinc-600">vs</span> {away}
-        </span>
-        <span className="text-[10px] font-mono text-zinc-600 shrink-0">{f.status ?? ""}</span>
-        <span className="text-zinc-600 text-xs shrink-0">{open ? "▲" : "▼"}</span>
+        {/* Local: nombre + escudo, alineado a la derecha */}
+        <div className="flex-1 flex items-center justify-end gap-2 min-w-0">
+          <span className="text-[13px] text-white truncate text-right">{home}</span>
+          <TeamCrest teamName={home} isInternational={intl} size="sm" />
+        </div>
+
+        {/* Centro: resultado o hora */}
+        <div className="shrink-0 w-[64px] text-center">
+          <span className={`block font-mono tabular-nums leading-none ${finished ? "text-[15px] font-bold text-white" : "text-[13px] text-zinc-300"}`}>
+            {center}
+          </span>
+          <span className="block text-[9px] font-mono uppercase tracking-wider text-zinc-600 mt-0.5">{f.status ?? ""}</span>
+        </div>
+
+        {/* Visitante: escudo + nombre, alineado a la izquierda */}
+        <div className="flex-1 flex items-center gap-2 min-w-0">
+          <TeamCrest teamName={away} isInternational={intl} size="sm" />
+          <span className="text-[13px] text-white truncate">{away}</span>
+        </div>
+
+        <span className="text-zinc-600 text-[10px] shrink-0 w-3 text-center">{open ? "▲" : "▼"}</span>
       </button>
 
       {open && (
@@ -143,9 +167,10 @@ function MatchRow({ f, isPremium }: { f: Fixture; isPremium: boolean }) {
           ) : (
             <div className="border border-zinc-700 bg-zinc-900/60 px-4 py-4 text-center">
               <p className="text-[11px] font-mono uppercase tracking-widest text-zinc-600 mb-1">// pronóstico bloqueado</p>
-              <p className="text-[13px] text-zinc-300 mb-3">BTTS, Over/Under y 1X2 con modelo Poisson</p>
+              <p className="text-[13px] text-zinc-300 mb-2">BTTS, Over/Under y 1X2 con modelo Poisson</p>
+              <p className="text-[11px] font-bold text-emerald-400 mb-3">✦ 3 días de prueba gratis · no pagas hoy</p>
               <Link href="/pricing" className="inline-block border border-emerald-400 bg-emerald-400 px-5 py-2 text-[12px] font-black uppercase tracking-wider text-black hover:bg-emerald-300 transition-colors">
-                Suscríbete a Premium
+                Empezar Prueba Gratis
               </Link>
             </div>
           )}
@@ -175,14 +200,20 @@ export function FixturesAccordion({ fixtures }: { fixtures: Fixture[] }) {
   }
 
   const renderGroups = (groups: [string, Fixture[]][]) =>
-    groups.map(([league, list]) => (
-      <section key={league} className="border-x border-b border-zinc-800">
-        <h2 className="bg-zinc-900 border-b border-zinc-800 px-4 py-2 text-[11px] font-bold uppercase tracking-[0.15em] text-zinc-400">
-          {league} <span className="text-zinc-600">· {list.length}</span>
-        </h2>
-        {list.map((f) => <MatchRow key={f.fixture_id} f={f} isPremium={isPremium} />)}
-      </section>
-    ))
+    groups.map(([league, list]) => {
+      const intl = inferIsInternationalFromESPN(league)
+      return (
+        <section key={league} className="mb-3 rounded-lg overflow-hidden border border-zinc-800 bg-zinc-900/40">
+          {/* Encabezado de liga estilo FotMob */}
+          <h2 className="flex items-center gap-2.5 bg-zinc-900 border-b border-zinc-800 px-4 py-2.5">
+            <span className="h-4 w-1 rounded-full bg-emerald-500/70 shrink-0" aria-hidden="true" />
+            <span className="text-[12px] font-bold text-zinc-200 truncate">{league}</span>
+            <span className="ml-auto text-[10px] font-mono text-zinc-600 tabular-nums">{list.length}</span>
+          </h2>
+          {list.map((f) => <MatchRow key={f.fixture_id} f={f} isPremium={isPremium} intl={intl} />)}
+        </section>
+      )
+    })
 
   return (
     <div>
