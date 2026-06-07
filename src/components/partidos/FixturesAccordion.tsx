@@ -86,6 +86,17 @@ function rate(st: StandingRow | null): string {
 }
 
 // ── Item de acordeón ────────────────────────────────────────────────────────────
+/** Logo de liga con fallback a un acento neutro si no hay URL o la imagen falla. */
+function LeagueLogo({ url, name }: { url: string | null; name: string }) {
+  const [failed, setFailed] = useState(false)
+  if (!url || failed) return <span className="h-4 w-1 rounded-full bg-emerald-500/70 shrink-0" aria-hidden="true" />
+  return (
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src={url} alt={name} loading="lazy" onError={() => setFailed(true)}
+      className="w-5 h-5 object-contain shrink-0" />
+  )
+}
+
 const FINISHED = new Set(["FT", "AET", "PEN"])
 
 function MatchRow({ f, isPremium, intl }: { f: Fixture; isPremium: boolean; intl: boolean }) {
@@ -111,7 +122,7 @@ function MatchRow({ f, isPremium, intl }: { f: Fixture; isPremium: boolean; intl
         {/* Local: nombre + escudo, alineado a la derecha */}
         <div className="flex-1 flex items-center justify-end gap-2 min-w-0">
           <span className="text-[13px] text-white truncate text-right">{home}</span>
-          <TeamCrest teamName={home} isInternational={intl} size="sm" />
+          <TeamCrest teamName={home} logoUrl={s?.home?.logo ?? null} isInternational={intl} size="sm" />
         </div>
 
         {/* Centro: resultado o hora */}
@@ -124,7 +135,7 @@ function MatchRow({ f, isPremium, intl }: { f: Fixture; isPremium: boolean; intl
 
         {/* Visitante: escudo + nombre, alineado a la izquierda */}
         <div className="flex-1 flex items-center gap-2 min-w-0">
-          <TeamCrest teamName={away} isInternational={intl} size="sm" />
+          <TeamCrest teamName={away} logoUrl={s?.away?.logo ?? null} isInternational={intl} size="sm" />
           <span className="text-[13px] text-white truncate">{away}</span>
         </div>
 
@@ -202,11 +213,12 @@ export function FixturesAccordion({ fixtures }: { fixtures: Fixture[] }) {
   const renderGroups = (groups: [string, Fixture[]][]) =>
     groups.map(([league, list]) => {
       const intl = inferIsInternationalFromESPN(league)
+      const leagueLogo = ((list[0]?.stats ?? null) as FixtureStats | null)?.league_logo ?? null
       return (
         <section key={league} className="mb-3 rounded-lg overflow-hidden border border-zinc-800 bg-zinc-900/40">
           {/* Encabezado de liga estilo FotMob */}
           <h2 className="flex items-center gap-2.5 bg-zinc-900 border-b border-zinc-800 px-4 py-2.5">
-            <span className="h-4 w-1 rounded-full bg-emerald-500/70 shrink-0" aria-hidden="true" />
+            <LeagueLogo url={leagueLogo} name={league} />
             <span className="text-[12px] font-bold text-zinc-200 truncate">{league}</span>
             <span className="ml-auto text-[10px] font-mono text-zinc-600 tabular-nums">{list.length}</span>
           </h2>

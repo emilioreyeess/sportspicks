@@ -40,7 +40,7 @@ const nextConfig = {
       scriptSrc,
       "style-src 'self' 'unsafe-inline'",
       // Imágenes: propias + data URIs + blob + ESPN CDN + Supabase storage
-      "img-src 'self' data: blob: https://a.espncdn.com https://a1.espncdn.com https://a2.espncdn.com https://*.supabase.co https://*.googleusercontent.com",
+      "img-src 'self' data: blob: https://a.espncdn.com https://a1.espncdn.com https://a2.espncdn.com https://media.api-sports.io https://*.api-sports.io https://*.supabase.co https://*.googleusercontent.com",
       "font-src 'self'",
       // Frames: Stripe solamente
       "frame-src https://js.stripe.com https://hooks.stripe.com",

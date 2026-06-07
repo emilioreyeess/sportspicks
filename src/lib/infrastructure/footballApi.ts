@@ -44,8 +44,8 @@ interface ApiFootballFixture {
     venue?: { name?: string | null; city?: string | null }
     status: { short: string; long?: string }
   }
-  teams:   { home: { id?: number; name: string }; away: { id?: number; name: string } }
-  league?: { id?: number; name?: string | null; type?: string | null; season?: number; round?: string | null }
+  teams:   { home: { id?: number; name: string; logo?: string | null }; away: { id?: number; name: string; logo?: string | null } }
+  league?: { id?: number; name?: string | null; type?: string | null; season?: number; round?: string | null; logo?: string | null }
   goals?:  { home: number | null; away: number | null }
   score?:  unknown
   statistics?: unknown
@@ -71,14 +71,15 @@ export interface StandingRow {
 
 /** Ficha técnica enriquecida que guardamos en fixtures.stats (JSONB). */
 export interface FixtureStats {
-  referee:   string | null
-  venue:     string | null
-  round:     string | null
-  league_id: number | null
-  season:    number | null
-  goals:     { home: number | null; away: number | null }
-  home:      { id: number | null; standing: StandingRow | null }
-  away:      { id: number | null; standing: StandingRow | null }
+  referee:     string | null
+  venue:       string | null
+  round:       string | null
+  league_id:   number | null
+  league_logo: string | null
+  season:      number | null
+  goals:       { home: number | null; away: number | null }
+  home:        { id: number | null; logo: string | null; standing: StandingRow | null }
+  away:        { id: number | null; logo: string | null; standing: StandingRow | null }
   enriched_at: string
 }
 
@@ -284,14 +285,15 @@ export async function fetchFixturesEnriched(date: string): Promise<Fixture[]> {
     const table = leagueId != null ? standingsByLeague.get(`${leagueId}`) : undefined
 
     const stats: FixtureStats = {
-      referee:   item.fixture?.referee ?? null,
-      venue:     item.fixture?.venue?.name ?? null,
-      round:     item.league?.round ?? null,
-      league_id: leagueId,
-      season:    item.league?.season ?? null,
-      goals:     { home: item.goals?.home ?? null, away: item.goals?.away ?? null },
-      home:      { id: homeId, standing: homeId != null ? table?.get(homeId) ?? null : null },
-      away:      { id: awayId, standing: awayId != null ? table?.get(awayId) ?? null : null },
+      referee:     item.fixture?.referee ?? null,
+      venue:       item.fixture?.venue?.name ?? null,
+      round:       item.league?.round ?? null,
+      league_id:   leagueId,
+      league_logo: item.league?.logo ?? null,
+      season:      item.league?.season ?? null,
+      goals:       { home: item.goals?.home ?? null, away: item.goals?.away ?? null },
+      home:        { id: homeId, logo: item.teams?.home?.logo ?? null, standing: homeId != null ? table?.get(homeId) ?? null : null },
+      away:        { id: awayId, logo: item.teams?.away?.logo ?? null, standing: awayId != null ? table?.get(awayId) ?? null : null },
       enriched_at: nowIso,
     }
 
