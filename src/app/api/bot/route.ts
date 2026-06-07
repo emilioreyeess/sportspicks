@@ -5,7 +5,7 @@ import { consume, getClientIp, tooManyRequests } from "@/lib/rate-limit"
 import { getStore } from "@/lib/store"
 import { createServiceClient } from "@/lib/supabase/client"
 import { getGrantedPlan } from "@/lib/plan-grants"
-import { getFixtures, type Fixture } from "@/lib/infrastructure/footballApi"
+import type { Fixture, FixtureStats, StandingRow } from "@/lib/infrastructure/footballApi"
 
 export const runtime = "nodejs"
 export const maxDuration = 60
@@ -22,19 +22,45 @@ function norm(s: string): string {
     .trim()
 }
 
+const fmtTime = (iso: string | null) => {
+  if (!iso) return "--:--"
+  try {
+    return new Intl.DateTimeFormat("es-ES", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Madrid" }).format(new Date(iso))
+  } catch { return "--:--" }
+}
+
+/** Ficha de un equipo a partir de su fila de clasificación (stats JSONB). */
+function teamCard(name: string, st: StandingRow | null): string {
+  if (!st) return `${name}: posición/forma no disponibles en la BD`
+  const pj = st.played, g = st.win, e = st.draw, p = st.lose
+  const form = st.form ? ` · racha ${st.form}` : ""
+  return `${name}: ${st.rank}º · ${st.points} pts (${g}G ${e}E ${p}P en ${pj} PJ · ${st.goalsFor}:${st.goalsAgainst})${form}`
+}
+
 /**
- * ÚNICA fuente de datos del bot: nuestra tabla `fixtures` en Supabase
- * (poblada desde API-Football vía read-through). Devuelve los partidos de hoy
- * con su LIGA real, hora y estado. El LLM debe basarse ESTRICTAMENTE en esto.
+ * ÚNICA fuente de datos del bot: lectura DIRECTA de la tabla `fixtures` en
+ * Supabase (DB-only, sin llamadas a API externas — regla de oro). Devuelve los
+ * partidos de hoy con una FICHA TÉCNICA por partido (árbitro, estadio, posición
+ * en la tabla y racha de ambos equipos) extraída del JSONB `stats`.
  */
 async function getFixturesFromDb(teamName?: string): Promise<string> {
   const date = new Intl.DateTimeFormat("en-CA", {
     year: "numeric", month: "2-digit", day: "2-digit", timeZone: "Europe/Madrid",
   }).format(new Date())
+  const dayStart = `${date}T00:00:00.000Z`
+  const dayEnd   = `${date}T23:59:59.999Z`
 
   let fixtures: Fixture[]
   try {
-    fixtures = await getFixtures(date)
+    const sb = createServiceClient()
+    const { data, error } = await sb
+      .from("fixtures")
+      .select("*")
+      .gte("match_date", dayStart)
+      .lte("match_date", dayEnd)
+      .order("match_date", { ascending: true })
+    if (error) throw new Error(error.message)
+    fixtures = (data ?? []) as Fixture[]
   } catch {
     return "La base de datos de partidos no está disponible ahora mismo. NO inventes partidos ni datos — indica que no se pudo consultar."
   }
@@ -54,24 +80,36 @@ async function getFixturesFromDb(teamName?: string): Promise<string> {
     }
   }
 
-  const fmtTime = (iso: string | null) => {
-    if (!iso) return "--:--"
-    try {
-      return new Intl.DateTimeFormat("es-ES", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/Madrid" }).format(new Date(iso))
-    } catch { return "--:--" }
-  }
+  // Si se filtró por equipo (pocos partidos), damos ficha técnica completa.
+  // Si es el listado general, damos una línea compacta por partido.
+  const detailed = rows.length <= 6
 
-  const lines = rows.slice(0, 80).map((f) => {
+  const blocks = rows.slice(0, 80).map((f) => {
     const league = f.league ?? "Liga desconocida"
-    const stats = f.stats != null ? "· con stats" : "· sin stats"
-    return `• [${league}] ${f.home_team ?? "?"} vs ${f.away_team ?? "?"} — ${fmtTime(f.match_date)} · estado: ${f.status ?? "?"} ${stats}`
+    const home = f.home_team ?? "?"
+    const away = f.away_team ?? "?"
+    const s = (f.stats ?? null) as FixtureStats | null
+
+    if (!detailed) {
+      return `• [${league}] ${home} vs ${away} — ${fmtTime(f.match_date)} · ${f.status ?? "?"}`
+    }
+
+    const ref = s?.referee ? `Árbitro: ${s.referee}` : "Árbitro: no disponible"
+    const venue = s?.venue ? `Estadio: ${s.venue}` : "Estadio: no disponible"
+    return [
+      `📋 [${league}] ${home} vs ${away}`,
+      `   Hora: ${fmtTime(f.match_date)} · Estado: ${f.status ?? "?"}`,
+      `   ${ref} · ${venue}`,
+      `   ${teamCard(home, s?.home?.standing ?? null)}`,
+      `   ${teamCard(away, s?.away?.standing ?? null)}`,
+    ].join("\n")
   })
 
-  return `📊 Partidos en NUESTRA base de datos para hoy (${date}) — fuente interna fixtures (API-Football), ${rows.length} partido(s).
-Cada línea indica entre corchetes la LIGA/competición REAL del partido:
-${lines.join("\n")}
+  return `📊 Partidos en NUESTRA base de datos oficial para hoy (${date}) — ${rows.length} partido(s).
+La LIGA real va entre corchetes; las posiciones y rachas vienen de la clasificación oficial almacenada.
+${blocks.join("\n")}
 
-Usa la liga entre corchetes como la división actual REAL de cada equipo. Basa tu análisis ESTRICTAMENTE en estos datos.`
+Usa estos datos (liga, posición, racha, árbitro, estadio) como la verdad oficial. NO uses tu memoria sobre divisiones ni inventes cifras.`
 }
 
 // ─── Definición de herramientas ────────────────────────────────────────────────
@@ -141,38 +179,42 @@ El pipeline de picks aún no ha generado resultados para hoy (${today}).
   }
 }
 
-const SYSTEM_PROMPT = `Eres PicksBot, analista de fútbol de SportsPicks Analytics.
+const SYSTEM_PROMPT = `Eres PicksBot, ANALISTA DE DATOS DEPORTIVOS DE ÉLITE de SportsPicks Analytics.
+Trabajas como un cuantitativo profesional: riguroso, específico y siempre basado en datos.
 
 ═══════════════════════════════════
 REGLA Nº1 — CERO INVENCIÓN, CERO MEMORIA BASE
 ═══════════════════════════════════
 PROHIBIDO inventar estadísticas, posiciones, cuotas, árbitros, lesiones o alineaciones.
 PROHIBIDO usar tu conocimiento de entrenamiento sobre los equipos: está DESFASADO.
-En particular, NUNCA afirmes en qué división o liga juega un equipo basándote en tu
-memoria — un equipo pudo ascender o descender. La división REAL de cada equipo es la
-LIGA que devuelve get_fixtures_db entre corchetes. Úsala siempre.
+NUNCA afirmes en qué división juega un equipo desde tu memoria — pudo ascender o
+descender. La división REAL es la LIGA entre corchetes que devuelve get_fixtures_db.
 Si un dato no está en la herramienta → di "ese dato no está disponible" y baja la confianza.
 
 ═══════════════════════════════════
-REGLA Nº0 — FUENTE ÚNICA DE VERDAD: NUESTRA BASE DE DATOS
+REGLA Nº0 — FUENTE ÚNICA: LA BASE DE DATOS OFICIAL
 ═══════════════════════════════════
-Tu ÚNICA fuente de datos es la herramienta get_fixtures_db, que lee nuestra tabla
-"fixtures" en Supabase (datos reales de API-Football). SIEMPRE, antes de hablar de
-qué partidos hay o de analizar cualquier encuentro, llama PRIMERO a get_fixtures_db.
-→ Si un partido NO aparece, NO se juega hoy: no lo analices ni lo inventes.
-→ La liga entre corchetes [ ... ] es la competición/división REAL — refiérete a ella
-  exactamente como aparece (ej. "Segunda División", "Playoffs de Ascenso").
+Tu ÚNICA fuente es get_fixtures_db, que lee nuestra base de datos oficial (tabla
+fixtures en Supabase). SIEMPRE llámala PRIMERO antes de hablar de partidos o analizar.
+Para cada partido te da una FICHA TÉCNICA real: liga, hora, estado, árbitro, estadio,
+y la POSICIÓN en la tabla + la RACHA (campo form, ej. "WWDLW") de ambos equipos.
+→ Si un partido no aparece, NO se juega hoy: no lo analices ni lo inventes.
 No tienes ninguna otra herramienta ni fuente. No menciones "ESPN" ni ninguna otra API.
 
 ═══════════════════════════════════
-CÓMO RESPONDER
+CÓMO ANALIZAR (nivel élite, con datos reales)
 ═══════════════════════════════════
 1. Llama a get_fixtures_db (con team_name si el usuario menciona un equipo).
-2. Confirma que el partido existe hoy y en qué liga real se juega.
-3. Analiza SOLO con los datos devueltos (equipos, liga, hora, estado, stats si las hay).
-4. Si faltan datos para un mercado concreto, dilo claramente — no rellenes inventando.
+2. Presenta la ficha técnica: liga, posiciones, puntos, racha (form), árbitro, estadio.
+3. Razona con los datos REALES: diferencia de posición y puntos, momento de forma
+   (interpreta el form: WWW = racha fuerte, LLL = crisis), localía, goles a favor/contra.
+   Puedes ser ESPECÍFICO y dar una valoración por mercado (1X2, over/under) cuando los
+   datos lo respalden, explicando SIEMPRE en qué cifras te basas.
+4. Cita SIEMPRE la fuente: "según nuestra base de datos oficial, [equipo] es Xº con N pts
+   y racha [form]". Distingue lo que sabes (datos en la ficha) de lo que no (si falta, dilo).
+5. Sin datos suficientes para un mercado → no lo recomiendes. Calidad > cantidad.
 
-Idioma: español. Sin promesas de resultados. Apuesta responsable, +18.`
+Idioma: español. Sin promesas de resultados ni garantías. Apuesta responsable, +18.`
 
 type ContentBlock = { type: string; text?: string; id?: string; name?: string; input?: Record<string, string> }
 

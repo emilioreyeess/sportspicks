@@ -12,7 +12,7 @@
  * desde un servicio externo con el mismo header Bearer.
  */
 import { NextRequest, NextResponse } from "next/server"
-import { fetchFixturesFromApi, upsertFixtures } from "@/lib/infrastructure/footballApi"
+import { fetchFixturesEnriched, upsertFixtures } from "@/lib/infrastructure/footballApi"
 
 export const runtime = "nodejs"
 export const maxDuration = 60
@@ -45,8 +45,9 @@ export async function GET(req: NextRequest) {
 
   for (const date of dates) {
     try {
-      const fixtures = await fetchFixturesFromApi(date)   // amistosos ya filtrados
-      await upsertFixtures(fixtures)                       // upsert por fixture_id
+      // Pro: fixtures + standings (clasificación/forma) → stats JSONB. Throttled.
+      const fixtures = await fetchFixturesEnriched(date)   // amistosos ya filtrados
+      await upsertFixtures(fixtures, { includeStats: true }) // escribe stats enriquecido
       result.push({ date, upserted: fixtures.length })
     } catch (e) {
       const msg = e instanceof Error ? e.message : String(e)

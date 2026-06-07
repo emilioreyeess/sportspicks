@@ -36,16 +36,50 @@ export interface Fixture {
   updated_at: string
 }
 
-/** Forma cruda mínima de la respuesta de API-Football que consumimos. */
+/** Forma cruda de la respuesta de /fixtures de API-Football que consumimos. */
 interface ApiFootballFixture {
-  fixture: { id: number; date: string; status: { short: string } }
-  teams:   { home: { name: string }; away: { name: string } }
-  league?: { name?: string | null; type?: string | null }
+  fixture: {
+    id: number; date: string
+    referee?: string | null
+    venue?: { name?: string | null; city?: string | null }
+    status: { short: string; long?: string }
+  }
+  teams:   { home: { id?: number; name: string }; away: { id?: number; name: string } }
+  league?: { id?: number; name?: string | null; type?: string | null; season?: number; round?: string | null }
+  goals?:  { home: number | null; away: number | null }
+  score?:  unknown
   statistics?: unknown
 }
 
 interface ApiFootballResponse {
   response: ApiFootballFixture[]
+}
+
+/** Fila de clasificación por equipo (de /standings de API-Football). */
+export interface StandingRow {
+  rank:         number
+  points:       number
+  form:         string | null   // ej. "WWDLW"
+  played:       number
+  win:          number
+  draw:         number
+  lose:         number
+  goalsFor:     number
+  goalsAgainst: number
+  goalsDiff:    number
+}
+
+/** Ficha técnica enriquecida que guardamos en fixtures.stats (JSONB). */
+export interface FixtureStats {
+  referee:   string | null
+  venue:     string | null
+  round:     string | null
+  league_id: number | null
+  season:    number | null
+  goals:     { home: number | null; away: number | null }
+  home:      { id: number | null; standing: StandingRow | null }
+  away:      { id: number | null; standing: StandingRow | null }
+  enriched_at: string
 }
 
 // ── Lectura cacheada ──────────────────────────────────────────────────────────
@@ -89,7 +123,8 @@ export async function getFixtures(date: string): Promise<Fixture[]> {
   try {
     const fresh = await fetchFixturesFromApi(date)
     if (fresh.length > 0) {
-      await upsertFixtures(fresh)
+      // includeStats:false → no pisa el stats enriquecido que escribe el cron.
+      await upsertFixtures(fresh, { includeStats: false })
       return fresh
     }
   } catch (e) {
@@ -144,17 +179,156 @@ export async function fetchFixturesFromApi(date: string): Promise<Fixture[]> {
   }))
 }
 
+// ── Standings (plan Pro) ───────────────────────────────────────────────────────
+
+const sleep = (ms: number) => new Promise<void>((r) => setTimeout(r, ms))
+
+/** Pausa entre llamadas a /standings para no superar 300 req/min (~5/s). 250ms ⇒ ≤4/s. */
+const STANDINGS_THROTTLE_MS = 250
+
+interface ApiStandingTeam {
+  rank: number
+  team: { id: number }
+  points: number
+  goalsDiff: number
+  form: string | null
+  all: { played: number; win: number; draw: number; lose: number; goals: { for: number; against: number } }
+}
+
+/**
+ * Clasificación de una liga+temporada → Map<teamId, StandingRow>.
+ * Aplana todos los grupos. Devuelve mapa vacío si falla (best-effort).
+ */
+export async function fetchStandingsMap(leagueId: number, season: number): Promise<Map<number, StandingRow>> {
+  const out = new Map<number, StandingRow>()
+  const apiKey = process.env.FOOTBALL_API_KEY
+  if (!apiKey) return out
+
+  try {
+    const url = `${API_BASE}/standings?league=${leagueId}&season=${season}`
+    const res = await fetch(url, {
+      method: "GET",
+      headers: { "x-apisports-key": apiKey, "Accept": "application/json" },
+      cache: "no-store",
+    })
+    if (!res.ok) return out
+
+    const json = await res.json() as { response?: Array<{ league?: { standings?: ApiStandingTeam[][] } }> }
+    const groups = json.response?.[0]?.league?.standings ?? []
+    for (const group of groups) {
+      for (const t of group) {
+        if (!t?.team?.id) continue
+        out.set(t.team.id, {
+          rank:         t.rank,
+          points:       t.points,
+          form:         t.form ?? null,
+          played:       t.all?.played ?? 0,
+          win:          t.all?.win ?? 0,
+          draw:         t.all?.draw ?? 0,
+          lose:         t.all?.lose ?? 0,
+          goalsFor:     t.all?.goals?.for ?? 0,
+          goalsAgainst: t.all?.goals?.against ?? 0,
+          goalsDiff:    t.goalsDiff ?? 0,
+        })
+      }
+    }
+  } catch (e) {
+    console.warn(`[footballApi] standings ${leagueId}/${season} falló:`, e instanceof Error ? e.message : e)
+  }
+  return out
+}
+
+/**
+ * CRON PATH — fetch enriquecido (plan Pro): fixtures de `date` + standings de
+ * cada liga con partidos ese día, mergeados en fixtures.stats (JSONB).
+ * Throttle entre llamadas a /standings para respetar 300 req/min.
+ *
+ * Coste API: 1 (fixtures) + N (ligas distintas con partidos). Muy por debajo
+ * del límite diario del plan Pro (7500/día).
+ */
+export async function fetchFixturesEnriched(date: string): Promise<Fixture[]> {
+  const apiKey = process.env.FOOTBALL_API_KEY
+  if (!apiKey) throw new Error("[footballApi] FOOTBALL_API_KEY no está configurada")
+
+  // 1. Fixtures del día (con liga, equipos, árbitro, sede, ronda, goles).
+  const res = await fetch(`${API_BASE}/fixtures?date=${encodeURIComponent(date)}`, {
+    method: "GET",
+    headers: { "x-apisports-key": apiKey, "Accept": "application/json" },
+    cache: "no-store",
+  })
+  if (!res.ok) throw new Error(`[footballApi] API respondió ${res.status}`)
+  const json = (await res.json()) as ApiFootballResponse
+  const valid = (json.response ?? []).filter((item) => isMatchValid(item))
+
+  // 2. Ligas distintas (id + temporada) con partidos hoy → standings.
+  const leagueKeys = new Map<string, { id: number; season: number }>()
+  for (const item of valid) {
+    const id = item.league?.id, season = item.league?.season
+    if (id != null && season != null) leagueKeys.set(`${id}:${season}`, { id, season })
+  }
+
+  // 3. Fetch de standings throttled (≤4/s) → mapa global por liga.
+  const standingsByLeague = new Map<string, Map<number, StandingRow>>()
+  for (const [key, { id, season }] of leagueKeys) {
+    const map = await fetchStandingsMap(id, season)
+    if (map.size) standingsByLeague.set(`${id}`, map)
+    await sleep(STANDINGS_THROTTLE_MS)
+  }
+
+  // 4. Construir fixtures con stats enriquecido.
+  const nowIso = new Date().toISOString()
+  return valid.map((item) => {
+    const leagueId = item.league?.id ?? null
+    const homeId = item.teams?.home?.id ?? null
+    const awayId = item.teams?.away?.id ?? null
+    const table = leagueId != null ? standingsByLeague.get(`${leagueId}`) : undefined
+
+    const stats: FixtureStats = {
+      referee:   item.fixture?.referee ?? null,
+      venue:     item.fixture?.venue?.name ?? null,
+      round:     item.league?.round ?? null,
+      league_id: leagueId,
+      season:    item.league?.season ?? null,
+      goals:     { home: item.goals?.home ?? null, away: item.goals?.away ?? null },
+      home:      { id: homeId, standing: homeId != null ? table?.get(homeId) ?? null : null },
+      away:      { id: awayId, standing: awayId != null ? table?.get(awayId) ?? null : null },
+      enriched_at: nowIso,
+    }
+
+    return {
+      fixture_id: item.fixture.id,
+      home_team:  item.teams?.home?.name ?? null,
+      away_team:  item.teams?.away?.name ?? null,
+      match_date: item.fixture?.date ?? null,
+      status:     item.fixture?.status?.short ?? null,
+      league:     item.league?.name ?? null,
+      stats,
+      updated_at: nowIso,
+    }
+  })
+}
+
 // ── Upsert en Supabase ────────────────────────────────────────────────────────
 
 /**
  * Upsert de fixtures por `fixture_id`. Best-effort: un fallo de escritura no
  * impide devolver los datos al caller.
+ *
+ * `includeStats=false` (read-through ligero) omite la columna `stats` del upsert,
+ * de modo que NO pisa el `stats` enriquecido que escribe el cron.
  */
-export async function upsertFixtures(fixtures: Fixture[]): Promise<void> {
+export async function upsertFixtures(
+  fixtures: Fixture[],
+  opts: { includeStats?: boolean } = {},
+): Promise<void> {
   if (fixtures.length === 0) return
+  const includeStats = opts.includeStats ?? true
   try {
     const sb = createServiceClient()
-    await sb.from("fixtures").upsert(fixtures, { onConflict: "fixture_id" })
+    const rows = includeStats
+      ? fixtures
+      : fixtures.map(({ stats, ...rest }) => rest)   // omite stats → preserva el del cron
+    await sb.from("fixtures").upsert(rows, { onConflict: "fixture_id" })
   } catch (e) {
     console.warn("[footballApi] upsert falló:", e instanceof Error ? e.message : e)
   }
