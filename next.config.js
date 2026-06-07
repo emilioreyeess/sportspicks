@@ -24,11 +24,20 @@ const nextConfig = {
 
   // ─── Security Headers ─────────────────────────────────────────────────────
   async headers() {
+    // CN-028: 'unsafe-eval' NUNCA en producción. Pero el Fast Refresh de Next.js
+    // en desarrollo evalúa strings como JS (HMR) → requiere 'unsafe-eval' SOLO en dev.
+    const isDev = process.env.NODE_ENV !== "production"
+    const scriptSrc = [
+      "script-src 'self' 'unsafe-inline'",
+      isDev ? "'unsafe-eval'" : "",
+      "https://js.stripe.com https://analytics.umami.is https://*.sentry.io",
+    ].filter(Boolean).join(" ")
+
     const ContentSecurityPolicy = [
       "default-src 'self'",
-      // CN-028: Removed 'unsafe-eval' — not required by Next.js 14 in production
-      // Scripts: propios + inline (Next.js lo necesita) + Stripe + Umami
-      "script-src 'self' 'unsafe-inline' https://js.stripe.com https://analytics.umami.is https://*.sentry.io",
+      // Scripts: propios + inline (Next.js lo necesita) + Stripe + Umami.
+      // 'unsafe-eval' se añade arriba solo en desarrollo (HMR).
+      scriptSrc,
       "style-src 'self' 'unsafe-inline'",
       // Imágenes: propias + data URIs + blob + ESPN CDN + Supabase storage
       "img-src 'self' data: blob: https://a.espncdn.com https://a1.espncdn.com https://a2.espncdn.com https://*.supabase.co https://*.googleusercontent.com",
