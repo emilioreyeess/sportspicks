@@ -759,17 +759,23 @@ export interface PoolEntry {
 
 export function buildCombinadaPool(data: DailyData, excludeMatchIds: Set<string> = new Set()): PoolEntry[] {
   const pool: PoolEntry[] = []
+  // AUDITORÍA: telemetría del embudo de combinadas (solo logs, no altera lógica).
+  const t = { matchesIn: data.matches.length, excluded: 0, candidates: 0, skipSuppressed: 0, skipNoOdd: 0, skipCommonSense: 0, accepted: 0 }
+  console.log(`[combinadas] inicio: ${t.matchesIn} partidos entran al pool builder`)
+
   for (const m of data.matches) {
     // Segregation: skip matches already used as value picks
-    if (excludeMatchIds.has(m.id)) continue
+    if (excludeMatchIds.has(m.id)) { t.excluded++; continue }
     const matchName = `${m.homeName} vs ${m.awayName}`
     const league = LEAGUE_NAMES[m.slug] ?? m.slug
     for (const c of buildCandidates(m)) {
-      if (c.suppressed) continue
+      t.candidates++
+      if (c.suppressed) { t.skipSuppressed++; continue }
       const odd = m.odds[c.key]
-      if (!odd || odd <= 1.10) continue  // slightly tighter floor than before
+      if (!odd || odd <= 1.10) { t.skipNoOdd++; continue }  // slightly tighter floor than before
       // Apply common-sense gate to combinada candidates too (no absurd underdogs)
-      if (!commonSensePass(c, m)) continue
+      if (!commonSensePass(c, m)) { t.skipCommonSense++; continue }
+      t.accepted++
       pool.push({
         matchId: m.id, match: matchName, league, slug: m.slug,
         market: c.market, selection: c.selection,
@@ -779,6 +785,10 @@ export function buildCombinadaPool(data: DailyData, excludeMatchIds: Set<string>
       })
     }
   }
+
+  console.log(`[combinadas] filtrado: ${t.candidates} candidatos · descartes(suppressed:${t.skipSuppressed}, sinCuota:${t.skipNoOdd}, commonSense:${t.skipCommonSense}, excluidosPorValuePick:${t.excluded})`)
+  console.log(`[combinadas] fin: ${pool.length} selecciones en el pool`)
+  if (pool.length === 0) console.warn("[combinadas] ⚠️ pool vacío — no habrá combinadas hoy (¿pocos partidos viables con cuota?).")
   return pool
 }
 
@@ -1149,6 +1159,8 @@ function computeRetoCombiN(
 
 export function computeRetos(data: DailyData): { challenges: any[]; note?: string } {
   const usedMatches = new Set<string>()
+  // AUDITORÍA: telemetría de retos (solo logs, no altera umbrales ni matemática).
+  console.log(`[retos] inicio: ${data.matches.length} partidos disponibles · ${RETO_SPECS_V2.length} specs de reto`)
 
   const challenges = RETO_SPECS_V2.map((spec) => {
     const daily_combo = computeRetoCombi(data, spec, usedMatches)
@@ -1175,6 +1187,10 @@ export function computeRetos(data: DailyData): { challenges: any[]; note?: strin
       daily_combo,
     }
   })
+
+  const withCombo = challenges.filter((c) => c.daily_combo).length
+  console.log(`[retos] fin: ${withCombo}/${challenges.length} retos con pick diario viable`)
+  if (withCombo === 0) console.warn("[retos] ⚠️ ningún reto con combo viable hoy (sin partidos con cuotas válidas).")
 
   return {
     challenges,

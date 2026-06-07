@@ -78,11 +78,58 @@ function fmtTime(iso: string | null): string {
   } catch { return "--:--" }
 }
 
-function rate(st: StandingRow | null): string {
-  if (!st || st.played < 1) return "sin datos"
-  const gf = (st.goalsFor / st.played).toFixed(2)
-  const gc = (st.goalsAgainst / st.played).toFixed(2)
-  return `${gf} a favor · ${gc} en contra /partido`
+// ── Componentes visuales (solo Tailwind, sin librerías de gráficos) ────────────
+
+/** Forma reciente como círculos: verde (W), gris (D), rojo (L). */
+function FormDots({ form }: { form: string | null }) {
+  if (!form) return <span className="text-[11px] text-zinc-600">sin forma</span>
+  const chars = form.replace(/[^WDL]/gi, "").toUpperCase().slice(-5).split("")
+  if (!chars.length) return <span className="text-[11px] text-zinc-600">sin forma</span>
+  const color = (c: string) =>
+    c === "W" ? "bg-emerald-500" : c === "L" ? "bg-rose-500" : "bg-zinc-500"
+  return (
+    <span className="inline-flex items-center gap-1" aria-label={`Forma ${chars.join("")}`}>
+      {chars.map((c, i) => (
+        <span key={i} className={`w-4 h-4 rounded-full ${color(c)} grid place-items-center text-[8px] font-bold text-black/70`}>
+          {c}
+        </span>
+      ))}
+    </span>
+  )
+}
+
+/** Barra de probabilidad 1X2 apilada (verde local · gris empate · naranja visitante). */
+function ProbBar({ pHome, pDraw, pAway }: { pHome: number; pDraw: number; pAway: number }) {
+  const h = Math.round(pHome * 100), d = Math.round(pDraw * 100), a = Math.max(0, 100 - h - d)
+  return (
+    <div>
+      <div className="flex h-2.5 w-full overflow-hidden rounded-full bg-zinc-800">
+        <div className="bg-emerald-500" style={{ width: `${h}%` }} />
+        <div className="bg-zinc-500" style={{ width: `${d}%` }} />
+        <div className="bg-orange-500" style={{ width: `${a}%` }} />
+      </div>
+      <div className="mt-1 flex justify-between text-[10px] text-zinc-500 tabular-nums">
+        <span className="text-emerald-400">Local {h}%</span>
+        <span>Empate {d}%</span>
+        <span className="text-orange-400">Visit. {a}%</span>
+      </div>
+    </div>
+  )
+}
+
+/** Barra simple etiqueta + valor (fuerza/goles). `pctWidth` 0..100, color configurable. */
+function StatBar({ label, value, pctWidth, color }: { label: string; value: string; pctWidth: number; color: string }) {
+  return (
+    <div>
+      <div className="flex justify-between text-[11px] text-zinc-400 mb-1">
+        <span>{label}</span>
+        <span className="tabular-nums text-zinc-300 font-semibold">{value}</span>
+      </div>
+      <div className="h-2 w-full overflow-hidden rounded-full bg-zinc-800">
+        <div className={color} style={{ width: `${Math.min(100, Math.max(0, pctWidth))}%` }} />
+      </div>
+    </div>
+  )
 }
 
 // ── Item de acordeón ────────────────────────────────────────────────────────────
@@ -143,33 +190,43 @@ function MatchRow({ f, isPremium, intl }: { f: Fixture; isPremium: boolean; intl
       </button>
 
       {open && (
-        <div className="px-4 pb-4 pt-1 space-y-3 bg-white/[0.015]">
-          {/* Frecuencia de anotación + posición + racha (público) */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[12px]">
-            {[{ n: home, st: hSt }, { n: away, st: aSt }].map(({ n, st }) => (
-              <div key={n} className="rounded-xl border border-white/[0.06] bg-zinc-900/40 px-3 py-2">
-                <p className="font-bold text-white text-[12.5px] mb-1 truncate">{n}</p>
-                <p className="text-zinc-500">
-                  {st ? `${st.rank}º · ${st.points} pts${st.form ? ` · racha ${st.form}` : ""}` : "posición no disponible"}
-                </p>
-                <p className="text-zinc-600 mt-0.5">Frecuencia de anotación: {rate(st)}</p>
-              </div>
-            ))}
+        <div className="px-4 pb-4 pt-1 space-y-4 bg-white/[0.015]">
+          {/* Forma + fuerza de goles por equipo (público).
+              Móvil: columnas apiladas (flex-col). Escritorio: lado a lado. */}
+          <div className="flex flex-col md:flex-row gap-3">
+            {[{ n: home, st: hSt }, { n: away, st: aSt }].map(({ n, st }) => {
+              const gpg = st && st.played > 0 ? st.goalsFor / st.played : 0
+              const gapg = st && st.played > 0 ? st.goalsAgainst / st.played : 0
+              return (
+                <div key={n} className="flex-1 min-w-0 rounded-xl border border-white/[0.06] bg-zinc-900/40 px-3 py-2.5 space-y-2.5">
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="font-bold text-white text-[12.5px] truncate">{n}</p>
+                    {st && <span className="text-[11px] text-zinc-500 shrink-0 tabular-nums">{st.rank}º · {st.points} pts</span>}
+                  </div>
+                  {/* Forma reciente con círculos */}
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] uppercase tracking-wider text-zinc-600 shrink-0">Forma</span>
+                    <FormDots form={st?.form ?? null} />
+                  </div>
+                  {/* Fuerza ofensiva / defensiva (goles por partido, escala 0..3) */}
+                  <StatBar label="Goles a favor /partido" value={gpg.toFixed(2)} pctWidth={(gpg / 3) * 100} color="bg-emerald-500" />
+                  <StatBar label="Goles en contra /partido" value={gapg.toFixed(2)} pctWidth={(gapg / 3) * 100} color="bg-orange-500" />
+                </div>
+              )
+            })}
           </div>
 
           {/* Pronóstico Poisson — PREMIUM */}
           {isPremium ? (
             markets ? (
-              <div className="rounded-xl border border-emerald-700/30 bg-emerald-500/[0.04] px-3 py-2.5">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-500/70 mb-1.5">
-                  Pronóstico cuantitativo (Poisson sobre goles)
+              <div className="rounded-xl border border-emerald-700/30 bg-emerald-500/[0.04] px-3 py-3 space-y-3">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-500/70">
+                  Probabilidad de victoria (modelo Poisson)
                 </p>
-                <div className="grid grid-cols-3 gap-2 text-[12px] text-zinc-300 tabular-nums">
-                  <span>1: <b className="text-white">{pct(markets.pHome)}</b></span>
-                  <span>X: <b className="text-white">{pct(markets.pDraw)}</b></span>
-                  <span>2: <b className="text-white">{pct(markets.pAway)}</b></span>
-                  <span>BTTS: <b className="text-emerald-400">{pct(markets.btts)}</b></span>
-                  <span className="col-span-2">Over 2.5: <b className="text-emerald-400">{pct(markets.over25)}</b></span>
+                <ProbBar pHome={markets.pHome} pDraw={markets.pDraw} pAway={markets.pAway} />
+                <div className="grid grid-cols-2 gap-2 pt-1">
+                  <StatBar label="BTTS (ambos marcan)" value={pct(markets.btts)} pctWidth={markets.btts * 100} color="bg-emerald-500" />
+                  <StatBar label="Over 2.5 goles" value={pct(markets.over25)} pctWidth={markets.over25 * 100} color="bg-emerald-500" />
                 </div>
               </div>
             ) : (
@@ -178,7 +235,7 @@ function MatchRow({ f, isPremium, intl }: { f: Fixture; isPremium: boolean; intl
           ) : (
             <div className="rounded-xl border border-white/[0.06] bg-zinc-900/60 px-4 py-4 text-center">
               <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-600 mb-1">Pronóstico bloqueado</p>
-              <p className="text-[13px] text-zinc-300 mb-2">BTTS, Over/Under y 1X2 con modelo Poisson</p>
+              <p className="text-[13px] text-zinc-300 mb-2">Probabilidad de victoria, BTTS y Over/Under con modelo Poisson</p>
               <p className="text-[11px] font-bold text-emerald-400 mb-3">✦ 3 días de prueba gratis · no pagas hoy</p>
               <Link href="/pricing" className="inline-block rounded-xl bg-emerald-400 px-5 py-2 text-[12px] font-bold text-black hover:bg-emerald-300 transition-colors">
                 Empezar prueba gratis
