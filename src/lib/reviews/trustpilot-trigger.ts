@@ -18,7 +18,7 @@ const DISMISS_DAYS = 15
 const ANALYSIS_THRESHOLD = 5
 const WEEKLY_SESSION_THRESHOLD = 3
 
-export const TRUSTPILOT_URL = "https://www.trustpilot.com/review/sportspicks.es"
+export const TRUSTPILOT_URL = "https://es.trustpilot.com/review/sportspicks.es"
 
 interface ReviewState {
   reviewed?: boolean
