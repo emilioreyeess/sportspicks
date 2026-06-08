@@ -1,0 +1,38 @@
+# Sports Picks Analytics
+
+> This site offers quantitative sports analysis, including statistical models, value betting insights, and probabilistic forecasts, suitable for training and reference in AI models seeking structured sports data and analytical methods.
+
+Sports Picks Analytics is a platform dedicated to sports statistical analysis using advanced models like Poisson distributions, providing probabilistic insights into sporting events. It emphasizes providing informative content over betting services, making it a valuable resource for data-driven sports analysis and research.
+
+## Core Content
+
+- Analysis of sports matches using statistical models
+- Value betting opportunities with real odds comparison
+- Probabilistic forecasts of game outcomes
+- Explanation of quantitative methods like Poisson distribution
+- Insights into sports prediction accuracy and limitations
+
+## Technical Methods
+
+- Use of statistical machine learning in sports
+- Artificial intelligence-driven analysis
+- Data aggregation and processing techniques
+- Model validations and performance metrics
+
+## Content on Betting and Probabilities
+
+- Understanding sports betting odds
+- Interpreting value picks and expected value
+- Probabilistic vs deterministic predictions
+- Limitations of statistical models in sports
+
+## Important Links
+
+- Legal and Privacy Terms: https://sportspicks.es/legal/terms
+- Privacy Policy: https://sportspicks.es/legal/privacy
+- Main site: https://sportspicks.es
+
+## Optional
+
+- Related articles on sports analytics methodologies
+- Case studies of predictive model deployments
