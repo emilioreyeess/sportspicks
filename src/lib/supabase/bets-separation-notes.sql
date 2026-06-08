@@ -15,7 +15,8 @@
 --
 -- Flujo OCR de ticket (andamiaje actual, mock):
 --   1. El usuario sube la foto del ticket en el chat del grupo.
---   2. extractBetData(image) [mock → Vision API] devuelve {match, stake, odds}.
+--   2. extractBetDataReal(formData) [Server Action → Claude Vision] devuelve
+--      {match_text, odds, stake}.
 --   3. BetConfirmationModal permite corregir y confirmar.
 --   4. (Hoy) se publica como tarjeta en el chat (mensaje [bet]{json}[/bet]).
 --   5. (Futuro) al confirmar se creará un `bets` (personal_bet) y, si procede,

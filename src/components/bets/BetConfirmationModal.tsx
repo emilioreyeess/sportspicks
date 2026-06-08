@@ -13,7 +13,7 @@
  */
 
 import { useEffect, useState } from "react"
-import type { ExtractedBet } from "@/lib/bets/ocr-mock"
+import type { ExtractedBet } from "@/lib/bets/types"
 
 export interface ConfirmedBet {
   match: string

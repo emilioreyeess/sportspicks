@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from "react"
 import { Icon } from "@/components/ui/icons"
 import { useSession } from "next-auth/react"
 import Link from "next/link"
-import type { ExtractedBet } from "@/lib/bets/ocr-mock"
+import type { ExtractedBet } from "@/lib/bets/types"
 import { extractBetDataReal } from "@/lib/actions/ocr-action"
 import { BetConfirmationModal, type ConfirmedBet } from "@/components/bets/BetConfirmationModal"
 
