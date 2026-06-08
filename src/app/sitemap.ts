@@ -11,6 +11,7 @@ const DATES = {
   tools:       "2026-06-04",  // stats, retos, historico
   seasonal:    "2026-06-04",  // world-cup-2026
   marketing:   "2026-06-04",  // pricing, about
+  content:     "2026-06-08",  // guías, glosario, comparativa, herramienta, blog
   legal:       "2026-05-01",  // raramente cambian
 } as const
 
@@ -79,6 +80,44 @@ export default function sitemap(): MetadataRoute.Sitemap {
       changeFrequency: "monthly",
       priority: 0.50,
     },
+    // ─── Contenido SEO (guías, glosario, comparativa, herramienta, blog) ──
+    {
+      url: `${BASE}/guias/value-picks`,
+      lastModified: DATES.content,
+      changeFrequency: "monthly",
+      priority: 0.70,
+    },
+    {
+      url: `${BASE}/guias/modelo-poisson`,
+      lastModified: DATES.content,
+      changeFrequency: "monthly",
+      priority: 0.70,
+    },
+    {
+      url: `${BASE}/glosario`,
+      lastModified: DATES.content,
+      changeFrequency: "monthly",
+      priority: 0.60,
+    },
+    {
+      url: `${BASE}/comparativa/tipster-telegram-vs-algoritmo`,
+      lastModified: DATES.content,
+      changeFrequency: "monthly",
+      priority: 0.65,
+    },
+    {
+      url: `${BASE}/herramientas/calculadora-ev`,
+      lastModified: DATES.content,
+      changeFrequency: "monthly",
+      priority: 0.65,
+    },
+    {
+      url: `${BASE}/blog/big-data-analisis-rendimiento`,
+      lastModified: DATES.content,
+      changeFrequency: "monthly",
+      priority: 0.55,
+    },
+
     // ─── Legal ───────────────────────────────────────────────────────────
     {
       url: `${BASE}/legal/privacy`,
