@@ -61,9 +61,11 @@ export const metadata: Metadata = {
     images: ["/opengraph-image.png"],
   },
   category: "sports",
-  // Google AdSense verification — no carga cookies por sí sola
+  // Metadatos de verificación — Next.js los renderiza como <meta> en el <head>
+  // (vía Metadata API, sin HTML crudo → sin riesgo de hidratación).
   other: {
     "google-adsense-account": "ca-pub-9944234338041841",
+    "trustpilot-one-time-domain-verification-id": "c0849222-360e-48af-b14d-a7bbc22e990a",
   },
 }
 
