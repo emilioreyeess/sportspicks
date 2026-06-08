@@ -28,8 +28,10 @@ const LEAGUE_MAP: Record<string, string> = {
   "1": "esp.1", "2": "eng.1", "3": "ger.1", "4": "ita.1", "5": "fra.1",
 }
 
-// ─── Value engine — umbrales (calibrados para 3-8 picks/día manteniendo calidad) ─
-const MIN_EDGE = 3
+// ─── Value engine — umbrales (relajados para asegurar volumen diario) ──────────
+// MIN_EDGE bajado de 3 → 2 (−33%): selección más inclusiva para acercarse al
+// objetivo de 8 picks/día sin tirar la calidad por el suelo (sigue el gate).
+const MIN_EDGE = 2
 const MAX_EDGE = 15
 const MIN_ODD = 1.40
 const QUALITY_GATE = 56   // raised from 52 — stricter quality bar
@@ -537,7 +539,7 @@ export function computeValuePicks(data: DailyData): { picks: any[]; note?: strin
   }
 
   picks.sort((a, b) => b.quality_score - a.quality_score)
-  const MIN_DAILY_PICKS = 7
+  const MIN_DAILY_PICKS = 8   // objetivo de volumen diario
 
   // FALLBACK: if strict engine yields fewer than MIN_DAILY_PICKS, add best remaining
   // candidates with relaxed thresholds (skip decision-engine, lower quality gate to 40)
@@ -594,6 +596,32 @@ export function computeValuePicks(data: DailyData): { picks: any[]; note?: strin
     picks.length = 0
     picks.push(...deduped)
     picks.sort((a: any, b: any) => b.quality_score - a.quality_score)
+  }
+
+  // ── Reporte de déficit: si no llegamos al objetivo, decir POR QUÉ y qué umbral
+  // habría hecho falta hoy (para iterar mañana). Solo log, no altera la selección.
+  if (picks.length < MIN_DAILY_PICKS) {
+    const bestEdges: number[] = []
+    for (const m of data.matches) {
+      let best = -Infinity
+      for (const c of buildCandidates(m)) {
+        if (c.suppressed) continue
+        const odd = m.odds[c.key]
+        if (!odd || !isFinite(odd) || odd < MIN_ODD) continue
+        const e = toEvalCandidate(c, m, odd).edge
+        if (e > best) best = e
+      }
+      if (best > -Infinity) bestEdges.push(best)
+    }
+    bestEdges.sort((a, b) => b - a)
+    const missing = MIN_DAILY_PICKS - picks.length
+    const suggested = bestEdges.length >= MIN_DAILY_PICKS ? bestEdges[MIN_DAILY_PICKS - 1] : null
+    console.warn(
+      `[value-picks] Faltaron ${missing} picks. Motivo: ` +
+      (suggested != null
+        ? `[Threshold actual: MIN_EDGE=${MIN_EDGE}] vs [Umbral sugerido para llegar a ${MIN_DAILY_PICKS}: edge≈${suggested.toFixed(1)}]`
+        : `[Threshold actual: MIN_EDGE=${MIN_EDGE}] · solo ${bestEdges.length} partidos viables hoy; relajar el umbral no alcanzaría ${MIN_DAILY_PICKS}.`),
+    )
   }
 
   const capped = picks.slice(0, MAX_PICKS)
