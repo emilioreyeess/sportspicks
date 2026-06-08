@@ -32,7 +32,7 @@ export async function GET() {
     const sb = createServiceClient()
     const { data, error } = await sb
       .from("predictions_log")
-      .select("id, home_team, away_team, market, odds, kickoff_iso, status")
+      .select("id, home_team, away_team, market, odds, kickoff_iso, status, closing_line_value")
       .in("status", ["won", "lost", "void"])
       .order("kickoff_iso", { ascending: true })
       .limit(5000)
@@ -48,8 +48,8 @@ export async function GET() {
       event: `${r.home_team ?? "?"} vs ${r.away_team ?? "?"}`,
       market: r.market ?? "",
       recommendedOdds: Number(r.odds) || 0,
-      stakeUnits: 1,            // flat-stake (predictions_log no almacena stake)
-      closingLineValue: 0,      // CLV no capturado aún en predictions_log
+      stakeUnits: 1,            // flat-stake (sin gestión de stake dinámico)
+      closingLineValue: Number(r.closing_line_value) || 0,  // CLV real; null (partidos antiguos) → 0
       result: STATUS_MAP[r.status] ?? "Void",
     }))
 
