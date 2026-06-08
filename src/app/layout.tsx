@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from "next"
 import { Inter } from "next/font/google"
 import { JsonLd } from "@/components/seo/JsonLd"
+import { TrustpilotReviewToast } from "@/components/reviews/TrustpilotReviewToast"
 import { AppShell } from "@/components/ui/AppShell"
 import { AgeGate } from "@/components/legal/AgeGate"
 import { CookieConsent } from "@/components/legal/CookieConsent"
@@ -84,6 +85,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
                 <AppShell>{children}</AppShell>
                 <CookieConsent />
                 <SafariInstallBanner />
+                <TrustpilotReviewToast />
                 <ConditionalAnalytics />
                 <ConditionalAdSense />
               </LoginWall>

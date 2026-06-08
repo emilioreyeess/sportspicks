@@ -17,6 +17,7 @@ import Link from "next/link"
 import { usePlan } from "@/lib/plan"
 import { TeamCrest } from "@/components/teams/TeamCrest"
 import { inferIsInternationalFromESPN } from "@/lib/teams/crest"
+import { recordAnalysisView } from "@/lib/reviews/trustpilot-trigger"
 import type { Fixture, FixtureStats, StandingRow } from "@/lib/infrastructure/footballApi"
 
 // ── Ligas TOP (match por substring sobre league.name de API-Football) ──────────
@@ -165,7 +166,7 @@ function MatchRow({ f, isPremium, intl }: { f: Fixture; isPremium: boolean; intl
   return (
     <div className="border-b border-white/[0.05] last:border-0">
       <button
-        onClick={() => setOpen((v) => !v)}
+        onClick={() => setOpen((v) => { const next = !v; if (next) recordAnalysisView(); return next })}
         className="w-full flex items-center gap-2 px-3 py-3 text-left hover:bg-white/[0.02] transition-colors"
       >
         {/* Local: nombre + escudo, alineado a la derecha */}
