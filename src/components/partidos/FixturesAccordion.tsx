@@ -69,6 +69,8 @@ function deriveMarkets(home: StandingRow | null, away: StandingRow | null): Mark
 }
 
 const pct = (x: number) => `${Math.round(x * 100)}%`
+/** Cuota justa (true odds) = 1/probabilidad. "—" si la prob no es válida. */
+const fairOdds = (p: number) => (p > 0 ? (1 / p).toFixed(2) : "—")
 
 // ── Helpers de formato ──────────────────────────────────────────────────────────
 function fmtTime(iso: string | null): string {
@@ -224,6 +226,12 @@ function MatchRow({ f, isPremium, intl }: { f: Fixture; isPremium: boolean; intl
                   Probabilidad de victoria (modelo Poisson)
                 </p>
                 <ProbBar pHome={markets.pHome} pDraw={markets.pDraw} pAway={markets.pAway} />
+                {/* Cuota justa (true odds = 1/prob). Sin cuota de mercado aquí → sin edge. */}
+                <div className="flex justify-between text-[11px] text-zinc-400 tabular-nums">
+                  <span>Cuota justa 1: <b className="text-white">@{fairOdds(markets.pHome)}</b></span>
+                  <span>X: <b className="text-white">@{fairOdds(markets.pDraw)}</b></span>
+                  <span>2: <b className="text-white">@{fairOdds(markets.pAway)}</b></span>
+                </div>
                 <div className="grid grid-cols-2 gap-2 pt-1">
                   <StatBar label="BTTS (ambos marcan)" value={pct(markets.btts)} pctWidth={markets.btts * 100} color="bg-emerald-500" />
                   <StatBar label="Over 2.5 goles" value={pct(markets.over25)} pctWidth={markets.over25 * 100} color="bg-emerald-500" />

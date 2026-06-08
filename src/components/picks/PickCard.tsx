@@ -2,6 +2,8 @@
 
 import Link from "next/link"
 import { type Pick, type ConfidenceTier } from "@/types"
+import { usePlan } from "@/lib/plan"
+import { calculateValueMetrics } from "@/lib/engine"
 
 const TIER_CONFIG: Record<ConfidenceTier, {
   barColor: string; label: string; text: string; badge: string; oddBadge: string
@@ -46,12 +48,17 @@ interface Props {
 }
 
 export function PickCard({ pick, onClick, locked = false }: Props) {
+  const { isPremium } = usePlan()
   const cfg = TIER_CONFIG[pick.confidence_tier]
   const kickoff = new Date(pick.kickoff_utc).toLocaleString("es-ES", {
     weekday: "short", day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit",
   })
   const edge    = pick.value_edge != null ? pick.value_edge.toFixed(1) : null
   const quality = pick.quality_score ?? pick.confidence_pct
+  // True Odds (cuota justa) + Edge desde el modelo Poisson vs cuota de mercado.
+  const metrics = pick.best_odd && pick.model_prob != null
+    ? calculateValueMetrics(pick.model_prob, pick.best_odd)
+    : null
 
   return (
     <div
@@ -135,6 +142,28 @@ export function PickCard({ pick, onClick, locked = false }: Props) {
                   </span>
                 )}
               </div>
+            )}
+
+            {/* True Odds (cuota justa) + Edge — soft-paywall premium */}
+            {metrics && metrics.trueOdds > 0 && (
+              isPremium ? (
+                <div className="mt-3 flex items-center gap-2.5 rounded-lg border border-emerald-700/25 bg-emerald-500/[0.06] px-3 py-2 text-[11px]">
+                  <span className="text-zinc-400">Cuota justa <b className="text-white tabular-nums">@{metrics.trueOdds.toFixed(2)}</b></span>
+                  <span className="text-zinc-700">·</span>
+                  <span className={metrics.isValue ? "font-bold text-emerald-400" : "text-zinc-500"}>
+                    {metrics.edge > 0 ? `Edge +${metrics.edge}%` : "Sin valor"}
+                  </span>
+                </div>
+              ) : (
+                <Link href="/pricing" onClick={(e) => e.stopPropagation()}
+                  className="mt-3 flex items-center justify-between gap-2 rounded-lg border border-white/[0.06] bg-white/[0.03] px-3 py-2">
+                  <span className="text-[11px] text-zinc-500">
+                    Cuota justa + Edge{" "}
+                    <span className="blur-[5px] select-none tabular-nums">@1.90 · +6.2%</span>
+                  </span>
+                  <span className="text-[10px] font-bold text-emerald-400 shrink-0">🔒 Premium</span>
+                </Link>
+              )
             )}
 
             {pick.value_reason && (

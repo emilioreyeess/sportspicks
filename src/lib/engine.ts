@@ -92,6 +92,27 @@ export function impliedPct(odd: number): number {
   return Math.round((1 / odd) * 1000) / 10
 }
 
+/**
+ * True Odds (cuota justa) + Edge a partir de la probabilidad del modelo y la
+ * cuota del mercado. `isValue` exige edge positivo y < 50% (filtro anti-ruido
+ * de API / cuotas erróneas).
+ */
+export function calculateValueMetrics(modelProbability: number, bookmakerOdds: number) {
+  if (modelProbability <= 0 || modelProbability > 1 || !bookmakerOdds) {
+    return { isValue: false, trueOdds: 0, edge: 0 }
+  }
+  const trueOdds = 1 / modelProbability
+  const edgeDecimal = (bookmakerOdds * modelProbability) - 1
+  const edgePercentage = Number((edgeDecimal * 100).toFixed(2))
+  const isValue = edgePercentage > 0 && edgePercentage < 50 // Filtro anti-ruido de API
+
+  return {
+    isValue,
+    trueOdds: Number(trueOdds.toFixed(2)),
+    edge: edgePercentage,
+  }
+}
+
 /** Cuota americana ("+145", "-110", 235) → decimal */
 export function americanToDecimal(a: any): number | null {
   if (a == null) return null
