@@ -1,7 +1,6 @@
 import { NextRequest } from "next/server"
 import Anthropic from "@anthropic-ai/sdk"
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth-options"
+import { getServerSession } from "@/lib/auth-server"
 import { getStore } from "@/lib/store"
 import { ensureWarm } from "@/lib/pipeline"
 import { consume, getClientIp, tooManyRequests } from "@/lib/rate-limit"
@@ -86,7 +85,7 @@ function exactStatsFor(matchStr: string, map: Map<string, FixtureStats>): string
  */
 export async function POST(req: NextRequest) {
   // SECURITY FIX: require authenticated session — Claude Opus is expensive
-  const session = await getServerSession(authOptions)
+  const session = await getServerSession()
   if (!session?.user?.email) return Response.json({ error: "No autorizado" }, { status: 401 })
 
   // Per-IP + per-user rate limit to prevent token abuse

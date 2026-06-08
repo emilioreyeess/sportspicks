@@ -1,6 +1,5 @@
 import { NextRequest } from "next/server"
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth-options"
+import { getServerSession } from "@/lib/auth-server"
 import { createServiceClient } from "@/lib/supabase/client"
 import { consume, getClientIp, tooManyRequests } from "@/lib/rate-limit"
 
@@ -8,7 +7,7 @@ export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
 
 export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions)
+  const session = await getServerSession()
   if (!session?.user?.email) return Response.json({ error: "No autorizado" }, { status: 401 })
 
   const ip = getClientIp(req)

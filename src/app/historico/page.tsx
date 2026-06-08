@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react"
 import Link from "next/link"
 import { Icon } from "@/components/ui/icons"
-import { useSession } from "next-auth/react"
+import { useSession } from "@/lib/auth-client"
 import { PageHeader, Card, Button, Spinner, EmptyState, Badge } from "@/components/ui/primitives"
 import { TeamCrest } from "@/components/teams/TeamCrest"
 import { inferIsInternationalFromESPN } from "@/lib/teams/crest"

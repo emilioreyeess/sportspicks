@@ -6,8 +6,7 @@
  * This guarantees the pick was registered before the result was known.
  */
 import { NextRequest } from "next/server"
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth-options"
+import { getServerSession } from "@/lib/auth-server"
 import { createServiceClient } from "@/lib/supabase/client"
 
 export const runtime = "nodejs"
@@ -27,7 +26,7 @@ async function assertMember(sb: ReturnType<typeof createServiceClient>, groupId:
 // ── GET ───────────────────────────────────────────────────────
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const session = await getServerSession(authOptions)
+  const session = await getServerSession()
   if (!session?.user?.email) return Response.json({ error: "No autorizado" }, { status: 401 })
 
   const sb = createServiceClient()
@@ -117,7 +116,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 // ── POST ──────────────────────────────────────────────────────
 export async function POST(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const session = await getServerSession(authOptions)
+  const session = await getServerSession()
   if (!session?.user?.email) return Response.json({ error: "No autorizado" }, { status: 401 })
 
   const sb = createServiceClient()
@@ -176,7 +175,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
 // ── DELETE ────────────────────────────────────────────────────
 export async function DELETE(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
-  const session = await getServerSession(authOptions)
+  const session = await getServerSession()
   if (!session?.user?.email) return Response.json({ error: "No autorizado" }, { status: 401 })
 
   const sb = createServiceClient()

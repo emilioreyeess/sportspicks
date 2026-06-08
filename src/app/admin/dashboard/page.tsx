@@ -6,8 +6,7 @@
  * el client component DashboardClient (consume /api/admin/users).
  */
 import { redirect } from "next/navigation"
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth-options"
+import { getServerSession } from "@/lib/auth-server"
 import { isAdminEmail } from "@/lib/admin-auth"
 import DashboardClient from "./DashboardClient"
 
@@ -15,7 +14,7 @@ export const dynamic = "force-dynamic"
 export const metadata = { title: "Admin · SportsPicks", robots: { index: false, follow: false } }
 
 export default async function AdminDashboardPage() {
-  const session = await getServerSession(authOptions)
+  const session = await getServerSession()
   const email = session?.user?.email ?? null
 
   // RBAC: sin sesión → login; sesión no-admin → home.

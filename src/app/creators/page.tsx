@@ -2,7 +2,7 @@
 
 import { useRef, useState, useEffect, useCallback } from "react"
 import { Icon } from "@/components/ui/icons"
-import { useSession } from "next-auth/react"
+import { useSession } from "@/lib/auth-client"
 
 // ── Canvas image generator ────────────────────────────────────
 interface BetLeg { match: string; selection: string; odds: number }

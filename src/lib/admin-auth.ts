@@ -8,8 +8,7 @@
  * La comprobación SIEMPRE se hace en el servidor con el service-role client.
  * Nunca confiar en un flag de cliente.
  */
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth-options"
+import { getServerSession } from "@/lib/auth-server"
 import { createServiceClient } from "@/lib/supabase/client"
 
 /** Allowlist de emails admin desde env (separados por coma). */
@@ -56,7 +55,7 @@ export interface AdminGate {
  * decida el status code.
  */
 export async function requireAdmin(): Promise<AdminGate> {
-  const session = await getServerSession(authOptions)
+  const session = await getServerSession()
   const email = session?.user?.email ?? null
   if (!email) return { ok: false, email: null }
   const ok = await isAdminEmail(email)

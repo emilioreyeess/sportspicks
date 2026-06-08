@@ -1,6 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk"
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth-options"
+import { getServerSession } from "@/lib/auth-server"
 import { consume, getClientIp, tooManyRequests } from "@/lib/rate-limit"
 import { getStore } from "@/lib/store"
 import { createServiceClient } from "@/lib/supabase/client"
@@ -227,7 +226,7 @@ const MAX_HISTORY_RAW_BYTES = 50_000  // 50 KB de history
 
 export async function POST(req: Request) {
   // CN-024: Require authenticated session
-  const session = await getServerSession(authOptions)
+  const session = await getServerSession()
   if (!session?.user?.email) {
     return new Response(JSON.stringify({ error: "No autorizado" }), { status: 401, headers: { "Content-Type": "application/json" } })
   }

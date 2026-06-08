@@ -12,8 +12,7 @@
 import { NextRequest } from "next/server"
 import { getJob } from "@/lib/jobs"
 import { consume, getClientIp, tooManyRequests } from "@/lib/rate-limit"
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth-options"
+import { getServerSession } from "@/lib/auth-server"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -23,7 +22,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> },
 ) {
   // Must be authenticated
-  const session = await getServerSession(authOptions)
+  const session = await getServerSession()
   if (!session?.user?.email) {
     return Response.json({ error: "No autorizado" }, { status: 401 })
   }
