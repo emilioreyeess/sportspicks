@@ -62,10 +62,13 @@ function EmptyGroupBets() {
   return (
     <div className="flex flex-col items-center justify-center py-14 text-center px-6">
       <Icon name="ticket" className="w-10 h-10 text-zinc-700 mb-3" strokeWidth={1.5} />
-      <p className="text-sm font-black text-zinc-400">Sin apuestas compartidas</p>
-      <p className="text-xs text-zinc-600 mt-1 max-w-xs">
-        Comparte una apuesta pendiente para que cuente en el ranking del grupo.
-        Solo se admiten picks pre-partido.
+      <p className="text-sm font-black text-zinc-400">Este grupo empieza en blanco</p>
+      <p className="text-xs text-zinc-600 mt-1.5 max-w-xs leading-relaxed">
+        Para que una apuesta cuente, debes subirla en tu{" "}
+        <Link href="/bets" className="text-emerald-400 hover:text-emerald-300 font-semibold underline underline-offset-2">
+          Historial
+        </Link>{" "}
+        antes de que empiece el partido.
       </p>
     </div>
   )

@@ -32,12 +32,26 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ id:
 
   const emails = members.map((m) => m.user_email)
 
-  // Get settled bets for all members
-  const { data: bets } = await sb
-    .from("bets")
-    .select("user_email, stake, combined_odds, status")
-    .in("user_email", emails)
-    .in("status", ["won", "lost"])
+  // PUNTO 3: el ranking cuenta SOLO los picks COMPARTIDOS A ESTE GRUPO
+  // (group_bets, filtrado estricto por group_id). El historial global del
+  // usuario NO se filtra hacia el grupo → un grupo nace en blanco.
+  const { data: shared } = await sb
+    .from("group_bets")
+    .select(`user_email, bets ( stake, combined_odds, status )`)
+    .eq("group_id", id)
+
+  const bets: Array<{ user_email: string; stake: number | null; combined_odds: number | null; status: string }> =
+    (shared ?? [])
+      .map((gb: any) => {
+        const b = Array.isArray(gb.bets) ? gb.bets[0] : gb.bets
+        return {
+          user_email: gb.user_email as string,
+          stake: b?.stake ?? null,
+          combined_odds: b?.combined_odds ?? null,
+          status: String(b?.status ?? ""),
+        }
+      })
+      .filter((b) => b.status === "won" || b.status === "lost")
 
   // Get user display names from users_log
   const { data: users } = await sb
