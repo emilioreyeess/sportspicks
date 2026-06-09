@@ -3,7 +3,7 @@
 import Link from "next/link"
 import { useEffect, useState, useCallback } from "react"
 import { useSearchParams } from "next/navigation"
-import { useSession, signOut } from "next-auth/react"
+import { useSession, signOut } from "@/lib/auth-client"
 import { usePlan } from "@/lib/plan"
 import { PLANS } from "@/lib/plans"
 import { Icon } from "@/components/ui/icons"

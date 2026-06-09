@@ -4,7 +4,7 @@ import { useState } from "react"
 import Link from "next/link"
 import { PLANS, PLAN_ORDER, type PlanId } from "@/lib/plans"
 import { usePlan } from "@/lib/plan"
-import { useSession } from "next-auth/react"
+import { useSession } from "@/lib/auth-client"
 import { Icon } from "@/components/ui/icons"
 
 // Always enable Stripe in production — the API handles errors if keys are missing.

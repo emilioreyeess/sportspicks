@@ -1,6 +1,5 @@
 import { NextRequest } from "next/server"
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth-options"
+import { getServerSession } from "@/lib/auth-server"
 import { createServiceClient } from "@/lib/supabase/client"
 // CN-013: Use cryptographically secure PRNG for invite codes
 import { randomBytes } from "crypto"
@@ -13,7 +12,7 @@ function randomCode(len = 8): string {
 }
 
 export async function GET() {
-  const session = await getServerSession(authOptions)
+  const session = await getServerSession()
   if (!session?.user?.email) return Response.json({ error: "No autorizado" }, { status: 401 })
 
   const sb = createServiceClient()
@@ -33,7 +32,7 @@ export async function GET() {
 }
 
 export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions)
+  const session = await getServerSession()
   if (!session?.user?.email) return Response.json({ error: "No autorizado" }, { status: 401 })
 
   let body: { name: string; emoji?: string }

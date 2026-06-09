@@ -1,6 +1,5 @@
 import { NextRequest } from "next/server"
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth-options"
+import { getServerSession } from "@/lib/auth-server"
 import { createServiceClient } from "@/lib/supabase/client"
 import { scryptSync, randomBytes, timingSafeEqual } from "crypto"
 
@@ -22,7 +21,7 @@ function verifyPassword(password: string, hash: string, salt: string): boolean {
 
 /** GET /api/account/profile — returns stored display name */
 export async function GET() {
-  const session = await getServerSession(authOptions)
+  const session = await getServerSession()
   if (!session?.user?.email) return Response.json({ error: "No autorizado" }, { status: 401 })
 
   const sb = createServiceClient()
@@ -44,7 +43,7 @@ export async function GET() {
 
 /** PATCH /api/account/profile — update display name */
 export async function PATCH(req: NextRequest) {
-  const session = await getServerSession(authOptions)
+  const session = await getServerSession()
   if (!session?.user?.email) return Response.json({ error: "No autorizado" }, { status: 401 })
 
   let body: { name?: string; currentPassword?: string; newPassword?: string }

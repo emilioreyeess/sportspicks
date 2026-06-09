@@ -14,8 +14,7 @@
  */
 
 import { NextResponse } from "next/server"
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth-options"
+import { getServerSession } from "@/lib/auth-server"
 import { getGrantedPlan } from "@/lib/plan-grants"
 import { getStripe, PRICE_IDS } from "@/lib/stripe"
 import { consume, getClientIp, tooManyRequests } from "@/lib/rate-limit"
@@ -30,7 +29,7 @@ export async function GET(req: NextRequest) {
   if (!consume(`plan-check:${ip}`, 20, 1)) return tooManyRequests(60)
 
   // Requiere sesión activa
-  const session = await getServerSession(authOptions)
+  const session = await getServerSession()
   const email = session?.user?.email
   if (!email) {
     return NextResponse.json({ plan: "free", source: "unauthenticated" })

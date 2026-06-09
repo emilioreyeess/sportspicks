@@ -18,10 +18,9 @@
  *   · publish?   — 'true'|'false' (default false → es_published=false)
  */
 import { NextRequest } from "next/server"
-import { getServerSession } from "next-auth"
+import { getServerSession } from "@/lib/auth-server"
 import { revalidatePath } from "next/cache"
 import Anthropic from "@anthropic-ai/sdk"
-import { authOptions } from "@/lib/auth-options"
 import { createServiceClient } from "@/lib/supabase/client"
 import { consume, getClientIp, tooManyRequests } from "@/lib/rate-limit"
 
@@ -129,7 +128,7 @@ function productOdds(legs: ExtractedLeg[]): number | null {
    ──────────────────────────────────────────────────────────────────────────── */
 
 export async function POST(req: NextRequest) {
-  const session = await getServerSession(authOptions)
+  const session = await getServerSession()
   if (!session?.user?.email) {
     return Response.json({ error: "No autorizado" }, { status: 401 })
   }

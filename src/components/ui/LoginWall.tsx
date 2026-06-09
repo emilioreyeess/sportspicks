@@ -1,6 +1,6 @@
 "use client"
 
-import { useSession, signIn } from "next-auth/react"
+import { useSession, signIn } from "@/lib/auth-client"
 import { useState } from "react"
 import { Icon } from "@/components/ui/icons"
 

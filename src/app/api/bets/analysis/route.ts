@@ -10,8 +10,7 @@
  *
  * Requiere plan: premium o pro
  */
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth-options"
+import { getServerSession } from "@/lib/auth-server"
 import { createServiceClient } from "@/lib/supabase/client"
 import { getGrantedPlan } from "@/lib/plan-grants"
 import Anthropic from "@anthropic-ai/sdk"
@@ -22,7 +21,7 @@ export const dynamic = "force-dynamic"
 export const maxDuration = 60
 
 export async function POST(req: Request) {
-  const session = await getServerSession(authOptions)
+  const session = await getServerSession()
   if (!session?.user?.email) {
     return Response.json({ error: "No autorizado" }, { status: 401 })
   }

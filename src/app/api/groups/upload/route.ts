@@ -6,8 +6,7 @@
  */
 
 import { NextRequest } from "next/server"
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth-options"
+import { getServerSession } from "@/lib/auth-server"
 import { createServiceClient } from "@/lib/supabase/client"
 import { consume, getClientIp, tooManyRequests } from "@/lib/rate-limit"
 
@@ -19,7 +18,7 @@ const ALLOWED_TYPES = ["image/jpeg", "image/png", "image/gif", "image/webp"]
 
 export async function POST(req: NextRequest) {
   // Auth
-  const session = await getServerSession(authOptions)
+  const session = await getServerSession()
   if (!session?.user?.email) {
     return Response.json({ error: "No autorizado" }, { status: 401 })
   }

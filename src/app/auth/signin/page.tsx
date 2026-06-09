@@ -1,6 +1,6 @@
 "use client"
 
-import { signIn, getProviders } from "next-auth/react"
+import { signIn, getProviders } from "@/lib/auth-client"
 import { useEffect, useState } from "react"
 import { Icon } from "@/components/ui/icons"
 

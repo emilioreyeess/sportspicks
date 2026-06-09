@@ -21,8 +21,7 @@ import { NextRequest, NextResponse } from "next/server"
 import { ensureWarm } from "@/lib/pipeline"
 import { consume, getClientIp, tooManyRequests } from "@/lib/rate-limit"
 import { runSecondOpinion } from "@/lib/decision-engine/second-opinion-engine"
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth-options"
+import { getServerSession } from "@/lib/auth-server"
 import type { PlanTier } from "@/lib/decision-engine/types"
 
 export const runtime = "nodejs"
@@ -70,7 +69,7 @@ export async function POST(req: NextRequest) {
   // Resolver plan: prioridad → sesión > cliente > free
   let plan: PlanTier = "free"
   try {
-    const session = await getServerSession(authOptions)
+    const session = await getServerSession()
     const sessionPlan = (session?.user as { plan?: string } | undefined)?.plan
     if (sessionPlan && VALID_PLANS.has(sessionPlan as PlanTier)) {
       plan = sessionPlan as PlanTier
@@ -87,7 +86,7 @@ export async function POST(req: NextRequest) {
   // userKey: identidad del usuario para la quota (sesión > IP)
   let userKey = `ip:${ip}`
   try {
-    const session = await getServerSession(authOptions)
+    const session = await getServerSession()
     const email = session?.user?.email
     if (email && typeof email === "string") userKey = `user:${email}`
   } catch {}

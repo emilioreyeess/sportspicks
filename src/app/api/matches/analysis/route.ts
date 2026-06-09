@@ -10,8 +10,7 @@
  * predicciones en `predictions_log` para cerrar el ciclo de aprendizaje (STEP 1).
  */
 import { NextRequest } from "next/server"
-import { getServerSession } from "next-auth"
-import { authOptions } from "@/lib/auth-options"
+import { getServerSession } from "@/lib/auth-server"
 import { consume, getClientIp, tooManyRequests } from "@/lib/rate-limit"
 import { fetchTeamModel, analyzeMatch } from "@/lib/analysis/match-model"
 import { logPredictions, type PredictionInput } from "@/lib/learning/supabase-ml"
@@ -69,7 +68,7 @@ export async function GET(req: NextRequest) {
     if (notStarted && analysis.dataSufficient && analysis.picks.length) {
       let userId: string | null = null
       try {
-        const session = await getServerSession(authOptions)
+        const session = await getServerSession()
         userId = session?.user?.email ?? null
       } catch { /* sesión opcional */ }
 
