@@ -51,13 +51,19 @@ export async function GET(req: NextRequest) {
   const next = searchParams.get("next") ?? "/"
   const safeNext = next.startsWith("/") ? next : "/" // evita open-redirect
 
-  const fail = (reason: string) =>
-    NextResponse.redirect(`${origin}/auth/signin?error=callback_failed&reason=${reason}`)
+  const fail = (reason: string, desc?: string | null) => {
+    const u = new URL(`${origin}/auth/signin`)
+    u.searchParams.set("error", "callback_failed")
+    u.searchParams.set("reason", reason)
+    if (desc) u.searchParams.set("desc", desc)
+    return NextResponse.redirect(u.toString())
+  }
 
-  // 1. ¿Supabase/Google devolvió un error en la propia URL?
+  // 1. ¿Supabase/Google devolvió un error en la propia URL? (p.ej. server_error
+  //    "Unable to exchange external code" → Client Secret de Google mal en Supabase)
   if (oauthError) {
     console.error("[auth/callback] proveedor devolvió error:", oauthError, "—", oauthErrorDesc)
-    return fail("provider")
+    return fail("provider", `${oauthError}: ${oauthErrorDesc ?? ""}`.trim())
   }
 
   // 2. Sin code no hay nada que intercambiar.
