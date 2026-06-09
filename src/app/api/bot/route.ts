@@ -111,6 +111,86 @@ ${blocks.join("\n")}
 Usa estos datos (liga, posición, racha, árbitro, estadio) como la verdad oficial. NO uses tu memoria sobre divisiones ni inventes cifras.`
 }
 
+// ─── Head-to-Head (API-Football) ──────────────────────────────────────────────
+
+const AF_BASE = "https://v3.football.api-sports.io"
+
+/** Resuelve el team_id (API-Football) de un equipo buscándolo en nuestra tabla fixtures. */
+async function resolveTeamId(sb: any, name: string): Promise<{ id: number; label: string } | null> {
+  const q = `%${name.trim()}%`
+  const asHome = await sb.from("fixtures").select("home_team, stats").ilike("home_team", q).limit(1)
+  const h = asHome.data?.[0]
+  if (h?.stats?.home?.id) return { id: Number(h.stats.home.id), label: h.home_team }
+  const asAway = await sb.from("fixtures").select("away_team, stats").ilike("away_team", q).limit(1)
+  const a = asAway.data?.[0]
+  if (a?.stats?.away?.id) return { id: Number(a.stats.away.id), label: a.away_team }
+  return null
+}
+
+/** Detecta si una ronda es ida/vuelta a partir del texto de `round`. */
+function legLabel(round: string | null | undefined): string {
+  const r = (round ?? "").toLowerCase()
+  if (/2nd leg|leg 2|vuelta/.test(r)) return " · VUELTA"
+  if (/1st leg|leg 1|ida/.test(r)) return " · IDA"
+  return ""
+}
+
+/**
+ * H2H entre dos equipos: últimos 3 enfrentamientos reales (API-Football) +
+ * si el partido de hoy entre ellos es de ida/vuelta (según nuestra DB).
+ */
+async function getHeadToHead(teamA: string, teamB: string): Promise<string> {
+  const apiKey = process.env.FOOTBALL_API_KEY
+  if (!apiKey) return "H2H no disponible (config). NO inventes enfrentamientos previos."
+  if (!teamA?.trim() || !teamB?.trim()) return "Necesito los dos equipos para el H2H."
+
+  const sb = createServiceClient()
+  const [A, B] = await Promise.all([resolveTeamId(sb, teamA), resolveTeamId(sb, teamB)])
+  if (!A || !B) {
+    return `No pude identificar ${!A ? teamA : teamB} en la base de datos para el H2H. NO inventes enfrentamientos previos.`
+  }
+
+  // ¿El partido de HOY entre ellos es de ida/vuelta? (round desde nuestra DB)
+  let todayLeg = ""
+  try {
+    const { data } = await sb
+      .from("fixtures")
+      .select("home_team, away_team, stats")
+      .or(`home_team.ilike.%${teamA.trim()}%,away_team.ilike.%${teamA.trim()}%`)
+      .limit(20)
+    const match = (data ?? []).find((f: any) =>
+      (norm(f.home_team).includes(norm(teamB)) || norm(f.away_team).includes(norm(teamB))),
+    )
+    todayLeg = legLabel(match?.stats?.round)
+  } catch { /* best-effort */ }
+
+  try {
+    const res = await fetch(`${AF_BASE}/fixtures/headtohead?h2h=${A.id}-${B.id}&last=3`, {
+      headers: { "x-apisports-key": apiKey, "Accept": "application/json" }, cache: "no-store",
+    })
+    if (!res.ok) return `No se pudo consultar el H2H (API ${res.status}). NO inventes resultados.`
+    const json = await res.json() as { response?: any[] }
+    const list = json.response ?? []
+    if (!list.length) return `Sin enfrentamientos previos registrados entre ${A.label} y ${B.label}.`
+
+    const lines = list.map((fx) => {
+      const d = (fx.fixture?.date ?? "").slice(0, 10)
+      const h = fx.teams?.home?.name ?? "?", a = fx.teams?.away?.name ?? "?"
+      const gh = fx.goals?.home ?? "-", ga = fx.goals?.away ?? "-"
+      const comp = fx.league?.name ?? ""
+      return `- ${d}: ${h} ${gh}-${ga} ${a} [${comp}${legLabel(fx.league?.round)}]`
+    })
+    return [
+      `Últimos ${lines.length} enfrentamientos ${A.label} vs ${B.label} (API-Football, datos reales):`,
+      ...lines,
+      todayLeg ? `El partido de hoy entre ambos es${todayLeg}.` : "",
+      "Usa SOLO estos resultados reales; no inventes otros enfrentamientos ni marcadores.",
+    ].filter(Boolean).join("\n")
+  } catch {
+    return "Error consultando el H2H. NO inventes resultados."
+  }
+}
+
 // ─── Definición de herramientas ────────────────────────────────────────────────
 
 const TOOLS: Anthropic.Tool[] = [
@@ -119,14 +199,20 @@ const TOOLS: Anthropic.Tool[] = [
     description: "ÚNICA Y EXCLUSIVA FUENTE DE DATOS. Consulta los partidos de HOY directamente en nuestra base de datos (tabla fixtures de Supabase, alimentada desde API-Football). Devuelve, para cada partido, la LIGA/competición REAL entre corchetes, los equipos, la hora y el estado actual. Úsala SIEMPRE EN PRIMER LUGAR antes de decir qué partidos hay o de analizar cualquier encuentro. Pasa team_name para filtrar por un equipo. Si un partido no aparece aquí, NO existe hoy — no lo inventes.",
     input_schema: { type: "object" as const, properties: { team_name: { type: "string", description: "Opcional. Filtra los partidos por nombre de equipo (acepta substrings)." } }, required: [] },
   },
+  {
+    name: "get_head_to_head",
+    description: "Historial de enfrentamientos directos (H2H) entre DOS equipos: devuelve los últimos 3 partidos reales entre ellos (fecha, marcador, competición) e indica si son de ida/vuelta. Úsala cuando el usuario pregunte por un cruce, eliminatoria o playoff entre dos equipos concretos, para fundamentar el análisis en su historial real. NO inventes enfrentamientos: usa solo lo que devuelve esta herramienta.",
+    input_schema: { type: "object" as const, properties: { team_a: { type: "string", description: "Primer equipo del cruce." }, team_b: { type: "string", description: "Segundo equipo del cruce." } }, required: ["team_a", "team_b"] },
+  },
 ]
 
 async function executeTool(name: string, input: Record<string, string>): Promise<string> {
   try {
     if (name === "get_fixtures_db") return await getFixturesFromDb(input.team_name)
+    if (name === "get_head_to_head") return await getHeadToHead(input.team_a, input.team_b)
     return "Herramienta no reconocida."
   } catch (e: any) {
-    return `Error obteniendo datos de la base de datos: ${e.message}. NO inventes el dato — indica que no está disponible.`
+    return `Error obteniendo datos: ${e.message}. NO inventes el dato — indica que no está disponible.`
   }
 }
 
@@ -180,17 +266,17 @@ El pipeline de picks aún no ha generado resultados para hoy (${today}).
 
 const SYSTEM_PROMPT = `Eres PicksBot, analista de datos deportivos de SportsPicks Analytics. Riguroso y basado SOLO en datos reales.
 
-FUENTE ÚNICA — get_fixtures_db (nuestra base de datos oficial):
-- Llámala SIEMPRE antes de hablar de cualquier partido. Te da la liga, hora, estado, posición en la tabla y racha de cada equipo.
-- Si un partido no aparece ahí, NO se juega hoy: no lo analices.
-- PROHIBIDO inventar estadísticas, posiciones, cuotas, árbitros o alineaciones, o usar tu conocimiento de entrenamiento (está DESFASADO; un equipo pudo ascender/descender). Si un dato no está → di "ese dato no está disponible" y baja la confianza.
-- No menciones otras APIs ni fuentes (ni "ESPN" ni nombres de herramientas).
+FUENTES OFICIALES (tus únicas herramientas):
+- get_fixtures_db — partidos de HOY (liga, hora, estado, posición, racha). Llámala SIEMPRE antes de hablar de cualquier partido. Si un partido no aparece, NO se juega hoy: no lo analices.
+- get_head_to_head — cuando el usuario pregunte por un CRUCE entre dos equipos (eliminatoria, playoff, partido concreto), llámala para obtener los últimos 3 enfrentamientos reales y si es ida/vuelta. Fundamenta el análisis del cruce en ese historial.
+- PROHIBIDO inventar estadísticas, posiciones, cuotas, árbitros, alineaciones o enfrentamientos previos, o usar tu conocimiento de entrenamiento (está DESFASADO). Si un dato no está → di "ese dato no está disponible" y baja la confianza.
+- No menciones otras APIs ni fuentes (ni "ESPN" ni los nombres de las herramientas).
 
-FORMATO DE RESPUESTA — OBLIGATORIO:
+FORMATO DE RESPUESTA — OBLIGATORIO (Markdown limpio):
 - EXTREMADAMENTE CONCISO y visual. Nada de párrafos largos ni relleno. Ve directo al grano.
-- Usa SIEMPRE listas con viñetas y **negritas** para resaltar **equipos**, **cuotas** y **mercados** (ej. **1X2**, **Over 2.5**, **BTTS**).
-- Estructura típica: una línea de veredicto + 2 a 4 viñetas con los datos clave + una línea breve de cierre/confianza.
-- JAMÁS muestres al usuario JSON crudo, IDs de la base de datos (team_id, league_id, fixture_id), nombres de campos o herramientas internas (form, stats, get_fixtures_db) ni caracteres raros o símbolos decorativos. Traduce TODO a lenguaje natural (ej. racha "WWDLW" → "4 victorias en sus últimos 5, en buena forma").
+- Usa EXCLUSIVAMENTE listas con guion (-) y, cuando compares datos (p.ej. H2H o dos equipos), TABLAS SIMPLES de Markdown (| col | col |). Resalta con **negritas** los **equipos**, **cuotas** y **mercados** (**1X2**, **Over 2.5**, **BTTS**).
+- Estructura típica: una línea de veredicto + 2-4 guiones (o una tabla) + una línea breve de cierre/confianza.
+- TERMINANTEMENTE PROHIBIDO: bloques de código (no uses comillas triples \`\`\` jamás), JSON crudo, IDs de base de datos (team_id, league_id, fixture_id), nombres de campos o herramientas internas (form, stats, get_fixtures_db, headtohead) y cualquier carácter raro o símbolo decorativo. Traduce TODO a lenguaje natural (ej. racha "WWDLW" → "4 victorias en sus últimos 5, en buena forma").
 - Cita la fuente de forma natural y breve: "según nuestros datos, **[equipo]** es 2º con 9 pts".
 
 Idioma: español. Sin promesas de resultados ni garantías. Apuesta responsable, +18.`
