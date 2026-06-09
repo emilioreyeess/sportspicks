@@ -365,3 +365,86 @@ export async function upsertFixtures(
     console.warn("[footballApi] upsert falló:", e instanceof Error ? e.message : e)
   }
 }
+
+// ─── CUOTAS desde API-Football (/odds) — fuente ÚNICA del motor de predicciones ──
+// Mapeo oficial: response[0].bookmakers[].bets[] · bet "Match Winner" → 1X2,
+// bet "Goals Over/Under" → Over/Under 2.5. CERO scraping de ESPN, CERO invención.
+
+import type { RealOdds } from "@/lib/engine"
+
+const _norm = (s: string) =>
+  (s ?? "").toLowerCase().normalize("NFD")
+    .replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim()
+
+/**
+ * Cuotas 1X2 + Over/Under 2.5 de un fixture, leídas EXCLUSIVAMENTE de API-Football
+ * (/odds). Toma el primer bookmaker que tenga cada mercado. Devuelve null si no hay
+ * cuota real → el caller DEBE descartar el partido (anti-alucinación).
+ */
+export async function fetchFixtureOddsAF(fixtureId: number): Promise<RealOdds | null> {
+  const apiKey = process.env.FOOTBALL_API_KEY
+  if (!apiKey || !Number.isFinite(fixtureId)) return null
+  try {
+    const res = await fetch(`${API_BASE}/odds?fixture=${fixtureId}`, {
+      headers: { "x-apisports-key": apiKey, "Accept": "application/json" }, cache: "no-store",
+    })
+    if (!res.ok) return null
+    const json = await res.json() as any
+    const bookmakers = json?.response?.[0]?.bookmakers ?? []
+    if (!bookmakers.length) return null
+
+    const dec = (v: any) => { const n = Number(v); return Number.isFinite(n) && n > 1 ? n : undefined }
+    let home: number | undefined, draw: number | undefined, away: number | undefined
+    let over25: number | undefined, under25: number | undefined, provider: string | undefined
+
+    for (const bk of bookmakers) {
+      for (const bet of (bk.bets ?? [])) {
+        const name = String(bet.name ?? "").toLowerCase()
+        if ((name === "match winner" || name === "1x2") && home == null && away == null) {
+          for (const v of (bet.values ?? [])) {
+            const val = String(v.value ?? "").toLowerCase(); const o = dec(v.odd)
+            if (val === "home" || val === "1") home = o
+            else if (val === "draw" || val === "x") draw = o
+            else if (val === "away" || val === "2") away = o
+          }
+          if (home != null || away != null) provider = bk.name
+        }
+        if (name.includes("over/under") && over25 == null) {
+          for (const v of (bet.values ?? [])) {
+            const val = String(v.value ?? "").toLowerCase(); const o = dec(v.odd)
+            if (val === "over 2.5") over25 = o
+            else if (val === "under 2.5") under25 = o
+          }
+        }
+      }
+      if (home != null && away != null && over25 != null) break
+    }
+    if (home == null && away == null) return null
+    return { provider: provider ?? "API-Football", home, draw, away, over25, under25 }
+  } catch {
+    return null
+  }
+}
+
+/** Resuelve el fixture_id de API-Football casando nombres de equipo + fecha en nuestra tabla `fixtures`. */
+export async function resolveFixtureIdByTeams(home: string, away: string, dateISO: string): Promise<number | null> {
+  try {
+    const sb = createServiceClient()
+    const dayStart = `${dateISO}T00:00:00.000Z`, dayEnd = `${dateISO}T23:59:59.999Z`
+    const { data } = await sb
+      .from("fixtures")
+      .select("fixture_id, home_team, away_team")
+      .gte("match_date", dayStart).lte("match_date", dayEnd)
+    if (!data?.length) return null
+    const nh = _norm(home), na = _norm(away)
+    const hit = data.find((f: any) => {
+      const fh = _norm(f.home_team ?? ""), fa = _norm(f.away_team ?? "")
+      const homeMatch = fh && nh && (fh.includes(nh) || nh.includes(fh))
+      const awayMatch = fa && na && (fa.includes(na) || na.includes(fa))
+      return homeMatch && awayMatch
+    })
+    return hit?.fixture_id ?? null
+  } catch {
+    return null
+  }
+}

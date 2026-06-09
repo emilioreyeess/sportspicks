@@ -12,9 +12,11 @@
 
 import {
   ALL_SLUGS, LEAGUE_NAMES, clamp, impliedPct, fetchJSON,
-  fetchStandings, classifyMotivation, extractOdds, fetchEventOddsCore, fetchTeamForm, modelMatch, handicapProb,
+  fetchStandings, classifyMotivation, fetchTeamForm, modelMatch, handicapProb,
   type LeagueTable, type Motivation, type RealOdds, type TeamForm, type ModelOut,
 } from "@/lib/engine"
+// CUOTAS: fuente ÚNICA = API-Football (/odds). Cero scraping de cuotas de ESPN.
+import { fetchFixtureOddsAF, resolveFixtureIdByTeams } from "@/lib/infrastructure/footballApi"
 import { evaluatePick, type EvalCandidate, type EvalMatch, type PickEvaluation } from "@/lib/decision-engine"
 import { recordPublishedPicks, preloadLearningCache, type PickRecord } from "@/lib/learning"
 import { logPredictions, type PredictionInput } from "@/lib/learning/supabase-ml"
@@ -119,15 +121,20 @@ async function fetchDailyData(): Promise<DailyData> {
       candidates.push({ ev, comp, home, away })
     }
 
-    // ── Fase 2: resolver cuotas EN PARALELO por slug. El scoreboard dejó de
-    //    poblar `odds` ([null]) → fallback al endpoint CORE por-evento de ESPN. ──
+    // ── Fase 2: CUOTAS desde API-Football (/odds) EXCLUSIVAMENTE. Casamos el
+    //    partido (nombre + fecha) con nuestra tabla fixtures → fixture_id →
+    //    /odds (bookmakers→bets→values). Sin cuota real → se DESCARTA (anti-
+    //    alucinación: cero cuotas inventadas, cero scraping de ESPN). ──
     await Promise.all(candidates.map(async ({ ev, comp, home, away }) => {
-      const odds = extractOdds(comp) ?? await fetchEventOddsCore(slug, String(ev.id))
-      if (!odds) { audit.skipNoOdds++; return }   // ← sin cuotas (ni scoreboard ni core) no hay value pick
+      const homeName = home.team.displayName, awayName = away.team.displayName
+      const matchDate = String(ev.date ?? "").slice(0, 10)
+      const fixtureId = await resolveFixtureIdByTeams(homeName, awayName, matchDate)
+      const odds = fixtureId != null ? await fetchFixtureOddsAF(fixtureId) : null
+      if (!odds) { audit.skipNoOdds++; return }   // ← sin cuota en API-Football → fuera
       audit.accepted++
       raw.push({
         ev, slug,
-        homeName: home.team.displayName, awayName: away.team.displayName,
+        homeName, awayName,
         homeId: String(home.team.id), awayId: String(away.team.id),
         odds,
       })
