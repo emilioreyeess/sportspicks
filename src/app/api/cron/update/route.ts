@@ -2,8 +2,8 @@
  * GET /api/cron/update
  *
  * Motor de actualización de fixtures: consulta API-Football y hace upsert en la
- * tabla `fixtures` de Supabase. Refresca hoy + los próximos 2 días en una pasada
- * (fetch en paralelo + standings deduplicados por liga).
+ * tabla `fixtures` de Supabase. Refresca SOLO la fecha de HOY (próximas 24h) para
+ * mantener el payload mínimo (standings deduplicados por liga).
  *
  * Seguridad: requiere `Authorization: Bearer ${CRON_SECRET}` (≥16 chars).
  * Fail-closed si CRON_SECRET no está configurado (CN-031).
@@ -30,11 +30,12 @@ function dateOffset(offset: number): string {
   }).format(now)
 }
 
-/** Tarea pesada: refresca fixtures de hoy + 2 días. Se ejecuta en segundo plano. */
+/** Tarea pesada: refresca fixtures de HOY (próximas 24h). Se ejecuta en segundo plano. */
 async function runUpdate(): Promise<void> {
-  const dates = [dateOffset(0), dateOffset(1), dateOffset(2)]
+  // Solo HOY: payload mínimo para no acercarse a maxDuration=60s ni quemar cuota.
+  const dates = [dateOffset(0)]
   try {
-    // Fetch de las 3 fechas EN PARALELO + standings 1×/liga (dedupe global).
+    // Fetch de fixtures + standings 1×/liga (dedupe global).
     const groups = await fetchFixturesEnrichedForDates(dates)
 
     // Upserts independientes por fecha → en paralelo (Supabase).
