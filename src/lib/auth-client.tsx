@@ -88,12 +88,26 @@ export async function signIn(
 
   if (provider === "google") {
     const next = encodeURIComponent(opts.callbackUrl ?? "/")
-    const { error } = await supabase.auth.signInWithOAuth({
+    // skipBrowserRedirect: NO delegamos la navegación en supabase-js (en algunos
+    // entornos no dispara window.location y el clic queda en un no-op silencioso).
+    // Obtenemos la URL de autorización y redirigimos nosotros, de forma explícita.
+    const { data, error } = await supabase.auth.signInWithOAuth({
       provider: "google",
-      options: { redirectTo: `${origin}/auth/callback?next=${next}` },
+      options: {
+        redirectTo: `${origin}/auth/callback?next=${next}`,
+        skipBrowserRedirect: true,
+      },
     })
-    if (error) return { error: error.message }
-    return { ok: true } // el navegador redirige a Google
+    if (error) {
+      console.error("[auth] signInWithOAuth error:", error.message)
+      return { error: error.message }
+    }
+    if (data?.url) {
+      window.location.href = data.url // redirección explícita a Google/Supabase
+      return { ok: true }
+    }
+    console.error("[auth] signInWithOAuth no devolvió URL de autorización")
+    return { error: "NoOAuthUrl" }
   }
 
   if (provider === "credentials") {
