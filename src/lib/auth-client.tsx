@@ -87,14 +87,16 @@ export async function signIn(
   const origin = typeof window !== "undefined" ? window.location.origin : ""
 
   if (provider === "google") {
-    const next = encodeURIComponent(opts.callbackUrl ?? "/")
+    // redirectTo LIMPIO, sin query string: debe coincidir EXACTAMENTE con la
+    // entrada de la allow-list de Supabase (".../auth/callback"). Un "?next=…"
+    // rompe el match exacto → Supabase cae al Site URL y el code nunca llega a
+    // /auth/callback. El destino tras el login se gestiona en el callback (→ "/").
     // skipBrowserRedirect: NO delegamos la navegación en supabase-js (en algunos
     // entornos no dispara window.location y el clic queda en un no-op silencioso).
-    // Obtenemos la URL de autorización y redirigimos nosotros, de forma explícita.
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
-        redirectTo: `${origin}/auth/callback?next=${next}`,
+        redirectTo: `${origin}/auth/callback`,
         skipBrowserRedirect: true,
       },
     })
