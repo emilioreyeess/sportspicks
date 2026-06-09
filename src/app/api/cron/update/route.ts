@@ -2,16 +2,19 @@
  * GET /api/cron/update
  *
  * Motor de actualización de fixtures: consulta API-Football y hace upsert en la
- * tabla `fixtures` de Supabase. Diseñado para ahorrar cuota de API-Football
- * (límite ~100 llamadas/día): refresca hoy + los próximos 2 días en una pasada.
+ * tabla `fixtures` de Supabase. Refresca hoy + los próximos 2 días en una pasada
+ * (fetch en paralelo + standings deduplicados por liga).
  *
  * Seguridad: requiere `Authorization: Bearer ${CRON_SECRET}` (≥16 chars).
  * Fail-closed si CRON_SECRET no está configurado (CN-031).
  *
- * Plan Hobby: agendado 1×/día en vercel.json. Disparos adicionales se hacen
- * desde un servicio externo con el mismo header Bearer.
+ * DESACOPLE (cron-job.org corta a los 30s): tras validar el secret, respondemos
+ * 200 de INMEDIATO y ejecutamos la tarea pesada en segundo plano con `after()`
+ * de next/server. Vercel lo respalda con waitUntil → la función NO se mata al
+ * enviar la respuesta HTTP; sigue viva hasta completar (dentro de maxDuration).
+ * Así cron-job.org ve un 200 rápido y no acumula 'fallos' que lo auto-deshabiliten.
  */
-import { NextRequest, NextResponse } from "next/server"
+import { NextRequest, NextResponse, after } from "next/server"
 import { fetchFixturesEnrichedForDates, upsertFixtures } from "@/lib/infrastructure/footballApi"
 
 export const runtime = "nodejs"
@@ -27,24 +30,11 @@ function dateOffset(offset: number): string {
   }).format(now)
 }
 
-export async function GET(req: NextRequest) {
-  // ── Auth: Bearer CRON_SECRET, fail-closed ──────────────────────────────────
-  const secret = process.env.CRON_SECRET
-  if (!secret || secret.length < 16) {
-    console.error("[cron/update] CRON_SECRET no configurado o demasiado corto — rechazando")
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
-  const auth = req.headers.get("authorization")
-  if (auth !== `Bearer ${secret}`) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-  }
-
-  // ── Refrescar hoy + 2 días ──────────────────────────────────────────────────
+/** Tarea pesada: refresca fixtures de hoy + 2 días. Se ejecuta en segundo plano. */
+async function runUpdate(): Promise<void> {
   const dates = [dateOffset(0), dateOffset(1), dateOffset(2)]
-
   try {
-    // Fetch de las 3 fechas EN PARALELO + standings 1×/liga (dedupe global) →
-    // mucho más rápido y con menos llamadas que el bucle secuencial anterior.
+    // Fetch de las 3 fechas EN PARALELO + standings 1×/liga (dedupe global).
     const groups = await fetchFixturesEnrichedForDates(dates)
 
     // Upserts independientes por fecha → en paralelo (Supabase).
@@ -61,9 +51,27 @@ export async function GET(req: NextRequest) {
     )
 
     const total = result.reduce((s, r) => s + r.upserted, 0)
-    return NextResponse.json({ ok: true, total, days: result })
+    console.log("[cron/update] completado en segundo plano:", JSON.stringify({ total, days: result }))
   } catch (e) {
-    console.error("[cron/update] fallo:", e instanceof Error ? e.message : e)
-    return NextResponse.json({ ok: false, error: "update_failed" }, { status: 502 })
+    console.error("[cron/update] fallo en segundo plano:", e instanceof Error ? e.message : e)
   }
+}
+
+export async function GET(req: NextRequest) {
+  // ── Auth: Bearer CRON_SECRET, fail-closed (retorno temprano 401) ────────────
+  const secret = process.env.CRON_SECRET
+  if (!secret || secret.length < 16) {
+    console.error("[cron/update] CRON_SECRET no configurado o demasiado corto — rechazando")
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
+  const auth = req.headers.get("authorization")
+  if (auth !== `Bearer ${secret}`) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+  }
+
+  // ── Desacople: la tarea pesada corre en segundo plano (after → waitUntil) ────
+  // y respondemos 200 al instante para que cron-job.org no corte a los 30s.
+  after(runUpdate())
+
+  return NextResponse.json({ status: "Processing in background" }, { status: 200 })
 }
