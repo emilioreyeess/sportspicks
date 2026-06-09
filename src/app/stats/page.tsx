@@ -72,6 +72,16 @@ async function getTeamStats(id: string, slug: string) {
   return res.json()
 }
 
+/** ¿La respuesta de stats trae datos reales y renderizables? (FASE 3) */
+function statsIsValid(d: any): d is TeamStats {
+  return !!d
+    && typeof d === "object"
+    && !d.error
+    && typeof d.name === "string" && d.name.length > 0
+    && Number.isFinite(d.played)
+    && d.played > 0   // sin partidos jugados no hay nada que mostrar
+}
+
 /* ────────────────────────────────────────────────────────────────────────────
    AI usage tracking (Premium = 1/day, Pro = unlimited)
    ──────────────────────────────────────────────────────────────────────────── */
@@ -111,6 +121,7 @@ export default function StatsPage() {
   const [playerResults, setPlayerResults] = useState<PlayerResult[]>([])
   const [selectedPlayer, setSelectedPlayer] = useState<PlayerResult | null>(null)
   const [stats, setStats] = useState<TeamStats | null>(null)
+  const [statsUnavailable, setStatsUnavailable] = useState<string | null>(null) // nombre del equipo si no hay datos
   const [loadingSearch, setLoadingSearch] = useState(false)
   const [loadingTeam, setLoadingTeam] = useState(false)
 
@@ -143,12 +154,23 @@ export default function StatsPage() {
     setSelectedPlayer(null)
     setQuery(t.name)
     setStats(null)
+    setStatsUnavailable(null)
     setAnalysis("")
     setAnalysisError("")
     setLoadingTeam(true)
     try {
       const data = await getTeamStats(String(t.id), t.slug)
-      setStats(data)
+      // FASE 3: validar la respuesta. API-Football puede devolver {}, error o
+      // datos incompletos → mostramos "Datos no disponibles", nunca una UI rota.
+      if (statsIsValid(data)) {
+        setStats(data)
+      } else {
+        setStats(null)
+        setStatsUnavailable(t.name)
+      }
+    } catch {
+      setStats(null)
+      setStatsUnavailable(t.name)
     } finally {
       setLoadingTeam(false)
     }
@@ -159,6 +181,7 @@ export default function StatsPage() {
     setQuery(p.name)
     setSelectedPlayer(p)
     setStats(null)
+    setStatsUnavailable(null)
     setAnalysis("")
     setAnalysisError("")
   }
@@ -225,7 +248,7 @@ export default function StatsPage() {
     }
   }
 
-  const showEmpty = !stats && !selectedPlayer && !loadingTeam
+  const showEmpty = !stats && !selectedPlayer && !loadingTeam && !statsUnavailable
 
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8 sm:py-10 safe-x">
@@ -244,7 +267,7 @@ export default function StatsPage() {
           <input
             type="text"
             value={query}
-            onChange={(e) => { setQuery(e.target.value); setStats(null); setAnalysis(""); setAnalysisError("") }}
+            onChange={(e) => { setQuery(e.target.value); setStats(null); setStatsUnavailable(null); setAnalysis(""); setAnalysisError("") }}
             placeholder="Real Madrid, Mbappé, Boca Juniors…"
             className="w-full h-14 bg-zinc-900/55 border border-white/[0.05] focus:border-emerald-500/40 focus:bg-zinc-900/70 focus:shadow-[0_0_0_4px_rgba(82,181,145,0.10)]
               text-white placeholder-zinc-600 rounded-2xl pl-11 pr-12 text-[15px] outline-none transition-all"
@@ -337,6 +360,27 @@ export default function StatsPage() {
             </div>
           )}
         </>
+      )}
+
+      {/* FASE 3 — Datos no disponibles (API-Football sin datos / incompletos) */}
+      {statsUnavailable && !loadingTeam && (
+        <Card variant="flat" className="px-6 py-12 sm:py-16">
+          <EmptyState
+            icon="stats"
+            title="Datos no disponibles"
+            hint={`Aún no tenemos estadísticas para ${statsUnavailable} esta temporada. Puede ser pretemporada, una competición sin datos cargados o que el proveedor no los exponga todavía.`}
+            action={
+              <button
+                onClick={() => { setStatsUnavailable(null); setQuery(""); setTeamResults([]) }}
+                className="inline-flex items-center gap-2 text-[12px] font-semibold px-4 py-2
+                  bg-zinc-900/70 border border-white/[0.07] hover:border-white/[0.14] hover:bg-zinc-900
+                  text-zinc-300 hover:text-white rounded-xl transition-all tap"
+              >
+                Buscar otro equipo
+              </button>
+            }
+          />
+        </Card>
       )}
 
       {/* Empty state */}
