@@ -5,9 +5,14 @@
  * Intercambia el `code` por una sesión y fija las cookies (@supabase/ssr).
  * Luego sincroniza users_log (igual que hacía NextAuth) para no romper los
  * checks de admin ni los plan-grants, que están keyed por email.
+ *
+ * CLAVE: las cookies de sesión se escriben sobre la MISMA NextResponse que
+ * devolvemos (la redirección). Si se escriben en el store de next/headers y
+ * luego devolvemos un NextResponse.redirect() nuevo, las cookies NO viajan y
+ * la sesión se pierde silenciosamente.
  */
 import { NextRequest, NextResponse } from "next/server"
-import { createServerSupabase } from "@/lib/supabase/server"
+import { createServerClient } from "@supabase/ssr"
 import { createServiceClient } from "@/lib/supabase/client"
 
 export const runtime = "nodejs"
@@ -41,23 +46,81 @@ async function syncUsersLog(user: {
 export async function GET(req: NextRequest) {
   const { searchParams, origin } = new URL(req.url)
   const code = searchParams.get("code")
+  const oauthError = searchParams.get("error")
+  const oauthErrorDesc = searchParams.get("error_description")
   const next = searchParams.get("next") ?? "/"
-  // Solo rutas internas (evita open-redirect).
-  const safeNext = next.startsWith("/") ? next : "/"
+  const safeNext = next.startsWith("/") ? next : "/" // evita open-redirect
 
-  if (!code) {
-    return NextResponse.redirect(`${origin}/?auth_error=missing_code`)
+  const fail = (reason: string) =>
+    NextResponse.redirect(`${origin}/auth/signin?error=callback_failed&reason=${reason}`)
+
+  // 1. ¿Supabase/Google devolvió un error en la propia URL?
+  if (oauthError) {
+    console.error("[auth/callback] proveedor devolvió error:", oauthError, "—", oauthErrorDesc)
+    return fail("provider")
   }
 
-  const supabase = await createServerSupabase()
+  // 2. Sin code no hay nada que intercambiar.
+  if (!code) {
+    console.error("[auth/callback] falta el parámetro `code` en el retorno")
+    return fail("missing_code")
+  }
+
+  // 3. Env del cliente SSR (en Preview deben existir en runtime de servidor).
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL
+  const anon = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
+  if (!url || !anon) {
+    console.error(
+      "[auth/callback] FALTAN env del servidor — NEXT_PUBLIC_SUPABASE_URL:",
+      !!url,
+      "ANON_KEY:",
+      !!anon,
+    )
+    return fail("missing_env")
+  }
+
+  // 4. Respuesta de éxito (redirección). Las cookies de sesión se fijan AQUÍ.
+  const successRes = NextResponse.redirect(`${origin}${safeNext}`)
+
+  const supabase = createServerClient(url, anon, {
+    cookies: {
+      getAll() {
+        return req.cookies.getAll()
+      },
+      setAll(cookiesToSet) {
+        cookiesToSet.forEach(({ name, value, options }) =>
+          successRes.cookies.set(name, value, options),
+        )
+      },
+    },
+  })
+
+  // Diagnóstico: ¿llegó la cookie del code_verifier (PKCE)? Su ausencia es la
+  // causa #1 de "both auth code and code verifier should be non-empty".
+  const hasVerifier = req.cookies
+    .getAll()
+    .some((c) => c.name.includes("code-verifier") || c.name.includes("auth-token-code-verifier"))
+  console.log(
+    "[auth/callback] code recibido; cookie code_verifier presente:",
+    hasVerifier,
+    "| cookies:",
+    req.cookies.getAll().map((c) => c.name).join(","),
+  )
+
   const { data, error } = await supabase.auth.exchangeCodeForSession(code)
 
   if (error) {
-    console.error("[auth/callback] exchange falló:", error.message)
-    return NextResponse.redirect(`${origin}/?auth_error=exchange`)
+    console.error("[auth/callback] exchangeCodeForSession FALLÓ:", {
+      message: error.message,
+      status: (error as any).status,
+      name: error.name,
+      hasVerifier,
+    })
+    return fail("exchange")
   }
 
+  console.log("[auth/callback] exchange OK — usuario:", data?.user?.email ?? "(sin email)")
   if (data?.user) await syncUsersLog(data.user as any)
 
-  return NextResponse.redirect(`${origin}${safeNext}`)
+  return successRes // ← lleva las cookies de sesión
 }
