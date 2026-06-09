@@ -239,19 +239,10 @@ export async function fetchStandingsMap(leagueId: number, season: number): Promi
   return out
 }
 
-/**
- * CRON PATH — fetch enriquecido (plan Pro): fixtures de `date` + standings de
- * cada liga con partidos ese día, mergeados en fixtures.stats (JSONB).
- * Throttle entre llamadas a /standings para respetar 300 req/min.
- *
- * Coste API: 1 (fixtures) + N (ligas distintas con partidos). Muy por debajo
- * del límite diario del plan Pro (7500/día).
- */
-export async function fetchFixturesEnriched(date: string): Promise<Fixture[]> {
-  const apiKey = process.env.FOOTBALL_API_KEY
-  if (!apiKey) throw new Error("[footballApi] FOOTBALL_API_KEY no está configurada")
+type ApiFixtureItem = NonNullable<ApiFootballResponse["response"]>[number]
 
-  // 1. Fixtures del día (con liga, equipos, árbitro, sede, ronda, goles).
+/** Fetch + filtro de fixtures válidos de UNA fecha (1 call, sin throttle). */
+async function fetchValidFixtures(date: string, apiKey: string): Promise<ApiFixtureItem[]> {
   const res = await fetch(`${API_BASE}/fixtures?date=${encodeURIComponent(date)}`, {
     method: "GET",
     headers: { "x-apisports-key": apiKey, "Accept": "application/json" },
@@ -259,55 +250,94 @@ export async function fetchFixturesEnriched(date: string): Promise<Fixture[]> {
   })
   if (!res.ok) throw new Error(`[footballApi] API respondió ${res.status}`)
   const json = (await res.json()) as ApiFootballResponse
-  const valid = (json.response ?? []).filter((item) => isMatchValid(item))
+  return (json.response ?? []).filter((item) => isMatchValid(item))
+}
 
-  // 2. Ligas distintas (id + temporada) con partidos hoy → standings.
-  const leagueKeys = new Map<string, { id: number; season: number }>()
-  for (const item of valid) {
-    const id = item.league?.id, season = item.league?.season
-    if (id != null && season != null) leagueKeys.set(`${id}:${season}`, { id, season })
+/** Construye un Fixture enriquecido a partir del item + standings ya cargados. */
+function buildEnrichedFixture(
+  item: ApiFixtureItem,
+  standingsByLeague: Map<string, Map<number, StandingRow>>,
+  nowIso: string,
+): Fixture {
+  const leagueId = item.league?.id ?? null
+  const homeId = item.teams?.home?.id ?? null
+  const awayId = item.teams?.away?.id ?? null
+  const table = leagueId != null ? standingsByLeague.get(`${leagueId}`) : undefined
+
+  const stats: FixtureStats = {
+    referee:     item.fixture?.referee ?? null,
+    venue:       item.fixture?.venue?.name ?? null,
+    round:       item.league?.round ?? null,
+    league_id:   leagueId,
+    league_logo: item.league?.logo ?? null,
+    season:      item.league?.season ?? null,
+    goals:       { home: item.goals?.home ?? null, away: item.goals?.away ?? null },
+    home:        { id: homeId, logo: item.teams?.home?.logo ?? null, standing: homeId != null ? table?.get(homeId) ?? null : null },
+    away:        { id: awayId, logo: item.teams?.away?.logo ?? null, standing: awayId != null ? table?.get(awayId) ?? null : null },
+    enriched_at: nowIso,
   }
 
-  // 3. Fetch de standings throttled (≤4/s) → mapa global por liga.
+  return {
+    fixture_id: item.fixture.id,
+    home_team:  item.teams?.home?.name ?? null,
+    away_team:  item.teams?.away?.name ?? null,
+    match_date: item.fixture?.date ?? null,
+    status:     item.fixture?.status?.short ?? null,
+    league:     item.league?.name ?? null,
+    stats,
+    updated_at: nowIso,
+  }
+}
+
+/**
+ * CRON PATH (multi-fecha optimizado): fixtures de varias fechas EN PARALELO +
+ * standings UNA sola vez por liga (dedupe GLOBAL entre fechas). hoy/+1/+2
+ * comparten la mayoría de ligas → no re-pedimos sus standings por cada fecha.
+ *
+ * Coste API: D (fixtures, en paralelo) + L (ligas DISTINTAS en TODAS las fechas).
+ * Antes: D + (L por cada fecha) en secuencial. El throttle ≤4/s sigue intacto en
+ * standings (un único bucle global), así que se respeta el límite de 300 req/min.
+ */
+export async function fetchFixturesEnrichedForDates(
+  dates: string[],
+): Promise<{ date: string; fixtures: Fixture[] }[]> {
+  const apiKey = process.env.FOOTBALL_API_KEY
+  if (!apiKey) throw new Error("[footballApi] FOOTBALL_API_KEY no está configurada")
+
+  // 1. Fixtures de TODAS las fechas EN PARALELO (1 call/fecha, sin throttle).
+  const perDate = await Promise.all(
+    dates.map(async (date) => ({ date, valid: await fetchValidFixtures(date, apiKey) })),
+  )
+
+  // 2. Unión de ligas distintas (id+temporada) presentes en cualquier fecha.
+  const leagueKeys = new Map<string, { id: number; season: number }>()
+  for (const { valid } of perDate) {
+    for (const item of valid) {
+      const id = item.league?.id, season = item.league?.season
+      if (id != null && season != null) leagueKeys.set(`${id}:${season}`, { id, season })
+    }
+  }
+
+  // 3. Standings throttled (≤4/s), UNA vez por liga (no se re-piden por fecha).
   const standingsByLeague = new Map<string, Map<number, StandingRow>>()
-  for (const [key, { id, season }] of leagueKeys) {
+  for (const [, { id, season }] of leagueKeys) {
     const map = await fetchStandingsMap(id, season)
     if (map.size) standingsByLeague.set(`${id}`, map)
     await sleep(STANDINGS_THROTTLE_MS)
   }
 
-  // 4. Construir fixtures con stats enriquecido.
+  // 4. Construir fixtures enriquecidos, agrupados por fecha.
   const nowIso = new Date().toISOString()
-  return valid.map((item) => {
-    const leagueId = item.league?.id ?? null
-    const homeId = item.teams?.home?.id ?? null
-    const awayId = item.teams?.away?.id ?? null
-    const table = leagueId != null ? standingsByLeague.get(`${leagueId}`) : undefined
+  return perDate.map(({ date, valid }) => ({
+    date,
+    fixtures: valid.map((item) => buildEnrichedFixture(item, standingsByLeague, nowIso)),
+  }))
+}
 
-    const stats: FixtureStats = {
-      referee:     item.fixture?.referee ?? null,
-      venue:       item.fixture?.venue?.name ?? null,
-      round:       item.league?.round ?? null,
-      league_id:   leagueId,
-      league_logo: item.league?.logo ?? null,
-      season:      item.league?.season ?? null,
-      goals:       { home: item.goals?.home ?? null, away: item.goals?.away ?? null },
-      home:        { id: homeId, logo: item.teams?.home?.logo ?? null, standing: homeId != null ? table?.get(homeId) ?? null : null },
-      away:        { id: awayId, logo: item.teams?.away?.logo ?? null, standing: awayId != null ? table?.get(awayId) ?? null : null },
-      enriched_at: nowIso,
-    }
-
-    return {
-      fixture_id: item.fixture.id,
-      home_team:  item.teams?.home?.name ?? null,
-      away_team:  item.teams?.away?.name ?? null,
-      match_date: item.fixture?.date ?? null,
-      status:     item.fixture?.status?.short ?? null,
-      league:     item.league?.name ?? null,
-      stats,
-      updated_at: nowIso,
-    }
-  })
+/** Compat: enriquecido de UNA fecha (delegado al multi-fecha). */
+export async function fetchFixturesEnriched(date: string): Promise<Fixture[]> {
+  const [group] = await fetchFixturesEnrichedForDates([date])
+  return group?.fixtures ?? []
 }
 
 // ── Upsert en Supabase ────────────────────────────────────────────────────────

@@ -12,7 +12,7 @@
  * desde un servicio externo con el mismo header Bearer.
  */
 import { NextRequest, NextResponse } from "next/server"
-import { fetchFixturesEnriched, upsertFixtures } from "@/lib/infrastructure/footballApi"
+import { fetchFixturesEnrichedForDates, upsertFixtures } from "@/lib/infrastructure/footballApi"
 
 export const runtime = "nodejs"
 export const maxDuration = 60
@@ -39,23 +39,31 @@ export async function GET(req: NextRequest) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
   }
 
-  // ── Refrescar hoy + 2 días (3 fechas → bien dentro del límite diario) ───────
+  // ── Refrescar hoy + 2 días ──────────────────────────────────────────────────
   const dates = [dateOffset(0), dateOffset(1), dateOffset(2)]
-  const result: { date: string; upserted: number; error?: string }[] = []
 
-  for (const date of dates) {
-    try {
-      // Pro: fixtures + standings (clasificación/forma) → stats JSONB. Throttled.
-      const fixtures = await fetchFixturesEnriched(date)   // amistosos ya filtrados
-      await upsertFixtures(fixtures, { includeStats: true }) // escribe stats enriquecido
-      result.push({ date, upserted: fixtures.length })
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e)
-      console.error(`[cron/update] fallo en ${date}:`, msg)
-      result.push({ date, upserted: 0, error: "fetch_failed" })
-    }
+  try {
+    // Fetch de las 3 fechas EN PARALELO + standings 1×/liga (dedupe global) →
+    // mucho más rápido y con menos llamadas que el bucle secuencial anterior.
+    const groups = await fetchFixturesEnrichedForDates(dates)
+
+    // Upserts independientes por fecha → en paralelo (Supabase).
+    const result = await Promise.all(
+      groups.map(async ({ date, fixtures }) => {
+        try {
+          await upsertFixtures(fixtures, { includeStats: true })
+          return { date, upserted: fixtures.length }
+        } catch (e) {
+          console.error(`[cron/update] upsert ${date} falló:`, e instanceof Error ? e.message : e)
+          return { date, upserted: 0, error: "upsert_failed" }
+        }
+      }),
+    )
+
+    const total = result.reduce((s, r) => s + r.upserted, 0)
+    return NextResponse.json({ ok: true, total, days: result })
+  } catch (e) {
+    console.error("[cron/update] fallo:", e instanceof Error ? e.message : e)
+    return NextResponse.json({ ok: false, error: "update_failed" }, { status: 502 })
   }
-
-  const total = result.reduce((s, r) => s + r.upserted, 0)
-  return NextResponse.json({ ok: true, total, days: result })
 }
