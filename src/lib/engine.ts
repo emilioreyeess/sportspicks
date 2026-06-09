@@ -278,6 +278,36 @@ export function extractOdds(comp: any): RealOdds | null {
   return odds
 }
 
+/**
+ * FALLBACK de cuotas 1X2 desde el endpoint CORE por-evento de ESPN.
+ *
+ * Motivo: el scoreboard dejó de poblar `competitions[].odds` (devuelve `[null]`),
+ * lo que vaciaba el pool de value picks. El endpoint core sigue exponiendo cuotas
+ * (p.ej. Bet365) en `homeTeamOdds.odds.value` / `awayTeamOdds.odds.value` /
+ * `drawOdds.value`, que YA son DECIMALES (no americanas → sin conversión).
+ * Solo 1X2 (el core no trae over/under en este shape).
+ */
+export async function fetchEventOddsCore(slug: string, eventId: string): Promise<RealOdds | null> {
+  try {
+    const url = `https://sports.core.api.espn.com/v2/sports/soccer/leagues/${slug}/events/${eventId}/competitions/${eventId}/odds`
+    const data = await fetchJSON(url)
+    const it = data?.items?.[0]
+    if (!it) return null
+    const dec = (v: any) => { const n = Number(v); return Number.isFinite(n) && n > 1 ? n : undefined }
+    const home = dec(it.homeTeamOdds?.odds?.value)
+    const away = dec(it.awayTeamOdds?.odds?.value)
+    const draw = dec(it.drawOdds?.value ?? it.drawOdds?.odds?.value)
+    if (!home && !away) return null
+    return {
+      provider: it.provider?.name ?? "ESPN BET",
+      home, draw, away,
+      over25: undefined, under25: undefined,
+    }
+  } catch {
+    return null
+  }
+}
+
 /** Probabilidad de cubrir hándicap a partir de los goles esperados (líneas .5) */
 export function handicapProb(lambdaHome: number, lambdaAway: number, line: number): { home: number; away: number } {
   const MAX = 8

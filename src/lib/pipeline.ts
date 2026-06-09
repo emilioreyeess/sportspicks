@@ -12,7 +12,7 @@
 
 import {
   ALL_SLUGS, LEAGUE_NAMES, clamp, impliedPct, fetchJSON,
-  fetchStandings, classifyMotivation, extractOdds, fetchTeamForm, modelMatch, handicapProb,
+  fetchStandings, classifyMotivation, extractOdds, fetchEventOddsCore, fetchTeamForm, modelMatch, handicapProb,
   type LeagueTable, type Motivation, type RealOdds, type TeamForm, type ModelOut,
 } from "@/lib/engine"
 import { evaluatePick, type EvalCandidate, type EvalMatch, type PickEvaluation } from "@/lib/decision-engine"
@@ -29,12 +29,12 @@ const LEAGUE_MAP: Record<string, string> = {
 }
 
 // ─── Value engine — umbrales (relajados para asegurar volumen diario) ──────────
-// MIN_EDGE bajado de 3 → 2 (−33%): selección más inclusiva para acercarse al
-// objetivo de 8 picks/día sin tirar la calidad por el suelo (sigue el gate).
-const MIN_EDGE = 2
+// MIN_EDGE bajado 3 → 2 → 1.5: selección más inclusiva para asegurar volumen tras
+// restaurar la fuente de cuotas (core fallback). El gate de calidad sigue filtrando.
+const MIN_EDGE = 1.5
 const MAX_EDGE = 15
 const MIN_ODD = 1.40
-const QUALITY_GATE = 56   // raised from 52 — stricter quality bar
+const QUALITY_GATE = 52   // back to 52 — un punto menos de fricción para recuperar volumen
 const MAX_PICKS = 10
 // Minimum odds for a handicap pick where the selected team is a clear underdog 1X2
 const MIN_ODD_HANDICAP_UNDERDOG = 1.75
@@ -100,6 +100,11 @@ async function fetchDailyData(): Promise<DailyData> {
     const data = await fetchJSON(`https://site.api.espn.com/apis/site/v2/sports/soccer/${slug}/scoreboard`)
     const events = data?.events ?? []
     if (!data) console.warn(`[pipeline] ${slug}: fetch ESPN devolvió null (posible fallo silencioso)`)
+    const yesterdayUTC = new Date(Date.now() - 86400000).toISOString().split("T")[0]
+    const tomorrowUTC = new Date(Date.now() + 86400000).toISOString().split("T")[0]
+
+    // ── Fase 1: filtrar eventos válidos de HOY (sin tocar cuotas todavía) ─────
+    const candidates: { ev: any; comp: any; home: any; away: any }[] = []
     for (const ev of events) {
       audit.eventsSeen++
       const comp = ev.competitions?.[0]
@@ -107,17 +112,18 @@ async function fetchDailyData(): Promise<DailyData> {
       const home = comp.competitors?.find((c: any) => c.homeAway === "home")
       const away = comp.competitors?.find((c: any) => c.homeAway === "away")
       if (!home?.team?.id || !away?.team?.id) { audit.skipNoTeams++; continue }
-      // Validación: fecha de inicio válida
       if (!ev.date || isNaN(new Date(ev.date).getTime())) { audit.skipBadDate++; continue }
-      // Solo partidos de HOY — descartar pasados Y futuros (días siguientes)
       const kickoffDate = ev.date?.slice(0, 10)
-      // Allow today in UTC and also today-1 in case of timezone offset (UTC vs local)
-      const yesterdayUTC = new Date(Date.now() - 86400000).toISOString().split("T")[0]
-      const tomorrowUTC = new Date(Date.now() + 86400000).toISOString().split("T")[0]
       // Only accept TODAY (strict)
       if (!kickoffDate || kickoffDate === yesterdayUTC || kickoffDate >= tomorrowUTC) { audit.skipNotToday++; continue }
-      const odds = extractOdds(comp)
-      if (!odds) { audit.skipNoOdds++; continue }   // ← descarte clave: sin cuotas no hay value pick
+      candidates.push({ ev, comp, home, away })
+    }
+
+    // ── Fase 2: resolver cuotas EN PARALELO por slug. El scoreboard dejó de
+    //    poblar `odds` ([null]) → fallback al endpoint CORE por-evento de ESPN. ──
+    await Promise.all(candidates.map(async ({ ev, comp, home, away }) => {
+      const odds = extractOdds(comp) ?? await fetchEventOddsCore(slug, String(ev.id))
+      if (!odds) { audit.skipNoOdds++; return }   // ← sin cuotas (ni scoreboard ni core) no hay value pick
       audit.accepted++
       raw.push({
         ev, slug,
@@ -125,7 +131,7 @@ async function fetchDailyData(): Promise<DailyData> {
         homeId: String(home.team.id), awayId: String(away.team.id),
         odds,
       })
-    }
+    }))
   }
 
   // Log del embudo: cuántos partidos se vieron y dónde se cayeron.

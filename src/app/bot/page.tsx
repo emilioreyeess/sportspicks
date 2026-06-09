@@ -75,7 +75,13 @@ export default function BotPage() {
           setMessages((prev) => prev.map((m) => m.id === assistantId ? { ...m, content: accumulated } : m))
         },
         onDone: () => {
-          setHistory((prev) => [...prev, { role: "user", content: text }, { role: "assistant", content: accumulated }])
+          // No meter turnos vacíos al history (un content:"" rompe la API en el
+          // siguiente turno). Turno solo-imagen → placeholder de texto.
+          setHistory((prev) => {
+            const next = [...prev, { role: "user" as const, content: text || "[imagen de combinada]" }]
+            if (accumulated.trim()) next.push({ role: "assistant" as const, content: accumulated })
+            return next
+          })
           setIsStreaming(false)
           if (!isPremium) markFreeUsed()
         },
