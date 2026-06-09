@@ -6,14 +6,15 @@ import { useUpgradeModal } from "@/components/premium"
 import { Icon } from "@/components/ui/icons"
 import { Card, Badge, Button, Alert, Spinner, EmptyState } from "@/components/ui/primitives"
 import { DisclaimerBanner } from "@/components/legal/DisclaimerBanner"
-import type { WCFixture, WCTeam, MatchCenter, WCGroup } from "@/lib/world-cup/types"
+import { BracketView } from "@/components/world-cup/BracketView"
+import type { WCFixture, WCTeam, MatchCenter, WCGroup, WCGroupStanding } from "@/lib/world-cup/types"
 import type { MatchOdds } from "@/lib/world-cup/odds-service"
 import Link from "next/link"
 
 const WC_KICKOFF_ISO = "2026-06-11T20:00:00-04:00"
 const WC_GROUP_ORDER: WCGroup[] = ["A","B","C","D","E","F","G","H","I","J","K","L"]
 
-type PageTab = "grupos" | "partidos"
+type PageTab = "grupos" | "eliminatorias" | "partidos"
 
 /* ════════════════════════════════════════════════════════════════════════════
    MAIN PAGE
@@ -29,6 +30,10 @@ export default function WorldCupPage() {
   const [analysisId, setAnalysisId] = useState<string | null>(null)
   const [tab, setTab] = useState<PageTab>("grupos")
   const [selectedGroup, setSelectedGroup] = useState<WCGroup | null>(null)
+  // FASE 4 — datos del cuadro de eliminatorias
+  const [knockout, setKnockout] = useState<WCFixture[]>([])
+  const [wcGroups, setWcGroups] = useState<WCGroupStanding[]>([])
+  const [drawCompleted, setDrawCompleted] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -43,6 +48,9 @@ export default function WorldCupPage() {
       setByGroup(teamsRes.byGroup ?? {})
       const fixList: WCFixture[] = bracketRes.knockoutFixtures ?? []
       setFixtures(fixList.slice(0, 20))
+      setKnockout(fixList)
+      setWcGroups(bracketRes.groups ?? [])
+      setDrawCompleted(!!bracketRes.drawCompleted)
     } catch {
       // non-critical
     } finally {
@@ -67,8 +75,9 @@ export default function WorldCupPage() {
         {/* Tab picker */}
         <div className="flex gap-1 p-1 rounded-2xl bg-zinc-900/40">
           {([
-            ["grupos",   "trophy", "Grupos"],
-            ["partidos", "value",  "Partidos"],
+            ["grupos",        "trophy",      "Grupos"],
+            ["eliminatorias", "leaderboard", "Eliminatorias"],
+            ["partidos",      "value",       "Partidos"],
           ] as const).map(([id, icon, label]) => (
             <button key={id} onClick={() => setTab(id)}
               className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-[13px] font-semibold tap transition-all ${
@@ -97,6 +106,24 @@ export default function WorldCupPage() {
                 byGroup={byGroup}
                 teams={teams}
                 onGroupClick={(g) => { setSelectedGroup(g); setTab("partidos") }}
+              />
+            )}
+          </section>
+        )}
+
+        {/* Eliminatorias tab (FASE 4) */}
+        {tab === "eliminatorias" && (
+          <section>
+            <SectionTitle eyebrow="Fase final" title="Cuadro de eliminatorias" />
+            {loading ? (
+              <div className="h-72 rounded-2xl bg-zinc-900/40 animate-pulse" />
+            ) : (
+              <BracketView
+                teams={[...teams.values()]}
+                groups={wcGroups}
+                knockoutFixtures={knockout}
+                drawCompleted={drawCompleted}
+                onSelectMatch={handleAnalyze}
               />
             )}
           </section>
