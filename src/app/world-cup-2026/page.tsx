@@ -7,7 +7,8 @@ import { Icon } from "@/components/ui/icons"
 import { Card, Badge, Button, Alert, Spinner, EmptyState } from "@/components/ui/primitives"
 import { DisclaimerBanner } from "@/components/legal/DisclaimerBanner"
 import { BracketView } from "@/components/world-cup/BracketView"
-import type { WCFixture, WCTeam, MatchCenter, WCGroup, WCGroupStanding } from "@/lib/world-cup/types"
+import type { WCFixture, WCTeam, MatchCenter, WCGroup, WCGroupStanding, WCGroupTeamStanding } from "@/lib/world-cup/types"
+import { fifaRankOf } from "@/lib/world-cup/fifa-ranking"
 import type { MatchOdds } from "@/lib/world-cup/odds-service"
 import Link from "next/link"
 
@@ -65,6 +66,10 @@ export default function WorldCupPage() {
     setAnalysisId(matchId === analysisId ? null : matchId)
   }
 
+  // Standings por código de equipo (PL/GD/PTS) — vacío hasta que arranque el torneo.
+  const standingsByCode = new Map<string, WCGroupTeamStanding>()
+  for (const g of wcGroups) for (const t of (g.teams ?? [])) standingsByCode.set(t.teamCode, t)
+
   return (
     <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8 sm:py-10 safe-x">
       <div className="space-y-7">
@@ -105,6 +110,7 @@ export default function WorldCupPage() {
               <GroupsGrid
                 byGroup={byGroup}
                 teams={teams}
+                standings={standingsByCode}
                 onGroupClick={(g) => { setSelectedGroup(g); setTab("partidos") }}
               />
             )}
@@ -278,10 +284,11 @@ function HeroSection() {
    ════════════════════════════════════════════════════════════════════════════ */
 
 function GroupsGrid({
-  byGroup, teams, onGroupClick,
+  byGroup, teams, standings, onGroupClick,
 }: {
   byGroup: Partial<Record<WCGroup, WCTeam[]>>
   teams: Map<string, WCTeam>
+  standings: Map<string, WCGroupTeamStanding>
   onGroupClick?: (group: WCGroup) => void
 }) {
   const resolvedByGroup: Partial<Record<WCGroup, WCTeam[]>> = Object.keys(byGroup).length > 0
@@ -317,18 +324,35 @@ function GroupsGrid({
               </span>
             </div>
             <div className="border-t border-white/[0.04]">
-              {groupTeams.length > 0 ? groupTeams.map((team, i) => (
-                <div key={team.code} className="flex items-center gap-3 px-5 py-2.5 border-b border-white/[0.03] last:border-0">
-                  <span className="text-[11px] text-zinc-600 w-4 shrink-0 font-semibold">{i + 1}</span>
-                  <span className="text-[20px] shrink-0">{team.flagEmoji}</span>
-                  <span className="text-[13.5px] font-semibold text-white flex-1 truncate">{team.name}</span>
-                  <span className="text-[11px] text-zinc-500 shrink-0 font-mono">
-                    {team.fifaRanking != null ? `#${team.fifaRanking}` : "—"}
-                  </span>
-                </div>
-              )) : (
+              {/* Cabecera de columnas: Escudo | Nombre | PL | GD | PTS */}
+              <div className="flex items-center gap-3 px-5 pt-2 pb-1.5 text-[9.5px] font-bold uppercase tracking-wider text-zinc-600">
+                <span className="w-5 shrink-0" aria-hidden="true" />
+                <span className="flex-1">Equipo</span>
+                <span className="w-7 text-center shrink-0">PL</span>
+                <span className="w-9 text-center shrink-0">GD</span>
+                <span className="w-7 text-center shrink-0">PTS</span>
+              </div>
+              {groupTeams.length > 0 ? groupTeams.map((team) => {
+                const st = standings.get(team.code)
+                const pl = st?.played ?? 0
+                const gd = st?.goalDiff ?? 0
+                const pts = st?.points ?? 0
+                const rank = fifaRankOf(team.code)
+                return (
+                  <div key={team.code} className="flex items-center gap-3 px-5 py-2.5 border-t border-white/[0.03]">
+                    <span className="text-[20px] w-5 shrink-0 text-center leading-none">{team.flagEmoji}</span>
+                    <span className="text-[13px] font-semibold text-white flex-1 truncate">
+                      {team.name}
+                      {rank != null && <span className="ml-1.5 text-[9px] text-zinc-600 font-mono align-middle">FIFA #{rank}</span>}
+                    </span>
+                    <span className="w-7 text-center shrink-0 text-[12px] tabular-nums text-zinc-400">{pl}</span>
+                    <span className="w-9 text-center shrink-0 text-[12px] tabular-nums text-zinc-400">{gd > 0 ? `+${gd}` : gd}</span>
+                    <span className="w-7 text-center shrink-0 text-[12px] tabular-nums font-bold text-white">{pts}</span>
+                  </div>
+                )
+              }) : (
                 <div className="px-5 py-5">
-                  <p className="text-[12px] text-zinc-500">Sin datos disponibles</p>
+                  <p className="text-[12px] text-zinc-500">Equipos por confirmar tras el sorteo.</p>
                 </div>
               )}
             </div>
