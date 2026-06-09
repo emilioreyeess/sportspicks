@@ -148,6 +148,7 @@ function LeagueLogo({ url, name }: { url: string | null; name: string }) {
 }
 
 const FINISHED = new Set(["FT", "AET", "PEN"])
+const LIVE_STATUS = new Set(["1H", "2H", "HT", "ET", "P", "LIVE", "BT"])
 
 function MatchRow({ f, isPremium, intl }: { f: Fixture; isPremium: boolean; intl: boolean }) {
   const [open, setOpen] = useState(false)
@@ -159,15 +160,19 @@ function MatchRow({ f, isPremium, intl }: { f: Fixture; isPremium: boolean; intl
   const markets = open && isPremium ? deriveMarkets(hSt, aSt) : null
 
   // Centro: resultado si el partido terminó, si no la hora.
-  const finished = FINISHED.has((f.status ?? "").toUpperCase())
+  const stCode = (f.status ?? "").toUpperCase()
+  const finished = FINISHED.has(stCode)
+  const live = LIVE_STATUS.has(stCode)
   const gh = s?.goals?.home, ga = s?.goals?.away
-  const center = finished && gh != null && ga != null ? `${gh} - ${ga}` : fmtTime(f.match_date)
+  const center = (finished || live) && gh != null && ga != null ? `${gh} - ${ga}` : fmtTime(f.match_date)
+  // Sub-etiqueta limpia (nunca el código crudo NS/FT al usuario).
+  const sub = live ? "EN VIVO" : finished ? "FINAL" : null
 
   return (
     <div className="border-b border-white/[0.05] last:border-0">
       <button
         onClick={() => setOpen((v) => { const next = !v; if (next) recordAnalysisView(); return next })}
-        className="w-full flex items-center gap-2 px-3 py-3 text-left hover:bg-white/[0.02] transition-colors"
+        className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-white/[0.02] transition-colors"
       >
         {/* Local: nombre + escudo, alineado a la derecha */}
         <div className="flex-1 flex items-center justify-end gap-2 min-w-0">
@@ -176,11 +181,15 @@ function MatchRow({ f, isPremium, intl }: { f: Fixture; isPremium: boolean; intl
         </div>
 
         {/* Centro: resultado o hora */}
-        <div className="shrink-0 w-[64px] text-center">
-          <span className={`block tabular-nums leading-none ${finished ? "text-[15px] font-bold text-white" : "text-[13px] font-semibold text-zinc-300"}`}>
+        <div className="shrink-0 w-[58px] text-center">
+          <span className={`block tabular-nums leading-none ${finished ? "text-[15px] font-bold text-white" : live ? "text-[14px] font-bold text-rose-400" : "text-[13px] font-semibold text-zinc-300"}`}>
             {center}
           </span>
-          <span className="block text-[9px] uppercase tracking-wider text-zinc-600 mt-0.5">{f.status ?? ""}</span>
+          {sub && (
+            <span className={`mt-0.5 inline-flex items-center gap-1 text-[8.5px] font-bold uppercase tracking-wider ${live ? "text-rose-400" : "text-zinc-600"}`}>
+              {live && <span className="h-1.5 w-1.5 rounded-full bg-rose-500 animate-pulse" />}{sub}
+            </span>
+          )}
         </div>
 
         {/* Visitante: escudo + nombre, alineado a la izquierda */}
@@ -189,7 +198,7 @@ function MatchRow({ f, isPremium, intl }: { f: Fixture; isPremium: boolean; intl
           <span className="text-[13px] text-white truncate">{away}</span>
         </div>
 
-        <span className="text-zinc-600 text-[10px] shrink-0 w-3 text-center">{open ? "▲" : "▼"}</span>
+        <span className="text-zinc-600 text-[9px] shrink-0 w-3 text-center">{open ? "▲" : "▼"}</span>
       </button>
 
       {open && (
@@ -281,11 +290,11 @@ export function FixturesAccordion({ fixtures }: { fixtures: Fixture[] }) {
       const intl = inferIsInternationalFromESPN(league)
       const leagueLogo = ((list[0]?.stats ?? null) as FixtureStats | null)?.league_logo ?? null
       return (
-        <section key={league} className="mb-3 rounded-2xl overflow-hidden border border-white/[0.05] bg-zinc-900/40">
+        <section key={league} className="mb-2 rounded-2xl overflow-hidden border border-white/[0.05] bg-zinc-900/40">
           {/* Encabezado de liga estilo FotMob */}
-          <h2 className="flex items-center gap-2.5 border-b border-white/[0.05] px-4 py-2.5">
+          <h2 className="flex items-center gap-2 border-b border-white/[0.05] bg-white/[0.02] px-3 py-2">
             <LeagueLogo url={leagueLogo} name={league} />
-            <span className="text-[12px] font-bold text-zinc-200 truncate">{league}</span>
+            <span className="text-[11.5px] font-bold text-zinc-200 truncate">{league}</span>
             <span className="ml-auto text-[10px] text-zinc-600 tabular-nums">{list.length}</span>
           </h2>
           {list.map((f) => <MatchRow key={f.fixture_id} f={f} isPremium={isPremium} intl={intl} />)}
