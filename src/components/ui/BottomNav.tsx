@@ -3,28 +3,37 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Icon } from "@/components/ui/icons"
-import { NAV_MAIN, isActive } from "@/components/ui/nav-items"
+import { isActive } from "@/components/ui/nav-items"
 
-/** Color config por ruta activa */
-function tabConfig(href: string) {
-  if (href === "/world-cup-2026") return { text: "text-amber-400/90",   glow: "", pill: "ios-tab-active-amber", stroke: 2.2 }
-  if (href === "/retos")          return { text: "text-rose-400/90",    glow: "", pill: "ios-tab-active-rose",  stroke: 2.2 }
-  return { text: "text-emerald-400/90", glow: "", pill: "ios-tab-active", stroke: 2.2 }
+/**
+ * Barra inferior móvil — EXACTAMENTE 5 slots (PUNTO 4):
+ *   Inicio · Value Picks · Bot IA (central) · Mundial 2026 · Más (hamburguesa)
+ * "Más" NO navega: dispara onMore() → abre el MobileDrawer (Panel lateral).
+ */
+const TABS = [
+  { href: "/",               icon: "home",   short: "Inicio", center: false },
+  { href: "/value",          icon: "value",  short: "Value",  center: false },
+  { href: "/bot",            icon: "bot",    short: "Bot IA", center: true },
+  { href: "/world-cup-2026", icon: "wc2026", short: "Mundial", center: false },
+] as const
+
+function tabColor(href: string) {
+  if (href === "/world-cup-2026") return { text: "text-amber-400/90", pill: "ios-tab-active-amber" }
+  return { text: "text-emerald-400/90", pill: "ios-tab-active" }
 }
 
-export function BottomNav() {
+export function BottomNav({ onMore }: { onMore: () => void }) {
   const path = usePathname()
 
   return (
     <nav className="lg:hidden fixed bottom-0 inset-x-0 z-40 ios-tab-bar border-t border-white/[0.07] safe-bottom">
       <div className="flex items-stretch justify-around h-16 max-w-md mx-auto px-1">
-        {NAV_MAIN.filter((item) => item.href !== "/partidos").map((item) => {
-          const active  = isActive(path, item.href)
-          const isCenter = item.href === "/bot"
-          const c = tabConfig(item.href)
+        {TABS.map((item) => {
+          const active = isActive(path, item.href)
+          const c = tabColor(item.href)
 
           /* ── Bot IA — botón central elevado ── */
-          if (isCenter) {
+          if (item.center) {
             return (
               <Link key={item.href} href={item.href}
                 className="flex flex-col items-center justify-end gap-1 flex-1 pb-2 tap">
@@ -47,25 +56,23 @@ export function BottomNav() {
           return (
             <Link key={item.href} href={item.href}
               className="relative flex flex-col items-center justify-center gap-0.5 flex-1 tap py-1">
-
-              {/* Pill background tras icono+label */}
-              {active && (
-                <span className={`absolute inset-x-1 top-2 bottom-1.5 ${c.pill}`} aria-hidden="true" />
-              )}
-
-              <Icon
-                name={item.icon}
-                className={`relative w-[22px] h-[22px] transition-all duration-200 ${
-                  active ? `${c.text} ${c.glow}` : "text-zinc-500"
-                }`}
-                strokeWidth={active ? c.stroke : 1.8}
-              />
-              <span className={`relative text-[10px] leading-none font-medium transition-colors duration-200 ${
-                active ? c.text : "text-zinc-500"
-              }`}>{item.short}</span>
+              {active && <span className={`absolute inset-x-1 top-2 bottom-1.5 ${c.pill}`} aria-hidden="true" />}
+              <Icon name={item.icon}
+                className={`relative w-[22px] h-[22px] transition-all duration-200 ${active ? c.text : "text-zinc-500"}`}
+                strokeWidth={active ? 2.2 : 1.8} />
+              <span className={`relative text-[10px] leading-none font-medium transition-colors duration-200 ${active ? c.text : "text-zinc-500"}`}>
+                {item.short}
+              </span>
             </Link>
           )
         })}
+
+        {/* ── Más — NO navega: abre el Panel lateral (MobileDrawer) ── */}
+        <button onClick={onMore} aria-label="Abrir menú"
+          className="relative flex flex-col items-center justify-center gap-0.5 flex-1 tap py-1">
+          <Icon name="menu" className="relative w-[22px] h-[22px] text-zinc-500" strokeWidth={1.8} />
+          <span className="relative text-[10px] leading-none font-medium text-zinc-500">Más</span>
+        </button>
       </div>
     </nav>
   )

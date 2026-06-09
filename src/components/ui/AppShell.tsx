@@ -1,9 +1,11 @@
 "use client"
 
+import { useState } from "react"
 import { usePathname } from "next/navigation"
 import { Sidebar } from "@/components/ui/Sidebar"
 import { TopBar } from "@/components/ui/TopBar"
 import { BottomNav } from "@/components/ui/BottomNav"
+import { MobileDrawer } from "@/components/ui/MobileDrawer"
 import { GlobalFooter } from "@/components/legal/GlobalFooter"
 import { ErrorBoundary } from "@/components/ui/ErrorBoundary"
 
@@ -16,6 +18,7 @@ import { ErrorBoundary } from "@/components/ui/ErrorBoundary"
 export function AppShell({ children }: { children: React.ReactNode }) {
   const path = usePathname()
   const immersive = path?.startsWith("/bot") ?? false
+  const [menuOpen, setMenuOpen] = useState(false)
 
   if (immersive) {
     return <div className="h-[100dvh] overflow-hidden bg-[var(--bg)]">{children}</div>
@@ -35,7 +38,8 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <GlobalFooter />
         </main>
       </div>
-      <BottomNav />
+      <BottomNav onMore={() => setMenuOpen(true)} />
+      <MobileDrawer open={menuOpen} onClose={() => setMenuOpen(false)} />
     </div>
   )
 }
