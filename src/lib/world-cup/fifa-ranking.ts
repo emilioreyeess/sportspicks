@@ -6,8 +6,8 @@
  * 3 letras (coincide con WCTeam.code). Actualizar manualmente tras cada
  * publicación oficial de la FIFA.
  *
- * Snapshot de referencia (ciclo 2025/26 pre-Mundial). Es un valor informativo,
- * no de cálculo del motor.
+ * Snapshot a JUNIO 2026 (pre-Mundial). Es un valor informativo, no de cálculo
+ * del motor. Top: ARG 1 · FRA 2 · ESP 3 · ENG 4 · BRA 5.
  */
 export const FIFA_RANKING: Record<string, number> = {
   ARG: 1,  FRA: 2,  ESP: 3,  ENG: 4,  BRA: 5,

@@ -448,3 +448,52 @@ export async function resolveFixtureIdByTeams(home: string, away: string, dateIS
     return null
   }
 }
+
+// ─── Ingesta del MUNDIAL 2026 a la tabla `fixtures` (la que lee el bot) ─────────
+// Trae TODOS los fixtures del Mundial (grupos + eliminatorias) de API-Football
+// (/fixtures?league=1&season=YYYY) y los upserta con stats.league_id=1, para que
+// getFixturesFromDb(world_cup) los vea. Cura la ceguera del bot ante el Mundial.
+
+const FIFA_WC_LEAGUE = 1
+
+export async function ingestWorldCupFixtures(season = 2026): Promise<{ count: number; error?: string }> {
+  const apiKey = process.env.FOOTBALL_API_KEY
+  if (!apiKey) return { count: 0, error: "FOOTBALL_API_KEY no configurada" }
+  try {
+    const res = await fetch(`${API_BASE}/fixtures?league=${FIFA_WC_LEAGUE}&season=${season}`, {
+      headers: { "x-apisports-key": apiKey, "Accept": "application/json" }, cache: "no-store",
+    })
+    if (!res.ok) return { count: 0, error: `API respondió ${res.status}` }
+    const json = await res.json() as ApiFootballResponse
+    const items = json.response ?? []
+    if (!items.length) return { count: 0 }
+
+    const nowIso = new Date().toISOString()
+    const rows: Fixture[] = items.map((item: any) => ({
+      fixture_id: item.fixture.id,
+      home_team:  item.teams?.home?.name ?? null,
+      away_team:  item.teams?.away?.name ?? null,
+      match_date: item.fixture?.date ?? null,
+      status:     item.fixture?.status?.short ?? null,
+      league:     item.league?.name ?? "FIFA World Cup",
+      stats: {
+        referee:     item.fixture?.referee ?? null,
+        venue:       item.fixture?.venue?.name ?? null,
+        round:       item.league?.round ?? null,
+        league_id:   item.league?.id ?? FIFA_WC_LEAGUE,
+        league_logo: item.league?.logo ?? null,
+        season:      item.league?.season ?? season,
+        goals:       { home: item.goals?.home ?? null, away: item.goals?.away ?? null },
+        home:        { id: item.teams?.home?.id ?? null, logo: item.teams?.home?.logo ?? null, standing: null },
+        away:        { id: item.teams?.away?.id ?? null, logo: item.teams?.away?.logo ?? null, standing: null },
+        enriched_at: nowIso,
+      } as any,
+      updated_at: nowIso,
+    }))
+
+    await upsertFixtures(rows, { includeStats: true })
+    return { count: rows.length }
+  } catch (e) {
+    return { count: 0, error: e instanceof Error ? e.message : String(e) }
+  }
+}

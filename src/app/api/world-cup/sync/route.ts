@@ -30,6 +30,7 @@ import {
 } from "@/lib/world-cup/api-football"
 import { getAllFixtures as espnGetFixtures } from "@/lib/world-cup/data-service"
 import { cacheGet, cacheSet, WC_CACHE_TTL } from "@/lib/world-cup/cache"
+import { ingestWorldCupFixtures } from "@/lib/infrastructure/footballApi"
 
 export const runtime  = "nodejs"
 export const maxDuration = 300   // 5 min max (Vercel Pro)
@@ -365,8 +366,18 @@ export async function GET(req: NextRequest) {
 
   const sb = await getSupabase()
 
-  // 1. Fixtures
+  // 1. Fixtures (tabla wc_matches específica del Mundial)
   const fixtures = await syncFixtures(sb, log)
+
+  // 1b. MISMOS fixtures → tabla general `fixtures` (la que lee el bot/RAG) con
+  //     stats.league_id=1, para curar la ceguera del bot ante el Mundial.
+  const wcDb = await ingestWorldCupFixtures(2026)
+  log.push({
+    phase: "fixtures_table",
+    status: wcDb.error ? "error" : "ok",
+    detail: wcDb.error,
+    count: wcDb.count,
+  })
 
   // 2. Odds (only if API-Football, upcoming ≤48h)
   await syncOdds(sb, fixtures, log)
