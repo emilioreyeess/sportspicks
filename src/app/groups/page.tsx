@@ -7,6 +7,7 @@ import Link from "next/link"
 import type { ExtractedBet } from "@/lib/bets/types"
 import { extractBetDataReal } from "@/lib/actions/ocr-action"
 import { BetConfirmationModal, type ConfirmedBet } from "@/components/bets/BetConfirmationModal"
+import { ZoomableImage } from "@/components/ui/ZoomableImage"
 
 // ── Types ─────────────────────────────────────────────────────
 interface Group {
@@ -633,7 +634,7 @@ function ChatView({ group, onBack }: { group: Group; onBack: () => void }) {
                       return (
                         <div key={b.id} className="flex items-center gap-2 rounded-lg border border-white/[0.06] bg-zinc-800/50 px-3 py-2.5">
                           {b.image_url && (
-                            <img src={b.image_url} alt="" className="w-8 h-8 rounded object-cover shrink-0 border border-white/[0.07]" />
+                            <ZoomableImage src={b.image_url} alt="Boleto" className="w-8 h-8 rounded object-cover shrink-0 border border-white/[0.07]" />
                           )}
                           <div className="flex-1 min-w-0">
                             <p className="text-xs font-bold text-white truncate">{b.title}</p>
@@ -745,7 +746,7 @@ function ChatView({ group, onBack }: { group: Group; onBack: () => void }) {
                         {/* Bet info */}
                         <div className="p-3 flex items-start gap-3">
                           {bet.image_url && (
-                            <img src={bet.image_url} alt="" className="w-12 h-12 rounded-lg object-cover border border-white/[0.07] shrink-0" />
+                            <ZoomableImage src={bet.image_url} alt="Boleto" className="w-12 h-12 rounded-lg object-cover border border-white/[0.07] shrink-0" />
                           )}
                           <div className="flex-1 min-w-0">
                             <p className="text-sm font-black text-white truncate">{bet.title}</p>

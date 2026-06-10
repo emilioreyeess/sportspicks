@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation"
 import { usePlan } from "@/lib/plan"
 import { TeamCrest } from "@/components/teams/TeamCrest"
 import { ReviewEditor } from "@/components/bets/ReviewEditor"
+import { ZoomableImage } from "@/components/ui/ZoomableImage"
+import { ShareToGroupButton } from "@/components/bets/ShareToGroupButton"
 
 interface BetLeg { id: string; match: string; selection: string; odds: number; status: string }
 interface Bet {
@@ -638,10 +640,9 @@ export default function BetsPage() {
                 >
                   <div className="flex items-start gap-3 justify-between">
                     {bet.image_url && (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
+                      <ZoomableImage
                         src={bet.image_url}
-                        alt=""
+                        alt="Boleto"
                         className="w-12 h-12 rounded-lg object-cover border border-white/[0.07] shrink-0 bg-zinc-900"
                       />
                     )}
@@ -700,20 +701,25 @@ export default function BetsPage() {
                       <p className="text-xs text-zinc-600">Sin selecciones registradas</p>
                     )}
 
-                    {/* Attached image */}
+                    {/* Attached image (lightbox al pinchar) */}
                     {bet.image_url && (
                       <div className="rounded-xl overflow-hidden border border-white/[0.07]">
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img src={bet.image_url} alt="Boleto" className="w-full max-h-64 object-contain bg-zinc-900" />
+                        <ZoomableImage src={bet.image_url} alt="Boleto" className="w-full max-h-64 object-contain bg-zinc-900" />
                       </div>
                     )}
 
                     {bet.status === "pending" && (
-                      <div className="flex gap-2 pt-1">
-                        <button onClick={() => settle(bet.id, "won")}  className="flex-1 bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 text-xs py-2 rounded-xl border border-emerald-700/40 transition">✓ Ganada</button>
-                        <button onClick={() => settle(bet.id, "lost")} className="flex-1 bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 text-xs py-2 rounded-xl border border-rose-700/40 transition">✗ Perdida</button>
-                        <button onClick={() => settle(bet.id, "void")} className="flex-1 bg-zinc-800/60 border border-white/[0.07] hover:bg-zinc-700/60 text-zinc-400 text-xs py-2 rounded-xl transition">— Anulada</button>
-                      </div>
+                      <>
+                        <div className="flex gap-2 pt-1">
+                          <button onClick={() => settle(bet.id, "won")}  className="flex-1 bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 text-xs py-2 rounded-xl border border-emerald-700/40 transition">✓ Ganada</button>
+                          <button onClick={() => settle(bet.id, "lost")} className="flex-1 bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 text-xs py-2 rounded-xl border border-rose-700/40 transition">✗ Perdida</button>
+                          <button onClick={() => settle(bet.id, "void")} className="flex-1 bg-zinc-800/60 border border-white/[0.07] hover:bg-zinc-700/60 text-zinc-400 text-xs py-2 rounded-xl transition">— Anulada</button>
+                        </div>
+                        {/* FASE 1: compartir esta apuesta a un grupo */}
+                        <div className="flex justify-end" onClick={(e) => e.stopPropagation()}>
+                          <ShareToGroupButton betId={bet.id} />
+                        </div>
+                      </>
                     )}
 
                     <div className="text-xs text-zinc-600">
