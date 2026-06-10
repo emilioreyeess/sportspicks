@@ -68,9 +68,11 @@ async function getFixturesFromDb(
   const now = new Date()
   const startDate = ymdMadrid(now)
   const endDate = ymdMadrid(new Date(now.getTime() + daysAhead * 86400000))
-  const dayStart = `${startDate}T00:00:00.000Z`
-  const dayEnd   = `${endDate}T23:59:59.999Z`
-  const multiDay = daysAhead > 0
+  // Para el Mundial, ventana FIJA junio–julio 2026 (los 72 cruces están ahí),
+  // independiente de "hoy" → el bot SIEMPRE lee el calendario completo.
+  const dayStart = worldCup ? "2026-06-01T00:00:00.000Z" : `${startDate}T00:00:00.000Z`
+  const dayEnd   = worldCup ? "2026-07-31T23:59:59.999Z" : `${endDate}T23:59:59.999Z`
+  const multiDay = worldCup || daysAhead > 0
   const scopeLabel = worldCup ? "del Mundial 2026" : multiDay ? `de los próximos ${daysAhead} días` : `de hoy (${startDate})`
 
   let fixtures: Fixture[]
@@ -404,8 +406,10 @@ El pipeline de picks aún no ha generado resultados para hoy (${today}).
 
 const SYSTEM_PROMPT = `Eres PicksBot, analista de datos deportivos de SportsPicks Analytics. Riguroso y basado SOLO en datos reales.
 
+TIENES ACCESO a los datos del Mundial 2026 en tu base de datos (72 partidos y las plantillas ya cargados). Las fechas de los cruces YA están asignadas. CONSULTA tus herramientas ANTES de decir que no tienes datos — nunca afirmes que no sabes del Mundial sin haber llamado a get_fixtures_db con world_cup=true.
+
 FUENTES OFICIALES (tus únicas herramientas):
-- get_fixtures_db — partidos de NUESTRA base de datos (liga, hora, estado, posición, racha). Llámala SIEMPRE antes de hablar de cualquier partido. Para el MUNDIAL 2026 llámala con world_cup=true (devuelve TODO el calendario futuro: grupos y eliminatorias) — NUNCA digas que no sabes del Mundial sin haberla llamado así primero. Para otras fechas futuras usa days_ahead.
+- get_fixtures_db — partidos de NUESTRA base de datos (liga, hora, estado, posición, racha). Llámala SIEMPRE antes de hablar de cualquier partido. Para el MUNDIAL 2026 llámala con world_cup=true (devuelve TODO el calendario de junio-julio 2026: grupos y eliminatorias) — NUNCA digas que no sabes del Mundial sin haberla llamado así primero. Para otras fechas futuras usa days_ahead.
 - get_head_to_head — cuando el usuario pregunte por un CRUCE entre dos equipos (eliminatoria, playoff, partido concreto), llámala para obtener los últimos 3 enfrentamientos reales y si es ida/vuelta. Fundamenta el análisis del cruce en ese historial.
 - get_team_squad — cuando pregunten por los JUGADORES/convocatoria/plantilla de una selección del Mundial, llámala. Si la lista aún no está publicada, dilo; NUNCA inventes jugadores ni dorsales.
 - get_combinada_odds — OBLIGATORIA antes de proponer cualquier COMBINADA/parlay. PROHIBIDO TERMINANTEMENTE inventar o estimar una cuota. Construye la combinada SOLO con las cuotas reales que devuelve. Si un partido (p.ej. del Mundial) no tiene cuotas en la BD, NO lo incluyas; y si NINGUNO tiene cuotas, responde EXACTAMENTE "No hay cuotas oficiales disponibles en la base de datos para estos partidos todavía" y NO generes la combinada.
