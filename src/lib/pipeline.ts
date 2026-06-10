@@ -71,8 +71,19 @@ interface MatchModel {
   contextProfile: MatchContextProfile
 }
 
+/** Partido con cuotas REALES pero sin datos suficientes para el modelo Poisson.
+ *  FALLBACK (doc API-Football: predictions null al inicio de competiciones):
+ *  se usa la probabilidad IMPLÍCITA del mercado (stats.odds) — nunca se inventa. */
+interface MarketOnlyMatch {
+  id: string; slug: string
+  homeName: string; awayName: string
+  kickoff: string
+  odds: RealOdds
+}
+
 interface DailyData {
   matches: MatchModel[]
+  marketOnly: MarketOnlyMatch[]
   leagueAvg: number
   fetchedAt: string
 }
@@ -154,6 +165,12 @@ async function fetchDailyData(): Promise<DailyData> {
   const queue = raw.slice(0, 56)
   interface WithForm extends RawMatch { home: TeamForm; away: TeamForm }
   const withForm: WithForm[] = []
+  const marketOnly: MarketOnlyMatch[] = []
+  // FALLBACK de predicciones: si el modelo no puede evaluar (sin datos de forma,
+  // típico al inicio de competiciones), el partido NO se tira — pasa a marketOnly
+  // y el pool usará la probabilidad IMPLÍCITA de sus cuotas reales.
+  const toMarketOnly = (m: RawMatch) =>
+    marketOnly.push({ id: m.ev.id, slug: m.slug, homeName: m.homeName, awayName: m.awayName, kickoff: m.ev.date, odds: m.odds })
   let skippedNoData = 0
   let intlIngested = 0
   await Promise.all(queue.map(async (m) => {
@@ -161,7 +178,7 @@ async function fetchDailyData(): Promise<DailyData> {
       fetchTeamForm(m.slug, m.homeId),
       fetchTeamForm(m.slug, m.awayId),
     ])
-    if (!home || !away) { skippedNoData++; return }
+    if (!home || !away) { skippedNoData++; toMarketOnly(m); return }
 
     // CONTEXT-AWARE: el umbral mínimo de partidos depende del contexto.
     // · Clubes: MIN_GAMES_FOR_PICK (rígido — sin datos no hay Poisson fiable).
@@ -173,6 +190,7 @@ async function fetchDailyData(): Promise<DailyData> {
     const minGames = isInternational(ctx) ? MIN_GAMES_INTL : MIN_GAMES_FOR_PICK
     if (home.gamesPlayed < minGames || away.gamesPlayed < minGames) {
       skippedNoData++
+      toMarketOnly(m)
       return
     }
     withForm.push({ ...m, home, away })
@@ -222,7 +240,10 @@ async function fetchDailyData(): Promise<DailyData> {
     console.warn("[pipeline] ⚠️ matches vacío — no se generarán value picks este ciclo.")
   }
 
-  return { matches, leagueAvg: globalAvg, fetchedAt: new Date().toISOString() }
+  if (marketOnly.length > 0) {
+    addLog(`🛟 ${marketOnly.length} partido(s) rescatado(s) vía fallback de mercado (prob. implícita de cuotas reales)`)
+  }
+  return { matches, marketOnly, leagueAvg: globalAvg, fetchedAt: new Date().toISOString() }
 }
 
 // ─── Fase 5: motor de value picks ────────────────────────────────────────────
@@ -828,6 +849,37 @@ export function buildCombinadaPool(data: DailyData, excludeMatchIds: Set<string>
   }
 
   console.log(`[combinadas] filtrado: ${t.candidates} candidatos · descartes(suppressed:${t.skipSuppressed}, sinCuota:${t.skipNoOdd}, commonSense:${t.skipCommonSense}, excluidosPorValuePick:${t.excluded})`)
+
+  // ── FALLBACK de mercado (doc API-Football: predictions null al inicio de
+  //    competiciones). Para partidos SIN modelo pero CON cuotas reales, añadimos
+  //    al pool el FAVORITO de mercado (cuota 1.20–1.60) con su probabilidad
+  //    IMPLÍCITA. Cuotas 100% reales — cero invención. ──
+  let rescued = 0
+  for (const m of (data.marketOnly ?? [])) {
+    if (excludeMatchIds.has(m.id)) continue
+    const sides: { key: OddKey; name: string }[] = [
+      { key: "home" as OddKey, name: m.homeName },
+      { key: "away" as OddKey, name: m.awayName },
+    ]
+    // El favorito = la cuota más baja dentro de la franja 1.20–1.60.
+    const fav = sides
+      .map((s) => ({ ...s, odd: m.odds[s.key] }))
+      .filter((s): s is typeof s & { odd: number } => typeof s.odd === "number" && s.odd >= 1.20 && s.odd <= 1.60)
+      .sort((a, b) => a.odd - b.odd)[0]
+    if (!fav) continue
+    const prob = 1 / fav.odd   // probabilidad implícita del mercado real
+    rescued++
+    pool.push({
+      matchId: m.id, match: `${m.homeName} vs ${m.awayName}`,
+      league: LEAGUE_NAMES[m.slug] ?? m.slug, slug: m.slug,
+      market: "1x2", selection: fav.name,
+      odd: fav.odd, prob,
+      reasoning: `Favorito de mercado (${m.odds.provider}): prob. implícita ${Math.round(prob * 100)}% · sin histórico suficiente para el modelo`,
+      homeDead: false, awayDead: false,
+    })
+  }
+  if (rescued > 0) console.log(`[combinadas] fallback de mercado: +${rescued} favoritos (1.20–1.60, prob. implícita)`)
+
   console.log(`[combinadas] fin: ${pool.length} selecciones en el pool`)
   if (pool.length === 0) console.warn("[combinadas] ⚠️ pool vacío — no habrá combinadas hoy (¿pocos partidos viables con cuota?).")
   return pool
