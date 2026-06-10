@@ -81,6 +81,12 @@ export interface FixtureStats {
   home:        { id: number | null; logo: string | null; standing: StandingRow | null }
   away:        { id: number | null; logo: string | null; standing: StandingRow | null }
   enriched_at: string
+  /** Cuotas REALES de mercado (API-Football). Presente tras la ingesta de /odds. */
+  odds?: {
+    home?: number | null; draw?: number | null; away?: number | null
+    over25?: number | null; under25?: number | null
+    provider?: string | null; updated_at?: string | null
+  } | null
 }
 
 // ── Lectura cacheada ──────────────────────────────────────────────────────────

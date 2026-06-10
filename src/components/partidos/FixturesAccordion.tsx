@@ -70,8 +70,19 @@ function deriveMarkets(home: StandingRow | null, away: StandingRow | null): Mark
 }
 
 const pct = (x: number) => `${Math.round(x * 100)}%`
-/** Cuota justa (true odds) = 1/probabilidad. "—" si la prob no es válida. */
-const fairOdds = (p: number) => (p > 0 ? (1 / p).toFixed(2) : "—")
+
+/** Celda de cuota real (1/X/2/O/U). Fallback limpio "N/D" si falta o no es válida. */
+function OddCell({ label, value }: { label: string; value?: number | null }) {
+  const v = typeof value === "number" && isFinite(value) && value > 1 ? value.toFixed(2) : null
+  return (
+    <div className="rounded-lg bg-zinc-800/50 border border-white/[0.05] py-1.5">
+      <p className="text-[9px] uppercase tracking-wider text-zinc-500 leading-none">{label}</p>
+      <p className={`mt-1 text-[13px] font-bold tabular-nums leading-none ${v ? "text-white" : "text-zinc-600"}`}>
+        {v ? `@${v}` : "N/D"}
+      </p>
+    </div>
+  )
+}
 
 // ── Helpers de formato ──────────────────────────────────────────────────────────
 function fmtTime(iso: string | null): string {
@@ -228,6 +239,25 @@ function MatchRow({ f, isPremium, intl }: { f: Fixture; isPremium: boolean; intl
             })}
           </div>
 
+          {/* Cuotas REALES de mercado (1·X·2 + O/U) — directo de stats.odds (lo que lee el bot) */}
+          <div className="rounded-xl border border-white/[0.06] bg-zinc-900/40 px-3 py-2.5">
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-zinc-500">Cuotas de mercado</p>
+              {s?.odds?.provider && <span className="text-[9px] text-zinc-600">{s.odds.provider}</span>}
+            </div>
+            <div className="grid grid-cols-3 gap-2 text-center">
+              <OddCell label="1" value={s?.odds?.home} />
+              <OddCell label="X" value={s?.odds?.draw} />
+              <OddCell label="2" value={s?.odds?.away} />
+            </div>
+            {(s?.odds?.over25 != null || s?.odds?.under25 != null) && (
+              <div className="grid grid-cols-2 gap-2 text-center mt-2">
+                <OddCell label="Over 2.5" value={s?.odds?.over25} />
+                <OddCell label="Under 2.5" value={s?.odds?.under25} />
+              </div>
+            )}
+          </div>
+
           {/* Pronóstico Poisson — PREMIUM */}
           {isPremium ? (
             markets ? (
@@ -236,12 +266,6 @@ function MatchRow({ f, isPremium, intl }: { f: Fixture; isPremium: boolean; intl
                   Probabilidad de victoria (modelo Poisson)
                 </p>
                 <ProbBar pHome={markets.pHome} pDraw={markets.pDraw} pAway={markets.pAway} />
-                {/* Cuota justa (true odds = 1/prob). Sin cuota de mercado aquí → sin edge. */}
-                <div className="flex justify-between text-[11px] text-zinc-400 tabular-nums">
-                  <span>Cuota justa 1: <b className="text-white">@{fairOdds(markets.pHome)}</b></span>
-                  <span>X: <b className="text-white">@{fairOdds(markets.pDraw)}</b></span>
-                  <span>2: <b className="text-white">@{fairOdds(markets.pAway)}</b></span>
-                </div>
                 <div className="grid grid-cols-2 gap-2 pt-1">
                   <StatBar label="BTTS (ambos marcan)" value={pct(markets.btts)} pctWidth={markets.btts * 100} color="bg-emerald-500" />
                   <StatBar label="Over 2.5 goles" value={pct(markets.over25)} pctWidth={markets.over25 * 100} color="bg-emerald-500" />
