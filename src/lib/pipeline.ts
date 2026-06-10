@@ -10,6 +10,7 @@
  * Todo con datos reales. Nada se inventa.
  */
 
+import { after } from "next/server"
 import {
   ALL_SLUGS, LEAGUE_NAMES, clamp, impliedPct, fetchJSON,
   fetchStandings, classifyMotivation, fetchTeamForm, modelMatch, handicapProb,
@@ -1679,10 +1680,18 @@ export function runPipeline(reason = "scheduled"): Promise<void> {
   return currentRun
 }
 
-/** Stale-while-revalidate: si los datos no son frescos, refresca en segundo plano */
+/** Stale-while-revalidate: si los datos no son frescos, refresca en segundo plano.
+ *  ANTI-ZOMBIE: el refresh va en after() (waitUntil de Vercel). El fire-and-forget
+ *  anterior se congelaba con la lambda al responder → una instancia caliente podía
+ *  servir su pool en RAM VIEJO para siempre (datos "zombie" tipo la combinada 1.96). */
 export function ensureFresh(maxAgeMs = 4 * 3600_000): void {
   if (!isFresh(maxAgeMs) && !currentRun) {
-    runPipeline("stale-refresh").catch(() => {})
+    try {
+      after(runPipeline("stale-refresh").catch(() => {}))
+    } catch {
+      // Fuera de request scope (p.ej. boot del scheduler) — fallback directo.
+      runPipeline("stale-refresh").catch(() => {})
+    }
   }
 }
 

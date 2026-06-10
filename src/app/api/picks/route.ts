@@ -5,6 +5,9 @@ import { consume, getClientIp, tooManyRequests } from "@/lib/rate-limit"
 
 export const runtime = "nodejs"
 export const maxDuration = 120
+// Anti-zombie: jamás servir desde la caché de Next/Vercel.
+export const dynamic = "force-dynamic"
+export const revalidate = 0
 
 /**
  * Value Picks — lee los resultados precomputados por el pipeline diario.

@@ -12,7 +12,7 @@
  * stats JSONB. No se calculan córners ni tarjetas (no hay histórico).
  */
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import Link from "next/link"
 import { usePlan } from "@/lib/plan"
 import { TeamCrest } from "@/components/teams/TeamCrest"
@@ -335,6 +335,18 @@ function MatchRow({ f, isPremium, intl }: { f: Fixture; isPremium: boolean; intl
 export function FixturesAccordion({ fixtures }: { fixtures: Fixture[] }) {
   const { isPremium } = usePlan()
   const [showOthers, setShowOthers] = useState(false)
+
+  // DIAGNÓSTICO (consola del navegador): shape real de los datos que llegan al
+  // componente. Si stats/odds vienen null aquí, el fallo está aguas arriba
+  // (getFixtures en footballApi), no en el render.
+  useEffect(() => {
+    if (!fixtures.length) { console.log("[FixturesAccordion] 0 fixtures recibidos"); return }
+    const withStats = fixtures.filter((f) => (f.stats as any)?.home?.standing).length
+    const withOdds = fixtures.filter((f) => (f.stats as any)?.odds).length
+    const withLogo = fixtures.filter((f) => (f.stats as any)?.home?.logo).length
+    console.log(`[FixturesAccordion] recibidos=${fixtures.length} · conStanding=${withStats} · conLogo=${withLogo} · conOdds=${withOdds}`)
+    console.log("[FixturesAccordion] primer fixture:", JSON.stringify(fixtures[0], null, 2).slice(0, 1500))
+  }, [fixtures])
 
   const top = fixtures.filter((f) => isTopLeague(f.league))
   const others = fixtures.filter((f) => !isTopLeague(f.league))

@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useEffect, useState } from "react"
 import { usePathname } from "next/navigation"
 import { Sidebar } from "@/components/ui/Sidebar"
 import { TopBar } from "@/components/ui/TopBar"
@@ -19,6 +19,10 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const path = usePathname()
   const immersive = path?.startsWith("/bot") ?? false
   const [menuOpen, setMenuOpen] = useState(false)
+
+  // Cierre FORZADO del drawer en cada cambio de ruta: aunque un Link interno no
+  // dispare su onClick (p.ej. navegación programática), el menú se cierra sí o sí.
+  useEffect(() => { setMenuOpen(false) }, [path])
 
   if (immersive) {
     return <div className="h-[100dvh] overflow-hidden bg-[var(--bg)]">{children}</div>

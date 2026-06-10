@@ -4,6 +4,9 @@ import { ensureWarm, ensureFresh } from "@/lib/pipeline"
 
 export const runtime = "nodejs"
 export const maxDuration = 120
+// Anti-zombie: jamás servir desde la caché de Next/Vercel.
+export const dynamic = "force-dynamic"
+export const revalidate = 0
 
 /**
  * Retos — lee los retos con pick diario real precomputados a diario.
