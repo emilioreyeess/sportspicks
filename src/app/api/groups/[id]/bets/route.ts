@@ -193,29 +193,39 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     )
   }
 
-  // ── FASE 2: BLOQUEO ANTI-TRAMPAS ──────────────────────────────
-  // Recupera la hora de inicio del partido (kickoff de la apuesta, o resuelta
-  // casando el partido de la apuesta con la tabla fixtures). Si ya empezó, no
-  // se puede compartir.
+  // ── FASE 1: BLOQUEO ANTI-TRAMPAS (HARD-BLOCK, cero bypasses) ───
+  // Hora de inicio del partido: del propio bet o resuelta casando las
+  // selecciones con la tabla fixtures oficial.
   let kickoff: string | null = (bet as any).kickoff ?? null
   let fixtureId: number | null = (bet as any).fixture_id ?? null
-  if (!kickoff) {
+  if (kickoff == null || fixtureId == null) {
     const resolved = await resolveFixtureForBet(sb, (bet as any).bet_legs ?? [])
     if (resolved) { kickoff = resolved.kickoff; fixtureId = resolved.fixtureId }
   }
-  if (kickoff && Date.now() > new Date(kickoff).getTime()) {
+
+  // HARD-BLOCK: si no se pudo verificar contra la BD oficial (fixture_id o
+  // kickoff null), se RECHAZA. Nunca se asume null=válido.
+  if (fixtureId == null || kickoff == null) {
+    return Response.json(
+      { error: "Imposible verificar la hora del partido. Selecciona el partido manualmente antes de compartir." },
+      { status: 400 },
+    )
+  }
+
+  // El partido no puede haber empezado.
+  if (Date.now() > new Date(kickoff).getTime()) {
     return Response.json(
       { error: "El partido ya ha empezado. No puedes compartirla al grupo." },
       { status: 422 },
     )
   }
-  // Persistir el enlace al fixture (para la auto-resolución de FASE 3).
-  if (fixtureId && (!(bet as any).fixture_id || !(bet as any).kickoff)) {
-    await sb.from("bets").update({ fixture_id: fixtureId, kickoff }).eq("id", body.bet_id)
-  }
 
-  // Insert — the UNIQUE(group_id, bet_id) constraint prevents duplicate shares
-  const { error: insertErr } = await sb
+  // Persistir el enlace verificado al fixture (auto-resolución de FASE 3 / auditoría).
+  await sb.from("bets").update({ fixture_id: fixtureId, kickoff }).eq("id", body.bet_id)
+
+  // Insert — UNIQUE(group_id, bet_id) evita duplicados. `.select()` confirma que
+  // la fila se insertó (antes el insert podía fallar en silencio sin devolverla).
+  const { data: inserted, error: insertErr } = await sb
     .from("group_bets")
     .insert({
       group_id: id,
@@ -223,15 +233,22 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       user_email: email,
       is_pre_match: true,  // enforced by the pending status check above
     })
+    .select("id")
+    .single()
 
   if (insertErr) {
     if (insertErr.code === "23505") {
       return Response.json({ error: "Ya has compartido esta apuesta en este grupo" }, { status: 409 })
     }
+    console.error("[group_bets] insert falló:", insertErr.message)
     return Response.json({ error: "Error al compartir la apuesta" }, { status: 500 })
   }
+  if (!inserted?.id) {
+    console.error("[group_bets] insert sin fila devuelta (fallo silencioso)")
+    return Response.json({ error: "No se pudo registrar la apuesta en el grupo" }, { status: 500 })
+  }
 
-  return Response.json({ ok: true, message: `"${bet.title}" compartida en el grupo` }, { status: 201 })
+  return Response.json({ ok: true, sharedId: inserted.id, message: `"${bet.title}" compartida en el grupo` }, { status: 201 })
 }
 
 // ── DELETE ────────────────────────────────────────────────────
