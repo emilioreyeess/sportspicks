@@ -164,6 +164,9 @@ export async function logPrediction(p: PredictionInput): Promise<boolean> {
       source,
     })
     if (error) {
+      // 23505 = violación del unique index predictions_log_system_pending_uniq:
+      // otra lambda paralela insertó el mismo pick primero. Es dedupe, no error.
+      if ((error as any).code === "23505") return false
       console.warn("[ml] logPrediction insert error:", error.message)
       return false
     }
