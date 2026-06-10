@@ -549,3 +549,41 @@ export async function syncWorldCupSquads(): Promise<{ teams: number; players: nu
     return { teams: 0, players: 0, error: e instanceof Error ? e.message : String(e) }
   }
 }
+
+// ─── Cuotas del Mundial → fixtures.stats.odds (alimenta UI Partidos/Combinadas) ─
+// Para cada fixture del Mundial en la tabla `fixtures`, trae sus cuotas reales de
+// API-Football (/odds) y las MERGE-A en stats.odds (sin pisar standings/goles).
+// Así la UI muestra lo mismo que lee el bot.
+export async function ingestWorldCupOdds(): Promise<{ scanned: number; withOdds: number; updated: number; errors: number }> {
+  const out = { scanned: 0, withOdds: 0, updated: 0, errors: 0 }
+  const apiKey = process.env.FOOTBALL_API_KEY
+  if (!apiKey) return out
+  try {
+    const sb = createServiceClient()
+    const { data } = await sb
+      .from("fixtures")
+      .select("fixture_id, stats")
+      .ilike("league", "%world cup%")
+      .limit(200)
+    const rows = data ?? []
+    out.scanned = rows.length
+
+    for (const r of rows) {
+      const fid = Number((r as any).fixture_id)
+      try {
+        const odds = await fetchFixtureOddsAF(fid)
+        if (!odds) { await sleep(STANDINGS_THROTTLE_MS); continue }
+        out.withOdds++
+        const stats = { ...((r as any).stats ?? {}), odds: { ...odds, updated_at: new Date().toISOString() } }
+        const { error } = await sb.from("fixtures").update({ stats, updated_at: new Date().toISOString() }).eq("fixture_id", fid)
+        if (error) out.errors++; else out.updated++
+        await sleep(STANDINGS_THROTTLE_MS)   // respeta 300 req/min
+      } catch {
+        out.errors++
+      }
+    }
+    return out
+  } catch {
+    return out
+  }
+}

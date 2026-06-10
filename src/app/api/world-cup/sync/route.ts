@@ -30,7 +30,7 @@ import {
 } from "@/lib/world-cup/api-football"
 import { getAllFixtures as espnGetFixtures } from "@/lib/world-cup/data-service"
 import { cacheGet, cacheSet, WC_CACHE_TTL } from "@/lib/world-cup/cache"
-import { ingestWorldCupFixtures, syncWorldCupSquads } from "@/lib/infrastructure/footballApi"
+import { ingestWorldCupFixtures, syncWorldCupSquads, ingestWorldCupOdds } from "@/lib/infrastructure/footballApi"
 
 export const runtime  = "nodejs"
 export const maxDuration = 300   // 5 min max (Vercel Pro)
@@ -386,6 +386,15 @@ export async function GET(req: NextRequest) {
     status: sq.error ? "error" : "ok",
     detail: sq.error ?? `${sq.teams} equipos · ${sq.players} jugadores`,
     count: sq.players,
+  })
+
+  // 1d. Cuotas del Mundial → fixtures.stats.odds (alimenta UI Partidos/Combinadas).
+  const wcOdds = await ingestWorldCupOdds()
+  log.push({
+    phase: "wc_odds",
+    status: wcOdds.errors > 0 && wcOdds.updated === 0 ? "error" : "ok",
+    detail: `${wcOdds.withOdds}/${wcOdds.scanned} con cuotas · ${wcOdds.updated} actualizados · ${wcOdds.errors} errores`,
+    count: wcOdds.updated,
   })
 
   // 2. Odds (only if API-Football, upcoming ≤48h)
