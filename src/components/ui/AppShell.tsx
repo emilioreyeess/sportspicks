@@ -28,7 +28,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <div className="relative flex min-h-[100dvh] flex-col pb-nav">
       {/* Global mesh overlay — reinforces body gradient on scroll */}
       <div className="pointer-events-none fixed inset-0 -z-10 mesh-bg" aria-hidden="true" />
-      <TopBar />
+      <TopBar onMenuClick={() => setMenuOpen(true)} />
       <div className="flex flex-1">
         <Sidebar />
         <main className="flex-1 min-w-0 flex flex-col">

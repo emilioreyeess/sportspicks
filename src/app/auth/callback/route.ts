@@ -51,8 +51,15 @@ export async function GET(req: NextRequest) {
   const next = searchParams.get("next") ?? "/"
   const safeNext = next.startsWith("/") ? next : "/" // evita open-redirect
 
+  // PATRÓN OFICIAL Supabase: tras el proxy de Vercel, redirigir al host PÚBLICO
+  // (x-forwarded-host) y no al interno — si no, la cookie de sesión (seteada para
+  // el dominio público) no viaja al destino y la sesión "se cae".
+  const forwardedHost = req.headers.get("x-forwarded-host")
+  const isLocal = process.env.NODE_ENV === "development"
+  const redirectBase = isLocal ? origin : (forwardedHost ? `https://${forwardedHost}` : origin)
+
   const fail = (reason: string, desc?: string | null) => {
-    const u = new URL(`${origin}/auth/signin`)
+    const u = new URL(`${redirectBase}/auth/signin`)
     u.searchParams.set("error", "callback_failed")
     u.searchParams.set("reason", reason)
     if (desc) u.searchParams.set("desc", desc)
@@ -85,8 +92,8 @@ export async function GET(req: NextRequest) {
     return fail("missing_env")
   }
 
-  // 4. Respuesta de éxito (redirección). Las cookies de sesión se fijan AQUÍ.
-  const successRes = NextResponse.redirect(`${origin}${safeNext}`)
+  // 4. Respuesta de éxito (redirección al host público). Las cookies se fijan AQUÍ.
+  const successRes = NextResponse.redirect(`${redirectBase}${safeNext}`)
 
   const supabase = createServerClient(url, anon, {
     cookies: {
