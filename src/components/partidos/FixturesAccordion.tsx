@@ -290,14 +290,17 @@ export function FixturesAccordion({ fixtures }: { fixtures: Fixture[] }) {
       const intl = inferIsInternationalFromESPN(league)
       const leagueLogo = ((list[0]?.stats ?? null) as FixtureStats | null)?.league_logo ?? null
       return (
-        <section key={league} className="mb-2 rounded-2xl overflow-hidden border border-white/[0.05] bg-zinc-900/40">
-          {/* Encabezado de liga estilo FotMob */}
-          <h2 className="flex items-center gap-2 border-b border-white/[0.05] bg-white/[0.02] px-3 py-2">
+        <section key={league} className="mb-1">
+          {/* Encabezado de liga — plano (no tarjeta) */}
+          <h2 className="flex items-center gap-2 px-3 pt-3 pb-1.5">
             <LeagueLogo url={leagueLogo} name={league} />
-            <span className="text-[11.5px] font-bold text-zinc-200 truncate">{league}</span>
+            <span className="text-[11px] font-bold uppercase tracking-wide text-zinc-500 truncate">{league}</span>
             <span className="ml-auto text-[10px] text-zinc-600 tabular-nums">{list.length}</span>
           </h2>
-          {list.map((f) => <MatchRow key={f.fixture_id} f={f} isPremium={isPremium} intl={intl} />)}
+          {/* Lista CONTINUA: filas separadas solo por un borde inferior sutil */}
+          <div className="border-t border-white/[0.06]">
+            {list.map((f) => <MatchRow key={f.fixture_id} f={f} isPremium={isPremium} intl={intl} />)}
+          </div>
         </section>
       )
     })

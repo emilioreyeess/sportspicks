@@ -85,8 +85,8 @@ export default async function PartidosPage() {
           { label: "Programados", value: scheduled },
           { label: "Finalizados", value: finished },
         ].map((m) => (
-          <div key={m.label} className="bg-zinc-900/40 rounded-2xl border border-white/[0.05] px-4 py-4">
-            <p className="apple-eyebrow text-zinc-600 mb-1">{m.label}</p>
+          <div key={m.label} className="min-w-0 bg-zinc-900/40 rounded-2xl border border-white/[0.05] px-3 py-4">
+            <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-600 mb-1 truncate whitespace-nowrap">{m.label}</p>
             <p className="text-2xl font-bold text-white tabular-nums leading-none">{m.value}</p>
           </div>
         ))}

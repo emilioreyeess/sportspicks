@@ -354,13 +354,13 @@ export default function BetsPage() {
           <h1 className="text-lg font-bold">Mis Apuestas</h1>
           <p className="text-xs text-zinc-500">Historial y seguimiento</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-row items-center gap-2 shrink-0">
           {/* Botón premium: escaneo OCR end-to-end vía /api/bets/auto-extract */}
           <button
             type="button"
             onClick={() => autoExtractInputRef.current?.click()}
             disabled={isExtracting}
-            className="flex items-center gap-2 bg-cyan-500 hover:bg-cyan-400 disabled:opacity-60 disabled:cursor-wait text-zinc-950 text-sm font-semibold px-4 py-2 rounded-xl transition shadow-[0_0_0_1px_rgba(34,211,238,0.25)]"
+            className="inline-flex items-center justify-center gap-2 h-10 px-4 bg-cyan-500 hover:bg-cyan-400 disabled:opacity-60 disabled:cursor-wait text-zinc-950 text-sm font-semibold rounded-xl transition shadow-[0_0_0_1px_rgba(34,211,238,0.25)]"
           >
             {isExtracting ? (
               <>
@@ -381,7 +381,7 @@ export default function BetsPage() {
           <button
             type="button"
             onClick={() => setShowForm(s => !s)}
-            className="bg-zinc-800/70 border border-white/[0.07] hover:border-white/[0.16] text-zinc-300 text-sm font-semibold px-3 py-2 rounded-xl transition"
+            className="inline-flex items-center justify-center h-10 px-4 bg-zinc-800/70 border border-white/[0.07] hover:border-white/[0.16] text-zinc-300 text-sm font-semibold rounded-xl transition"
           >
             Manual
           </button>
