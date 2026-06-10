@@ -42,22 +42,47 @@ function teamCard(name: string, st: StandingRow | null): string {
  * partidos de hoy con una FICHA TÉCNICA por partido (árbitro, estadio, posición
  * en la tabla y racha de ambos equipos) extraída del JSONB `stats`.
  */
-async function getFixturesFromDb(teamName?: string): Promise<string> {
-  const date = new Intl.DateTimeFormat("en-CA", {
+const FIFA_WC_LEAGUE_ID = 1   // FIFA World Cup en API-Football
+
+function ymdMadrid(d: Date): string {
+  return new Intl.DateTimeFormat("en-CA", {
     year: "numeric", month: "2-digit", day: "2-digit", timeZone: "Europe/Madrid",
-  }).format(new Date())
-  const dayStart = `${date}T00:00:00.000Z`
-  const dayEnd   = `${date}T23:59:59.999Z`
+  }).format(d)
+}
+
+/**
+ * Lee fixtures de NUESTRA base de datos. Por defecto, los de HOY; pero acepta:
+ *  - worldCup=true  → filtra por el Mundial (league_id 1) en TODO el calendario
+ *    futuro (no solo 24h) — cura la "ceguera" del bot ante el Mundial.
+ *  - daysAhead      → amplía la ventana a N días por delante.
+ */
+async function getFixturesFromDb(
+  opts: { teamName?: string; worldCup?: boolean; daysAhead?: number } = {},
+): Promise<string> {
+  const teamName = opts.teamName
+  const worldCup = opts.worldCup === true
+  // WC → ventana amplia (todo el calendario). Si no, hoy (o N días si se pide).
+  const daysAhead = worldCup ? 400 : Math.max(0, Math.min(opts.daysAhead ?? 0, 400))
+
+  const now = new Date()
+  const startDate = ymdMadrid(now)
+  const endDate = ymdMadrid(new Date(now.getTime() + daysAhead * 86400000))
+  const dayStart = `${startDate}T00:00:00.000Z`
+  const dayEnd   = `${endDate}T23:59:59.999Z`
+  const multiDay = daysAhead > 0
+  const scopeLabel = worldCup ? "del Mundial 2026" : multiDay ? `de los próximos ${daysAhead} días` : `de hoy (${startDate})`
 
   let fixtures: Fixture[]
   try {
     const sb = createServiceClient()
-    const { data, error } = await sb
+    let query = sb
       .from("fixtures")
       .select("*")
       .gte("match_date", dayStart)
       .lte("match_date", dayEnd)
       .order("match_date", { ascending: true })
+    if (worldCup) query = query.eq("stats->>league_id", String(FIFA_WC_LEAGUE_ID))
+    const { data, error } = await query.limit(160)
     if (error) throw new Error(error.message)
     fixtures = (data ?? []) as Fixture[]
   } catch {
@@ -65,7 +90,9 @@ async function getFixturesFromDb(teamName?: string): Promise<string> {
   }
 
   if (!fixtures.length) {
-    return `No hay partidos registrados en la base de datos para hoy (${date}). NO inventes partidos.`
+    return worldCup
+      ? "Aún no hay fixtures del Mundial 2026 cargados en la base de datos (el calendario o el sorteo pueden no estar publicados todavía). NO inventes partidos, grupos ni cruces."
+      : `No hay partidos registrados en la base de datos ${scopeLabel}. NO inventes partidos.`
   }
 
   let rows = fixtures
@@ -75,40 +102,40 @@ async function getFixturesFromDb(teamName?: string): Promise<string> {
       norm(f.home_team ?? "").includes(q) || norm(f.away_team ?? "").includes(q),
     )
     if (!rows.length) {
-      return `No encontré "${teamName}" en los partidos de hoy en la base de datos (${date}). NO inventes el partido — puede no jugar hoy o el nombre no coincide.`
+      return `No encontré "${teamName}" en los partidos ${scopeLabel} en la base de datos. NO inventes el partido — puede no estar programado o el nombre no coincide.`
     }
   }
 
-  // Si se filtró por equipo (pocos partidos), damos ficha técnica completa.
-  // Si es el listado general, damos una línea compacta por partido.
+  // Pocos partidos (filtro por equipo) → ficha técnica completa. Listado → línea compacta.
   const detailed = rows.length <= 6
 
-  const blocks = rows.slice(0, 80).map((f) => {
+  const blocks = rows.slice(0, 120).map((f) => {
     const league = f.league ?? "Liga desconocida"
     const home = f.home_team ?? "?"
     const away = f.away_team ?? "?"
     const s = (f.stats ?? null) as FixtureStats | null
+    const when = multiDay ? `${(f.match_date ?? "").slice(0, 10)} ${fmtTime(f.match_date)}` : fmtTime(f.match_date)
 
     if (!detailed) {
-      return `• [${league}] ${home} vs ${away} — ${fmtTime(f.match_date)} · ${f.status ?? "?"}`
+      return `• [${league}] ${home} vs ${away} — ${when} · ${f.status ?? "?"}`
     }
 
     const ref = s?.referee ? `Árbitro: ${s.referee}` : "Árbitro: no disponible"
     const venue = s?.venue ? `Estadio: ${s.venue}` : "Estadio: no disponible"
     return [
       `📋 [${league}] ${home} vs ${away}`,
-      `   Hora: ${fmtTime(f.match_date)} · Estado: ${f.status ?? "?"}`,
+      `   Fecha/hora: ${when} · Estado: ${f.status ?? "?"}`,
       `   ${ref} · ${venue}`,
       `   ${teamCard(home, s?.home?.standing ?? null)}`,
       `   ${teamCard(away, s?.away?.standing ?? null)}`,
     ].join("\n")
   })
 
-  return `📊 Partidos en NUESTRA base de datos oficial para hoy (${date}) — ${rows.length} partido(s).
+  return `📊 Partidos en NUESTRA base de datos oficial ${scopeLabel} — ${rows.length} partido(s).
 La LIGA real va entre corchetes; las posiciones y rachas vienen de la clasificación oficial almacenada.
 ${blocks.join("\n")}
 
-Usa estos datos (liga, posición, racha, árbitro, estadio) como la verdad oficial. NO uses tu memoria sobre divisiones ni inventes cifras.`
+Usa estos datos (liga, posición, racha, fecha, árbitro, estadio) como la verdad oficial. NO uses tu memoria sobre divisiones ni inventes cifras.`
 }
 
 // ─── Head-to-Head (API-Football) ──────────────────────────────────────────────
@@ -196,8 +223,12 @@ async function getHeadToHead(teamA: string, teamB: string): Promise<string> {
 const TOOLS: Anthropic.Tool[] = [
   {
     name: "get_fixtures_db",
-    description: "ÚNICA Y EXCLUSIVA FUENTE DE DATOS. Consulta los partidos de HOY directamente en nuestra base de datos (tabla fixtures de Supabase, alimentada desde API-Football). Devuelve, para cada partido, la LIGA/competición REAL entre corchetes, los equipos, la hora y el estado actual. Úsala SIEMPRE EN PRIMER LUGAR antes de decir qué partidos hay o de analizar cualquier encuentro. Pasa team_name para filtrar por un equipo. Si un partido no aparece aquí, NO existe hoy — no lo inventes.",
-    input_schema: { type: "object" as const, properties: { team_name: { type: "string", description: "Opcional. Filtra los partidos por nombre de equipo (acepta substrings)." } }, required: [] },
+    description: "FUENTE DE DATOS de partidos: nuestra tabla fixtures de Supabase (alimentada desde API-Football). Por defecto devuelve los partidos de HOY con su LIGA/competición REAL entre corchetes, equipos, hora y estado. Úsala SIEMPRE antes de hablar de partidos. PARÁMETROS: team_name (filtra por equipo); world_cup=true (devuelve el CALENDARIO del Mundial 2026 — grupos y eliminatorias — del futuro, no solo 24h; úsalo SIEMPRE que pregunten por el Mundial); days_ahead (amplía la ventana N días por delante). Si un partido no aparece, NO existe en la BD — no lo inventes.",
+    input_schema: { type: "object" as const, properties: {
+      team_name: { type: "string", description: "Opcional. Filtra los partidos por nombre de equipo (acepta substrings)." },
+      world_cup: { type: "boolean", description: "Opcional. true → devuelve el calendario completo del Mundial 2026 (futuro incluido). Úsalo para cualquier pregunta sobre el Mundial." },
+      days_ahead: { type: "number", description: "Opcional. Amplía la ventana de búsqueda a N días por delante de hoy (máx 400)." },
+    }, required: [] },
   },
   {
     name: "get_head_to_head",
@@ -208,7 +239,11 @@ const TOOLS: Anthropic.Tool[] = [
 
 async function executeTool(name: string, input: Record<string, string>): Promise<string> {
   try {
-    if (name === "get_fixtures_db") return await getFixturesFromDb(input.team_name)
+    if (name === "get_fixtures_db") return await getFixturesFromDb({
+      teamName: input.team_name,
+      worldCup: String(input.world_cup) === "true",
+      daysAhead: input.days_ahead != null ? Number(input.days_ahead) : undefined,
+    })
     if (name === "get_head_to_head") return await getHeadToHead(input.team_a, input.team_b)
     return "Herramienta no reconocida."
   } catch (e: any) {
@@ -267,7 +302,7 @@ El pipeline de picks aún no ha generado resultados para hoy (${today}).
 const SYSTEM_PROMPT = `Eres PicksBot, analista de datos deportivos de SportsPicks Analytics. Riguroso y basado SOLO en datos reales.
 
 FUENTES OFICIALES (tus únicas herramientas):
-- get_fixtures_db — partidos de HOY (liga, hora, estado, posición, racha). Llámala SIEMPRE antes de hablar de cualquier partido. Si un partido no aparece, NO se juega hoy: no lo analices.
+- get_fixtures_db — partidos de NUESTRA base de datos (liga, hora, estado, posición, racha). Llámala SIEMPRE antes de hablar de cualquier partido. Para el MUNDIAL 2026 llámala con world_cup=true (devuelve TODO el calendario futuro: grupos y eliminatorias) — NUNCA digas que no sabes del Mundial sin haberla llamado así primero. Para otras fechas futuras usa days_ahead.
 - get_head_to_head — cuando el usuario pregunte por un CRUCE entre dos equipos (eliminatoria, playoff, partido concreto), llámala para obtener los últimos 3 enfrentamientos reales y si es ida/vuelta. Fundamenta el análisis del cruce en ese historial.
 - PROHIBIDO inventar estadísticas, posiciones, cuotas, árbitros, alineaciones o enfrentamientos previos, o usar tu conocimiento de entrenamiento (está DESFASADO). Si un dato no está → di "ese dato no está disponible" y baja la confianza.
 - No menciones otras APIs ni fuentes (ni "ESPN" ni los nombres de las herramientas).
