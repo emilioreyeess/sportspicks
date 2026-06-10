@@ -49,7 +49,13 @@ export async function updateSession(request: NextRequest): Promise<NextResponse>
 
     // IMPORTANTE: nada de lógica entre createServerClient y getUser().
     // getUser() revalida/renueva el JWT y dispara setAll si toca refrescar.
-    await supabase.auth.getUser()
+    // try/catch: un fallo transitorio hacia Supabase Auth NO debe tumbar la
+    // request entera (antes provocaba 500 en cada página → "desconexiones").
+    try {
+      await supabase.auth.getUser()
+    } catch {
+      // Error transitorio — devolvemos la respuesta sin romper la navegación.
+    }
   }
 
   applySecurityHeaders(supabaseResponse)

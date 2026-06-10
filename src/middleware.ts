@@ -10,7 +10,8 @@ export async function middleware(req: NextRequest) {
   return await updateSession(req)
 }
 
-// Skip static assets, images, favicon, manifest
+// Skip static assets, images, favicon, manifest — y /auth/callback (gestiona su
+// propia sesión en el intercambio OAuth; el middleware no debe interferir).
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|icon.svg|manifest.webmanifest).*)"],
+  matcher: ["/((?!_next/static|_next/image|favicon.ico|icon.svg|manifest.webmanifest|auth/callback).*)"],
 }
