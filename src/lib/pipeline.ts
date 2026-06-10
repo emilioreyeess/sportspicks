@@ -919,6 +919,38 @@ export function buildCombinadaPool(data: DailyData, excludeMatchIds: Set<string>
   }
   if (rescued > 0) console.log(`[combinadas] fallback de mercado: +${rescued} favoritos (1.20–1.60, prob. implícita)`)
 
+  // ── FALLBACK 2 (cierre del hueco): partidos CON forma cuyos candidatos del
+  //    modelo no superaron los gates tampoco aportaban nada — y el fallback de
+  //    marketOnly no los cubría. Si el pool queda corto (<3), añadimos su
+  //    FAVORITO de mercado (cuota REAL 1.20–1.60 ya cargada en m.odds). ──
+  if (pool.length < 3) {
+    const inPool = new Set(pool.map((p) => p.matchId))
+    let extra = 0
+    for (const m of data.matches) {
+      if (inPool.has(m.id) || excludeMatchIds.has(m.id)) continue
+      const sides: { key: OddKey; name: string }[] = [
+        { key: "home" as OddKey, name: m.homeName },
+        { key: "away" as OddKey, name: m.awayName },
+      ]
+      const fav = sides
+        .map((s) => ({ ...s, odd: m.odds[s.key] }))
+        .filter((s): s is typeof s & { odd: number } => typeof s.odd === "number" && s.odd >= 1.20 && s.odd <= 1.60)
+        .sort((a, b) => a.odd - b.odd)[0]
+      if (!fav) continue
+      const prob = 1 / fav.odd
+      extra++
+      pool.push({
+        matchId: m.id, match: `${m.homeName} vs ${m.awayName}`,
+        league: LEAGUE_NAMES[m.slug] ?? m.slug, slug: m.slug,
+        market: "1x2", selection: fav.name,
+        odd: fav.odd, prob,
+        reasoning: `Favorito de mercado (${m.odds.provider}): prob. implícita ${Math.round(prob * 100)}% · candidatos del modelo descartados por los filtros`,
+        homeDead: m.homeMotiv.dead, awayDead: m.awayMotiv.dead,
+      })
+    }
+    if (extra > 0) console.log(`[combinadas] fallback 2 (pool corto): +${extra} favoritos de mercado desde matches con modelo`)
+  }
+
   console.log(`[combinadas] fin: ${pool.length} selecciones en el pool`)
   if (pool.length === 0) console.warn("[combinadas] ⚠️ pool vacío — no habrá combinadas hoy (¿pocos partidos viables con cuota?).")
   return pool
