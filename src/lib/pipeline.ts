@@ -17,7 +17,7 @@ import {
   type LeagueTable, type Motivation, type RealOdds, type TeamForm, type ModelOut,
 } from "@/lib/engine"
 // CUOTAS: fuente ÚNICA = API-Football (/odds). Cero scraping de cuotas de ESPN.
-import { fetchFixtureOddsAF, resolveFixtureIdByTeams } from "@/lib/infrastructure/footballApi"
+import { fetchFixtureOddsAF, resolveFixtureIdByTeams, fetchOddsBackedFixtures } from "@/lib/infrastructure/footballApi"
 import { evaluatePick, type EvalCandidate, type EvalMatch, type PickEvaluation } from "@/lib/decision-engine"
 import { recordPublishedPicks, preloadLearningCache, type PickRecord } from "@/lib/learning"
 import { logPredictions, type PredictionInput } from "@/lib/learning/supabase-ml"
@@ -241,6 +241,32 @@ async function fetchDailyData(): Promise<DailyData> {
   if (matches.length === 0) {
     console.warn("[pipeline] ⚠️ matches vacío — no se generarán value picks este ciclo.")
   }
+
+  // ── Descubrimiento SIN ESPN: fixtures de nuestra BD (hoy+mañana) que ya
+  //    tienen cuotas reales ingestadas en stats.odds (p.ej. los 72 del Mundial).
+  //    Entran a marketOnly → alimentan combinadas/retos/value-último-nivel vía
+  //    el fallback de favoritos. Dedupe por nombres contra lo ya descubierto. ──
+  try {
+    const nowIso2 = new Date().toISOString()
+    const toIso = new Date(Date.now() + 2 * 86400000).toISOString().slice(0, 10) + "T00:00:00.000Z"
+    const backed = await fetchOddsBackedFixtures(nowIso2, toIso)
+    const known = new Set<string>()
+    const normKey = (a: string, b: string) =>
+      [a, b].map((s) => (s ?? "").toLowerCase().normalize("NFD").replace(/[^a-z0-9]/g, "")).join("|")
+    for (const m of matches) known.add(normKey(m.homeName, m.awayName))
+    for (const m of marketOnly) known.add(normKey(m.homeName, m.awayName))
+    let added = 0
+    for (const f of backed) {
+      if (known.has(normKey(f.homeTeam, f.awayTeam))) continue
+      marketOnly.push({
+        id: `af-${f.fixtureId}`, slug: f.league,
+        homeName: f.homeTeam, awayName: f.awayTeam,
+        kickoff: f.kickoff, odds: f.odds,
+      })
+      added++
+    }
+    if (added > 0) addLog(`🎯 ${added} partido(s) con cuotas reales añadidos desde la BD (sin ESPN)`)
+  } catch { /* best-effort */ }
 
   if (marketOnly.length > 0) {
     addLog(`🛟 ${marketOnly.length} partido(s) rescatado(s) vía fallback de mercado (prob. implícita de cuotas reales)`)

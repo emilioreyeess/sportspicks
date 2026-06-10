@@ -455,6 +455,45 @@ export async function fetchFixtureOddsAF(fixtureId: number): Promise<RealOdds | 
   }
 }
 
+/**
+ * Fixtures próximos (ventana [fromIso, toIso]) que YA tienen cuotas reales
+ * ingestadas en stats.odds (p.ej. los 72 del Mundial). Permite al motor
+ * descubrir partidos SIN depender de los scoreboards de ESPN.
+ */
+export async function fetchOddsBackedFixtures(
+  fromIso: string, toIso: string,
+): Promise<{ fixtureId: number; homeTeam: string; awayTeam: string; league: string; kickoff: string; odds: RealOdds }[]> {
+  try {
+    const sb = createServiceClient()
+    const { data } = await sb
+      .from("fixtures")
+      .select("fixture_id, home_team, away_team, league, match_date, stats")
+      .gte("match_date", fromIso)
+      .lte("match_date", toIso)
+      .not("stats->odds", "is", null)
+      .limit(300)
+    return (data ?? [])
+      .filter((f: any) => f.stats?.odds && (f.stats.odds.home != null || f.stats.odds.away != null))
+      .map((f: any) => ({
+        fixtureId: Number(f.fixture_id),
+        homeTeam: f.home_team ?? "?",
+        awayTeam: f.away_team ?? "?",
+        league: f.league ?? "?",
+        kickoff: f.match_date,
+        odds: {
+          provider: f.stats.odds.provider ?? "API-Football",
+          home: f.stats.odds.home ?? undefined,
+          draw: f.stats.odds.draw ?? undefined,
+          away: f.stats.odds.away ?? undefined,
+          over25: f.stats.odds.over25 ?? undefined,
+          under25: f.stats.odds.under25 ?? undefined,
+        },
+      }))
+  } catch {
+    return []
+  }
+}
+
 /** Resuelve el fixture_id de API-Football casando nombres de equipo + fecha en nuestra tabla `fixtures`. */
 export async function resolveFixtureIdByTeams(home: string, away: string, dateISO: string): Promise<number | null> {
   try {
