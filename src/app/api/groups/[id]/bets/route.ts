@@ -23,6 +23,47 @@ async function assertMember(sb: ReturnType<typeof createServiceClient>, groupId:
   return data ?? null
 }
 
+// ── FASE 2: resolución partido→fixture (kickoff) ──────────────
+const normName = (s: string) =>
+  (s ?? "").toLowerCase().normalize("NFD").replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim()
+
+/** Separa "Real Madrid vs Barcelona" en [local, visitante]. */
+function splitMatch(text: string): [string, string] | null {
+  const parts = (text ?? "").replace(/\s+/g, " ").trim().split(/\s+(?:vs?\.?|v|-|–|—|@|contra)\s+/i)
+  return parts.length >= 2 && parts[0] && parts[1] ? [parts[0].trim(), parts[1].trim()] : null
+}
+
+/** Casa las selecciones de la apuesta con la tabla fixtures → { fixtureId, kickoff }. */
+async function resolveFixtureForBet(
+  sb: ReturnType<typeof createServiceClient>,
+  legs: Array<{ match?: string | null }>,
+): Promise<{ fixtureId: number; kickoff: string } | null> {
+  const from = new Date(Date.now() - 2 * 86400000).toISOString()
+  const { data } = await sb
+    .from("fixtures")
+    .select("fixture_id, home_team, away_team, match_date")
+    .gte("match_date", from)
+    .order("match_date", { ascending: true })
+    .limit(800)
+  const fixtures = data ?? []
+  if (!fixtures.length) return null
+
+  for (const leg of (legs ?? []).slice(0, 4)) {
+    const pair = splitMatch(leg.match ?? "")
+    if (!pair) continue
+    const a = normName(pair[0]), b = normName(pair[1])
+    if (!a || !b) continue
+    const hit = fixtures.find((f: any) => {
+      const h = normName(f.home_team ?? ""), aw = normName(f.away_team ?? "")
+      const m1 = (h.includes(a) || a.includes(h)) && (aw.includes(b) || b.includes(aw))
+      const m2 = (h.includes(b) || b.includes(h)) && (aw.includes(a) || a.includes(aw))
+      return m1 || m2
+    })
+    if (hit?.fixture_id && hit.match_date) return { fixtureId: hit.fixture_id, kickoff: hit.match_date }
+  }
+  return null
+}
+
 // ── GET ───────────────────────────────────────────────────────
 export async function GET(_req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params
@@ -137,7 +178,7 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
   // Verify the bet belongs to this user
   const { data: bet } = await sb
     .from("bets")
-    .select("id, status, title")
+    .select("id, status, title, kickoff, fixture_id, bet_legs(match)")
     .eq("id", body.bet_id)
     .eq("user_email", email)
     .single()
@@ -150,6 +191,27 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
       { error: "Solo puedes compartir apuestas pendientes. No se permiten picks post-partido." },
       { status: 422 }
     )
+  }
+
+  // ── FASE 2: BLOQUEO ANTI-TRAMPAS ──────────────────────────────
+  // Recupera la hora de inicio del partido (kickoff de la apuesta, o resuelta
+  // casando el partido de la apuesta con la tabla fixtures). Si ya empezó, no
+  // se puede compartir.
+  let kickoff: string | null = (bet as any).kickoff ?? null
+  let fixtureId: number | null = (bet as any).fixture_id ?? null
+  if (!kickoff) {
+    const resolved = await resolveFixtureForBet(sb, (bet as any).bet_legs ?? [])
+    if (resolved) { kickoff = resolved.kickoff; fixtureId = resolved.fixtureId }
+  }
+  if (kickoff && Date.now() > new Date(kickoff).getTime()) {
+    return Response.json(
+      { error: "El partido ya ha empezado. No puedes compartirla al grupo." },
+      { status: 422 },
+    )
+  }
+  // Persistir el enlace al fixture (para la auto-resolución de FASE 3).
+  if (fixtureId && (!(bet as any).fixture_id || !(bet as any).kickoff)) {
+    await sb.from("bets").update({ fixture_id: fixtureId, kickoff }).eq("id", body.bet_id)
   }
 
   // Insert — the UNIQUE(group_id, bet_id) constraint prevents duplicate shares
