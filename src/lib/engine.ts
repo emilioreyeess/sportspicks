@@ -51,7 +51,11 @@ export const ALL_SLUGS = [
   // América
   "usa.1", "arg.1", "bra.1", "mex.1", "col.1", "chi.1",
   // Oriente Medio & Asia
-  "sau.1", "jpn.1",
+  "sau.1", "jpn.1", "kor.1", "chn.1",
+  // Ligas menores ACTIVAS EN VERANO (fallback de volumen para retos/combinadas
+  // cuando las top europeas están en parón). Si ESPN no cubre alguna, su fetch
+  // devuelve null y se ignora — sin coste.
+  "nor.1", "swe.1", "fin.1", "irl.1", "usa.2", "bra.2",
   // Mundial & Selecciones
   "FIFA.WC", "CONCACAF.WC", "CONMEBOL.WC", "UEFA.EURO",
   "CONCACAF.NATIONS",

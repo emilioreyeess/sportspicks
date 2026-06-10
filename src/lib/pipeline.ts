@@ -1570,7 +1570,7 @@ export function computeCustomRetoPick(
   if (!store.dailyData) return null
   const data: DailyData = store.dailyData as DailyData
 
-  const tol = 0.13   // ±13% tolerancia para retos personalizados
+  const tol = 0.25   // ±25% tolerancia (relajada) para forzar salida de picks reales
 
   let minLegOdd: number, maxLegOdd: number
   if (nLegs === 1) {
