@@ -63,22 +63,41 @@ export function BracketView({ teams, groups, knockoutFixtures, onSelectMatch }: 
         ) : (
           <div className="mt-4 overflow-x-auto pb-2">
             <div className="flex gap-3 min-w-max">
-              {knockoutFixtures.map((f) => (
-                <button
-                  key={f.matchId}
-                  onClick={() => onSelectMatch?.(f.matchId)}
-                  className="shrink-0 w-56 text-left rounded-xl border border-white/[0.07] bg-zinc-900/70 backdrop-blur-sm p-3 hover:border-amber-700/60 transition-colors tap"
-                >
-                  <p className="text-[10px] font-black uppercase tracking-widest text-amber-400 mb-2">
-                    {f.stage.replace("-", " ")}
-                  </p>
-                  <KOFixtureRow team={teamByCode.get(f.homeCode) ?? null} score={f.result?.homeScore} />
-                  <KOFixtureRow team={teamByCode.get(f.awayCode) ?? null} score={f.result?.awayScore} />
-                  <p className="text-[10px] text-zinc-600 mt-2 truncate">
-                    {new Date(f.kickoffISO).toLocaleDateString("es-ES", { day: "numeric", month: "short" })} · {f.venue.city}
-                  </p>
-                </button>
-              ))}
+              {knockoutFixtures.map((f) => {
+                const homeTeam = teamByCode.get(f.homeCode) ?? null
+                const awayTeam = teamByCode.get(f.awayCode) ?? null
+                // INTEGRIDAD: si algún equipo es null (cruce sin resolver), la
+                // tarjeta es ESTÁTICA — prohibido disparar análisis/cuotas/H2H.
+                const resolvable = !!homeTeam && !!awayTeam
+                const inner = (
+                  <>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-amber-400 mb-2">
+                      {f.stage.replace("-", " ")}
+                    </p>
+                    <KOFixtureRow team={homeTeam} score={f.result?.homeScore} />
+                    <KOFixtureRow team={awayTeam} score={f.result?.awayScore} />
+                    <p className="text-[10px] text-zinc-600 mt-2 truncate">
+                      {new Date(f.kickoffISO).toLocaleDateString("es-ES", { day: "numeric", month: "short" })} · {f.venue.city}
+                    </p>
+                  </>
+                )
+                return resolvable ? (
+                  <button
+                    key={f.matchId}
+                    onClick={() => onSelectMatch?.(f.matchId)}
+                    className="shrink-0 w-56 text-left rounded-xl border border-white/[0.07] bg-zinc-900/70 backdrop-blur-sm p-3 hover:border-amber-700/60 transition-colors tap"
+                  >
+                    {inner}
+                  </button>
+                ) : (
+                  <div
+                    key={f.matchId}
+                    className="shrink-0 w-56 text-left rounded-xl border border-white/[0.07] bg-zinc-900/70 backdrop-blur-sm p-3 opacity-80"
+                  >
+                    {inner}
+                  </div>
+                )
+              })}
             </div>
           </div>
         )}

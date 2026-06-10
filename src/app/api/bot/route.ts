@@ -90,6 +90,14 @@ async function getFixturesFromDb(
     const { data, error } = await query.limit(160)
     if (error) throw new Error(error.message)
     fixtures = (data ?? []) as Fixture[]
+    // FILTRO ABSOLUTO Mundial: EXCLUSIVAMENTE league_id=1 + season=2026 (en
+    // memoria, a prueba de fallos del operador JSON). Nada de otras competiciones.
+    if (worldCup) {
+      fixtures = fixtures.filter((f) => {
+        const s = (f.stats ?? null) as FixtureStats | null
+        return Number(s?.league_id) === 1 && Number(s?.season) === 2026
+      })
+    }
   } catch {
     return "La base de datos de partidos no está disponible ahora mismo. NO inventes partidos ni datos — indica que no se pudo consultar."
   }
