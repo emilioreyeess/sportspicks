@@ -1572,8 +1572,14 @@ export function runPipeline(reason = "scheduled"): Promise<void> {
           context: data.matches.find((mm) => mm.id === p.id)?.context ?? "club",
           result: "PENDING",
         }))
-        recordPublishedPicks(records).catch((e) => addLog(`⚠️  Learning storage: ${e?.message ?? e}`))
-        addLog(`📝 ${records.length} picks registrados en Learning Engine`)
+        // AWAIT obligatorio: en serverless un fire-and-forget se congela con la
+        // lambda al responder y el insert nunca completa (predictions_log a 0).
+        try {
+          await recordPublishedPicks(records)
+          addLog(`📝 ${records.length} picks registrados en Learning Engine`)
+        } catch (e: any) {
+          addLog(`⚠️  Learning storage: ${e?.message ?? e}`)
+        }
 
         // ── Supabase predictions_log ────────────────────────────────────────
         // Logueamos cada value pick en `predictions_log` para que el cron
@@ -1620,11 +1626,16 @@ export function runPipeline(reason = "scheduled"): Promise<void> {
             source: "value_pick" as const,
           }
         })
-        // best-effort, fire-and-forget — el pipeline no debe fallar si Supabase
-        // está caído o la columna `context` aún no ha migrado.
-        logPredictions(supaPreds)
-          .then((n) => addLog(`🗄️  ${n} pick(s) registrados en Supabase predictions_log`))
-          .catch((e) => addLog(`⚠️  Supabase log: ${e?.message ?? e}`))
+        // AWAIT obligatorio (antes fire-and-forget): en Vercel la lambda se
+        // congela al responder y la promesa pendiente nunca completa — por eso
+        // predictions_log se quedaba a 0 aunque se publicaran picks. El try/catch
+        // mantiene el best-effort: si Supabase falla, el pipeline no se cae.
+        try {
+          const n = await logPredictions(supaPreds)
+          addLog(`🗄️  ${n} pick(s) registrados en Supabase predictions_log`)
+        } catch (e: any) {
+          addLog(`⚠️  Supabase log: ${e?.message ?? e}`)
+        }
       }
 
       // Segregation: combinada pool excludes matches already used as value picks
