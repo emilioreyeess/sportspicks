@@ -124,7 +124,10 @@ export async function getFixtures(date: string): Promise<Fixture[]> {
     cached.length > 0 &&
     cached.every((f) => now - new Date(f.updated_at).getTime() < FIXTURES_STALE_TTL_MS)
 
-  if (isFresh) return cached
+  if (isFresh) {
+    logFixturesShape("getFixtures(fresh-cache)", date, cached)
+    return cached
+  }
 
   // 3. Refrescar desde API-Football. Si falla, caemos a lo stale (si existe).
   try {
@@ -132,13 +135,33 @@ export async function getFixtures(date: string): Promise<Fixture[]> {
     if (fresh.length > 0) {
       // includeStats:false → no pisa el stats enriquecido que escribe el cron.
       await upsertFixtures(fresh, { includeStats: false })
-      return fresh
+      // FIX RECONEXIÓN: `fresh` viene CRUDO (sin standings/logos/odds). Antes se
+      // devolvía tal cual y la UI perdía escudos, forma, goles y cuotas aunque la
+      // BD los tuviera. Fusionamos: datos vivos de la API (status/marcador) +
+      // stats ENRIQUECIDO de la caché por fixture_id.
+      const statsById = new Map(cached.map((c) => [c.fixture_id, c.stats]))
+      const merged = fresh.map((f) => {
+        const cachedStats = statsById.get(f.fixture_id)
+        return cachedStats ? { ...f, stats: cachedStats } : f
+      })
+      logFixturesShape("getFixtures(refresh+merge)", date, merged)
+      return merged
     }
   } catch (e) {
     console.warn("[footballApi] fetch falló, usando caché stale:", e instanceof Error ? e.message : e)
   }
 
+  logFixturesShape("getFixtures(stale-cache)", date, cached)
   return cached  // stale-but-better-than-nothing (puede ser [])
+}
+
+/** Validación (server): reporta cuántos fixtures llevan logo/standing/odds al salir. */
+function logFixturesShape(source: string, date: string, rows: Fixture[]): void {
+  const s = (f: Fixture) => (f.stats ?? null) as FixtureStats | null
+  const withLogo = rows.filter((f) => s(f)?.home?.logo).length
+  const withStanding = rows.filter((f) => s(f)?.home?.standing).length
+  const withOdds = rows.filter((f) => (s(f) as any)?.odds).length
+  console.log(`[fixtures-shape] ${source} ${date}: total=${rows.length} logo=${withLogo} standing=${withStanding} odds=${withOdds}`)
 }
 
 // ── Fetch a API-Football ──────────────────────────────────────────────────────
