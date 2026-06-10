@@ -76,6 +76,29 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
       <head>
         {/* Schema.org base — Organization + WebSite. Server Component, 0 JS cliente. */}
         <JsonLd />
+        {/* DIAGNÓSTICO + KILL-SWITCH (consola del navegador):
+            1. Imprime la versión de build (commit + render) para verificar que el
+               cliente está viendo el deploy actual y no un build cacheado.
+            2. Desregistra cualquier Service Worker zombie de builds antiguos y
+               purga Cache Storage — un SW viejo sirve la app entera desactualizada
+               ("ignora los commits") aunque el servidor esté al día. */}
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `console.log("VERSIÓN DE BUILD: ${process.env.VERCEL_GIT_COMMIT_SHA?.slice(0, 7) ?? "local"} · render ${new Date().toISOString()}");
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.getRegistrations().then(function (rs) {
+    if (rs.length) console.warn("[SW kill-switch] desregistrando", rs.length, "service worker(s) zombie");
+    rs.forEach(function (r) { r.unregister(); });
+  }).catch(function () {});
+}
+if (window.caches && caches.keys) {
+  caches.keys().then(function (keys) {
+    if (keys.length) console.warn("[SW kill-switch] purgando", keys.length, "cache(s):", keys.join(","));
+    keys.forEach(function (k) { caches.delete(k); });
+  }).catch(function () {});
+}`,
+          }}
+        />
       </head>
       <body className={`${inter.className} bg-zinc-950 text-white antialiased`}>
         <SessionWrapper>
