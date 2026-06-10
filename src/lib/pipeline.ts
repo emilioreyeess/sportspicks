@@ -114,9 +114,11 @@ async function fetchDailyData(): Promise<DailyData> {
     const events = data?.events ?? []
     if (!data) console.warn(`[pipeline] ${slug}: fetch ESPN devolvió null (posible fallo silencioso)`)
     const yesterdayUTC = new Date(Date.now() - 86400000).toISOString().split("T")[0]
-    const tomorrowUTC = new Date(Date.now() + 86400000).toISOString().split("T")[0]
+    const dayAfterTomorrowUTC = new Date(Date.now() + 2 * 86400000).toISOString().split("T")[0]
 
-    // ── Fase 1: filtrar eventos válidos de HOY (sin tocar cuotas todavía) ─────
+    // ── Fase 1: filtrar eventos válidos de HOY o MAÑANA (UTC). Incluir mañana
+    //    cubre las horas valle y el bloque del Mundial (kickoffs del día
+    //    siguiente) sin aceptar nada pasado. ─────
     const candidates: { ev: any; comp: any; home: any; away: any }[] = []
     for (const ev of events) {
       audit.eventsSeen++
@@ -127,8 +129,7 @@ async function fetchDailyData(): Promise<DailyData> {
       if (!home?.team?.id || !away?.team?.id) { audit.skipNoTeams++; continue }
       if (!ev.date || isNaN(new Date(ev.date).getTime())) { audit.skipBadDate++; continue }
       const kickoffDate = ev.date?.slice(0, 10)
-      // Only accept TODAY (strict)
-      if (!kickoffDate || kickoffDate === yesterdayUTC || kickoffDate >= tomorrowUTC) { audit.skipNotToday++; continue }
+      if (!kickoffDate || kickoffDate <= yesterdayUTC || kickoffDate >= dayAfterTomorrowUTC) { audit.skipNotToday++; continue }
       candidates.push({ ev, comp, home, away })
     }
 
@@ -632,6 +633,43 @@ export function computeValuePicks(data: DailyData): { picks: any[]; note?: strin
     picks.sort((a: any, b: any) => b.quality_score - a.quality_score)
   }
 
+  // ── ÚLTIMO NIVEL (doc API-Football: predictions null al inicio de competiciones):
+  // si tras el fallback relajado seguimos en CERO, publicamos FAVORITOS DE MERCADO
+  // (cuota real 1.20–1.60, prob. implícita) etiquetados como tal. Garantiza
+  // contenido diario sin inventar nada: la cuota es real y el edge declarado es 0.
+  if (picks.length === 0) {
+    const marketPicks: any[] = []
+    for (const rc of marketFallbackCands(data)) {
+      const m: any = rc.match
+      const imp = impliedPct(rc.odd)
+      marketPicks.push({
+        id: m.id,
+        home_team: m.homeName, away_team: m.awayName,
+        league_name: LEAGUE_NAMES[m.slug] ?? m.slug, kickoff_utc: m.kickoff,
+        market: "1x2", selection: (rc.c as any).selection,
+        confidence_pct: Math.round(rc.c.prob * 100), confidence_tier: "MEDIUM",
+        model_prob: Math.round(rc.c.prob * 1000) / 10,
+        best_odd: rc.odd, value_edge: 0, bookmaker: m.odds?.provider ?? "API-Football",
+        quality_score: rc.quality,
+        value_reason: `Favorito de mercado: cuota real ${rc.odd.toFixed(2)} → probabilidad implícita ${imp}%. Sin edge estadístico declarado (modelo sin histórico suficiente).`,
+        risk_tier: "LOW",
+        result: "PENDING", plan_required: "basic",
+        _market_fallback: true,
+        engine: { consensus_prob: Math.round(rc.c.prob * 1000) / 10, consensus_agreement: 50, uncertainty: 50, contradiction: 0, models: [] },
+        reasons: [
+          `💡 ${(rc.c as any).story}`,
+          `Cuota real verificada (${m.odds?.provider ?? "API-Football"}): ${rc.odd.toFixed(2)} → prob. implícita ${imp}%`,
+          "Pick de mercado: sin predicción del modelo (inicio de competición) — se usa la probabilidad implícita.",
+        ],
+      })
+      if (marketPicks.length >= MIN_DAILY_PICKS) break
+    }
+    if (marketPicks.length > 0) {
+      picks.push(...marketPicks)
+      console.log(`[value-picks] último nivel: +${marketPicks.length} favoritos de mercado (prob. implícita, edge 0)`)
+    }
+  }
+
   // ── Reporte de déficit: si no llegamos al objetivo, decir POR QUÉ y qué umbral
   // habría hecho falta hoy (para iterar mañana). Solo log, no altera la selección.
   if (picks.length < MIN_DAILY_PICKS) {
@@ -1066,6 +1104,42 @@ interface RetoCombo {
 // Helper: score and build a RetoPick from a raw candidate
 type RawCand = { match: MatchModel; c: Candidate; odd: number; edge: number; quality: number }
 
+/**
+ * FALLBACK de mercado para RETOS (doc API-Football: predictions null al inicio
+ * de competiciones). Convierte cada marketOnly en un RawCand del FAVORITO de
+ * mercado (cuota 1.20–1.60) con probabilidad IMPLÍCITA de la cuota real.
+ * Solo se usa para completar cuando el modelo no alcanza. Cero invención.
+ */
+function marketFallbackCands(data: DailyData): RawCand[] {
+  const out: RawCand[] = []
+  for (const mo of (data.marketOnly ?? [])) {
+    const sides: { key: OddKey; name: string }[] = [
+      { key: "home" as OddKey, name: mo.homeName },
+      { key: "away" as OddKey, name: mo.awayName },
+    ]
+    const fav = sides
+      .map((s) => ({ ...s, odd: mo.odds[s.key] }))
+      .filter((s): s is typeof s & { odd: number } => typeof s.odd === "number" && s.odd >= 1.20 && s.odd <= 1.60)
+      .sort((a, b) => a.odd - b.odd)[0]
+    if (!fav) continue
+    const prob = 1 / fav.odd
+    out.push({
+      // Shape mínimo que consume buildRetoPick / los selectores (id, nombres, slug, kickoff, odds).
+      match: {
+        id: mo.id, slug: mo.slug, homeName: mo.homeName, awayName: mo.awayName,
+        kickoff: mo.kickoff, odds: mo.odds,
+      } as unknown as MatchModel,
+      c: {
+        market: "1x2", selection: fav.name, prob,
+        story: `Favorito de mercado (${mo.odds.provider ?? "API-Football"}) — prob. implícita ${Math.round(prob * 100)}%`,
+        extra: [] as string[],
+      } as unknown as Candidate,
+      odd: fav.odd, edge: 0, quality: 55,
+    })
+  }
+  return out
+}
+
 function buildRetoPick(rc: RawCand): RetoPick {
   const m = rc.match
   const impliedProb = impliedPct(rc.odd)
@@ -1125,6 +1199,9 @@ function computeRetoCombi(
       cands.push({ match: m, c, odd, edge, quality })
     }
   }
+  // FALLBACK: favoritos de mercado (prob. implícita de cuotas reales) para
+  // garantizar contenido cuando el modelo no alcanza. Compiten por calidad.
+  cands.push(...marketFallbackCands(data))
   cands.sort((a, b) => b.quality - a.quality)
 
   // Pool filtrado por rango de cuota POR PATA (garantiza cuotas con sentido)
@@ -1219,6 +1296,8 @@ function computeRetoCombiN(
       cands.push({ match: m, c, odd, edge, quality })
     }
   }
+  // FALLBACK: favoritos de mercado (prob. implícita real) dentro del rango por pata.
+  cands.push(...marketFallbackCands(data).filter((rc) => rc.odd >= minLeg && rc.odd <= maxLeg))
 
   // Sort by proximity to per-leg target then quality
   cands.sort((a, b) => {
