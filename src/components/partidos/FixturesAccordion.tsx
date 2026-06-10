@@ -71,6 +71,24 @@ function deriveMarkets(home: StandingRow | null, away: StandingRow | null): Mark
 
 const pct = (x: number) => `${Math.round(x * 100)}%`
 
+/** Color semántico de barra: verde (alto), amarillo (medio), rojo (bajo).
+ *  `invert` para métricas donde alto = malo (goles en contra). */
+function semaforo(p: number, invert = false): string {
+  const eff = invert ? 100 - p : p
+  if (eff >= 60) return "bg-emerald-500"
+  if (eff >= 35) return "bg-amber-400"
+  return "bg-rose-500"
+}
+
+/** Puntuación de forma 0–100 desde el string W/D/L (últimos 5: W=3 D=1 L=0). null sin datos. */
+function formScore(form: string | null): number | null {
+  if (!form) return null
+  const chars = form.replace(/[^WDL]/gi, "").toUpperCase().slice(-5).split("")
+  if (!chars.length) return null
+  const pts = chars.reduce((s, c) => s + (c === "W" ? 3 : c === "D" ? 1 : 0), 0)
+  return (pts / (chars.length * 3)) * 100
+}
+
 /** Celda de cuota real (1/X/2/O/U). Fallback limpio "N/D" si falta o no es válida. */
 function OddCell({ label, value }: { label: string; value?: number | null }) {
   const v = typeof value === "number" && isFinite(value) && value > 1 ? value.toFixed(2) : null
@@ -218,22 +236,45 @@ function MatchRow({ f, isPremium, intl }: { f: Fixture; isPremium: boolean; intl
               Móvil: columnas apiladas (flex-col). Escritorio: lado a lado. */}
           <div className="flex flex-col md:flex-row gap-3">
             {[{ n: home, st: hSt }, { n: away, st: aSt }].map(({ n, st }) => {
-              const gpg = st && st.played > 0 ? st.goalsFor / st.played : 0
-              const gapg = st && st.played > 0 ? st.goalsAgainst / st.played : 0
+              const hasData = !!st && st.played > 0
+              const gpg = hasData ? st!.goalsFor / st!.played : null
+              const gapg = hasData ? st!.goalsAgainst / st!.played : null
+              const forma = formScore(st?.form ?? null)
               return (
                 <div key={n} className="flex-1 min-w-0 rounded-xl border border-white/[0.06] bg-zinc-900/40 px-3 py-2.5 space-y-2.5">
                   <div className="flex items-center justify-between gap-2">
                     <p className="font-bold text-white text-[12.5px] truncate">{n}</p>
-                    {st && <span className="text-[11px] text-zinc-500 shrink-0 tabular-nums">{st.rank}º · {st.points} pts</span>}
+                    {hasData ? (
+                      <span className="text-[11px] text-zinc-500 shrink-0 tabular-nums">{st!.rank}º · {st!.points} pts</span>
+                    ) : (
+                      <span className="text-[11px] text-zinc-600 shrink-0">–</span>
+                    )}
                   </div>
                   {/* Forma reciente con círculos */}
                   <div className="flex items-center gap-2">
                     <span className="text-[10px] uppercase tracking-wider text-zinc-600 shrink-0">Forma</span>
                     <FormDots form={st?.form ?? null} />
                   </div>
-                  {/* Fuerza ofensiva / defensiva (goles por partido, escala 0..3) */}
-                  <StatBar label="Goles a favor /partido" value={gpg.toFixed(2)} pctWidth={(gpg / 3) * 100} color="bg-emerald-500" />
-                  <StatBar label="Goles en contra /partido" value={gapg.toFixed(2)} pctWidth={(gapg / 3) * 100} color="bg-orange-500" />
+                  {/* Barras semánticas: verde=alto · amarillo=medio · rojo=bajo.
+                      Sin dato → "–" y barra vacía (nunca un 0 engañoso). */}
+                  <StatBar
+                    label="Goles a favor /partido"
+                    value={gpg != null ? gpg.toFixed(2) : "–"}
+                    pctWidth={gpg != null ? (gpg / 3) * 100 : 0}
+                    color={gpg != null ? semaforo((gpg / 3) * 100) : "bg-zinc-700"}
+                  />
+                  <StatBar
+                    label="Goles en contra /partido"
+                    value={gapg != null ? gapg.toFixed(2) : "–"}
+                    pctWidth={gapg != null ? (gapg / 3) * 100 : 0}
+                    color={gapg != null ? semaforo((gapg / 3) * 100, true) : "bg-zinc-700"}
+                  />
+                  <StatBar
+                    label="Forma reciente"
+                    value={forma != null ? `${Math.round(forma)}%` : "–"}
+                    pctWidth={forma ?? 0}
+                    color={forma != null ? semaforo(forma) : "bg-zinc-700"}
+                  />
                 </div>
               )
             })}
