@@ -632,7 +632,7 @@ export default function BetsPage() {
         ) : (
           <div className="space-y-3">
             {filtered.map(bet => (
-              <div key={bet.id} className="bg-zinc-900/60 rounded-2xl border border-white/[0.07] overflow-hidden">
+              <div key={bet.id} className="bg-zinc-900/60 rounded-2xl border border-white/[0.07]">
                 {/* Bet header */}
                 <div
                   className="p-4 cursor-pointer hover:bg-white/[0.02] transition"

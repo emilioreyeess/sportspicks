@@ -594,14 +594,14 @@ function ChatView({ group, onBack }: { group: Group; onBack: () => void }) {
 
               {betsSubTab === "group" && (
               <div className="space-y-4">
-              {/* Share bet CTA */}
-              <button
-                onClick={() => { setShowSharePicker(v => !v); setShareError(""); loadMyBets() }}
+              {/* Share bet CTA — Link real a Mis Apuestas (desde ahí se comparte al grupo) */}
+              <Link
+                href="/bets"
                 className="w-full flex items-center justify-center gap-2 py-2.5 rounded-xl border border-dashed border-emerald-700/50 bg-emerald-500/5 hover:bg-emerald-500/10 text-emerald-400 text-xs font-bold tap transition-colors"
               >
                 <Icon name="plus" className="w-3.5 h-3.5" strokeWidth={2.5} />
                 Compartir apuesta (pre-partido)
-              </button>
+              </Link>
 
               {shareSuccess && (
                 <div className="flex items-center gap-2 rounded-xl border border-emerald-700/40 bg-emerald-500/[0.08] px-3 py-2.5">

@@ -70,7 +70,7 @@ export function ShareToGroupButton({ betId }: { betId: string }) {
 
       {open && (
         <div
-          className="absolute z-30 mt-1 right-0 w-56 rounded-xl border border-white/[0.10] bg-zinc-900 shadow-2xl p-1.5"
+          className="absolute z-50 mt-1 right-0 w-56 max-h-48 overflow-y-auto rounded-xl border border-white/[0.10] bg-zinc-900 shadow-2xl p-1.5"
           onClick={(e) => e.stopPropagation()}
         >
           {groups === null ? (
