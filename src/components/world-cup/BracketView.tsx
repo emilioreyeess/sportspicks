@@ -13,7 +13,7 @@ interface Props {
   onSelectMatch?: (matchId: string) => void
 }
 
-export function BracketView({ teams, groups, knockoutFixtures, drawCompleted, onSelectMatch }: Props) {
+export function BracketView({ teams, groups, knockoutFixtures, onSelectMatch }: Props) {
   const teamByCode = useMemo(() => {
     const m = new Map<string, WCTeam>()
     for (const t of teams) m.set(t.code, t)
@@ -31,19 +31,6 @@ export function BracketView({ teams, groups, knockoutFixtures, drawCompleted, on
     }
     return groupMap
   }, [teams])
-
-  if (!drawCompleted) {
-    return (
-      <div className="rounded-2xl border border-amber-700/40 bg-amber-500/5 backdrop-blur-sm px-6 py-8 text-center">
-        <div className="text-4xl mb-3">🎱</div>
-        <p className="text-base font-black text-amber-300">El sorteo aún no se ha realizado</p>
-        <p className="text-xs text-zinc-500 mt-1.5 max-w-md mx-auto leading-relaxed">
-          En cuanto FIFA publique los 12 grupos (A-L), el cuadro se rellenará automáticamente.
-          Mientras tanto puedes consultar la lista completa de las 48 selecciones clasificadas.
-        </p>
-      </div>
-    )
-  }
 
   const groupLetters: WCGroup[] = ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L"]
 
@@ -72,10 +59,7 @@ export function BracketView({ teams, groups, knockoutFixtures, drawCompleted, on
       <div>
         <SectionTitle icon="trophy" title="Eliminatorias" subtitle="32 → 16 → Cuartos → Semis → Final" />
         {knockoutFixtures.length === 0 ? (
-          <div className="mt-4 rounded-2xl border border-white/[0.07] bg-zinc-950/50 px-5 py-6 text-center">
-            <p className="text-sm text-zinc-500 font-bold">Cruces pendientes</p>
-            <p className="text-[11px] text-zinc-600 mt-1">Se generan al cierre de la fase de grupos.</p>
-          </div>
+          <KnockoutTreePlaceholder />
         ) : (
           <div className="mt-4 overflow-x-auto pb-2">
             <div className="flex gap-3 min-w-max">
@@ -184,6 +168,60 @@ function SectionTitle({ icon, title, subtitle }: { icon: string; title: string; 
         <h2 className="text-lg font-black text-white tracking-tight">{title}</h2>
         <p className="text-xs text-zinc-500 mt-0.5">{subtitle}</p>
       </div>
+    </div>
+  )
+}
+
+// ── Cuadro de eliminatorias PLACEHOLDER (FASE 4) ──────────────────────────────
+// Renderiza el árbol con slots provisionales ("1A" vs "2B") y las fechas
+// OFICIALES de cada ronda, aunque los equipos aún no estén asignados.
+const WC_GROUPS = "ABCDEFGHIJKL".split("")
+
+const KO_ROUNDS: { stage: string; dates: string; slots: [string, string][] }[] = [
+  {
+    stage: "Dieciseisavos", dates: "28 jun – 3 jul",
+    slots: Array.from({ length: 16 }, (_, i) => [`1${WC_GROUPS[i % 12]}`, `2${WC_GROUPS[(i + 1) % 12]}`] as [string, string]),
+  },
+  { stage: "Octavos",     dates: "4 – 7 jul",   slots: Array.from({ length: 8 }, () => ["Ganador", "Ganador"] as [string, string]) },
+  { stage: "Cuartos",     dates: "9 – 11 jul",  slots: Array.from({ length: 4 }, () => ["Ganador", "Ganador"] as [string, string]) },
+  { stage: "Semifinales", dates: "14 – 15 jul", slots: Array.from({ length: 2 }, () => ["Ganador", "Ganador"] as [string, string]) },
+  { stage: "Final",       dates: "19 jul",      slots: [["Ganador SF1", "Ganador SF2"]] },
+]
+
+function KnockoutTreePlaceholder() {
+  return (
+    <div className="mt-4">
+      <p className="text-[11px] text-zinc-600 mb-3">
+        Cuadro provisional — las selecciones se asignan al cerrar la fase de grupos. Fechas oficiales confirmadas.
+      </p>
+      <div className="overflow-x-auto pb-2">
+        <div className="flex gap-4 min-w-max">
+          {KO_ROUNDS.map((round) => (
+            <div key={round.stage} className="shrink-0 w-44 space-y-2">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-widest text-amber-400">{round.stage}</p>
+                <p className="text-[10px] text-zinc-600">{round.dates}</p>
+              </div>
+              {round.slots.map((slot, i) => (
+                <div key={i} className="rounded-xl border border-white/[0.07] bg-zinc-900/70 p-2.5">
+                  <PlaceholderSlot label={slot[0]} />
+                  <div className="h-px bg-white/[0.06] my-1.5" />
+                  <PlaceholderSlot label={slot[1]} />
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  )
+}
+
+function PlaceholderSlot({ label }: { label: string }) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-base leading-none opacity-50">🏳️</span>
+      <span className="text-[12px] font-bold text-zinc-400 truncate">{label}</span>
     </div>
   )
 }

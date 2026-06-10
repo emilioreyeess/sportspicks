@@ -81,7 +81,9 @@ async function getFixturesFromDb(
       .gte("match_date", dayStart)
       .lte("match_date", dayEnd)
       .order("match_date", { ascending: true })
-    if (worldCup) query = query.eq("stats->>league_id", String(FIFA_WC_LEAGUE_ID))
+    // El filtro JSON .eq("stats->>league_id", …) falla en silencio en supabase-js.
+    // Filtramos por la columna REAL `league` ("World Cup"), que es fiable.
+    if (worldCup) query = query.ilike("league", "%world cup%")
     const { data, error } = await query.limit(160)
     if (error) throw new Error(error.message)
     fixtures = (data ?? []) as Fixture[]
