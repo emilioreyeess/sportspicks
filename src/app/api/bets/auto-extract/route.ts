@@ -123,6 +123,49 @@ function productOdds(legs: ExtractedLeg[]): number | null {
   return p > 1 ? Math.round(p * 100) / 100 : null
 }
 
+// ── FASE 2: auto-mapeo OCR → fixture (fuzzy matching en código) ────────────────
+const fxNorm = (s: string) =>
+  (s ?? "").toLowerCase().normalize("NFD").replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim()
+
+function fxSplit(text: string): [string, string] | null {
+  const p = (text ?? "").replace(/\s+/g, " ").trim().split(/\s+(?:vs?\.?|v|-|–|—|@|contra)\s+/i)
+  return p.length >= 2 && p[0] && p[1] ? [p[0].trim(), p[1].trim()] : null
+}
+
+/**
+ * Casa las selecciones del boleto (texto OCR) con la tabla `fixtures` (hoy/mañana
+ * + buffer) → devuelve { fixtureId, kickoff } para enlazar la apuesta antes de
+ * guardarla. null si no hay coincidencia fiable (no se inventa nada).
+ */
+async function autoMapFixture(
+  sb: any, legs: ExtractedLeg[],
+): Promise<{ fixtureId: number; kickoff: string } | null> {
+  const from = new Date(Date.now() - 12 * 3600_000).toISOString()   // hoy
+  const to   = new Date(Date.now() + 60 * 3600_000).toISOString()   // ~mañana + buffer
+  const { data } = await sb
+    .from("fixtures")
+    .select("fixture_id, home_team, away_team, match_date")
+    .gte("match_date", from).lte("match_date", to)
+    .order("match_date", { ascending: true })
+    .limit(600)
+  const fixtures = data ?? []
+  if (!fixtures.length) return null
+
+  for (const leg of (legs ?? []).slice(0, 5)) {
+    const pair = fxSplit(leg.match ?? "")
+    if (!pair) continue
+    const a = fxNorm(pair[0]), b = fxNorm(pair[1])
+    if (!a || !b) continue
+    const hit = fixtures.find((f: any) => {
+      const h = fxNorm(f.home_team ?? ""), aw = fxNorm(f.away_team ?? "")
+      return ((h.includes(a) || a.includes(h)) && (aw.includes(b) || b.includes(aw))) ||
+             ((h.includes(b) || b.includes(h)) && (aw.includes(a) || a.includes(aw)))
+    })
+    if (hit?.fixture_id && hit.match_date) return { fixtureId: hit.fixture_id, kickoff: hit.match_date }
+  }
+  return null
+}
+
 /* ────────────────────────────────────────────────────────────────────────────
    Handler
    ──────────────────────────────────────────────────────────────────────────── */
@@ -271,6 +314,10 @@ export async function POST(req: NextRequest) {
   // Payload tipado explícitamente: stake y potential_return admiten null
   // (alineado con la migración bets-stake-nullable-migration.sql que quitó
   // el DEFAULT 0). is_published nunca true mientras needsReview sea true.
+  // FASE 2: auto-mapear el boleto a un fixture oficial (hoy/mañana) → enlazar
+  // fixture_id + kickoff ANTES de guardar, para que pase el bloqueo del Grupo.
+  const mapped = await autoMapFixture(sb, cleanBet.legs)
+
   const betPayload: {
     user_email: string
     title: string
@@ -287,6 +334,8 @@ export async function POST(req: NextRequest) {
     needs_review: boolean
     ai_confidence: number
     ai_extracted_at: string
+    fixture_id: number | null
+    kickoff: string | null
     created_at: string
   } = {
     user_email:       session.user.email,
@@ -304,6 +353,8 @@ export async function POST(req: NextRequest) {
     needs_review:     needsReview,                  // forzado por validación cruzada
     ai_confidence:    confidence,
     ai_extracted_at:  new Date().toISOString(),
+    fixture_id:       mapped?.fixtureId ?? null,
+    kickoff:          mapped?.kickoff ?? null,
     created_at:       new Date().toISOString(),
   }
 
