@@ -30,7 +30,7 @@ import {
 } from "@/lib/world-cup/api-football"
 import { getAllFixtures as espnGetFixtures } from "@/lib/world-cup/data-service"
 import { cacheGet, cacheSet, WC_CACHE_TTL } from "@/lib/world-cup/cache"
-import { ingestWorldCupFixtures } from "@/lib/infrastructure/footballApi"
+import { ingestWorldCupFixtures, syncWorldCupSquads } from "@/lib/infrastructure/footballApi"
 
 export const runtime  = "nodejs"
 export const maxDuration = 300   // 5 min max (Vercel Pro)
@@ -377,6 +377,15 @@ export async function GET(req: NextRequest) {
     status: wcDb.error ? "error" : "ok",
     detail: wcDb.error,
     count: wcDb.count,
+  })
+
+  // 1c. Convocatorias (squads) → tabla wc_squads (degrada si aún no se publican).
+  const sq = await syncWorldCupSquads()
+  log.push({
+    phase: "squads",
+    status: sq.error ? "error" : "ok",
+    detail: sq.error ?? `${sq.teams} equipos · ${sq.players} jugadores`,
+    count: sq.players,
   })
 
   // 2. Odds (only if API-Football, upcoming ≤48h)

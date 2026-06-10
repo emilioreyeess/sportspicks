@@ -218,6 +218,32 @@ async function getHeadToHead(teamA: string, teamB: string): Promise<string> {
   }
 }
 
+// ─── Convocatoria del Mundial (wc_squads) ─────────────────────────────────────
+
+/** Lista de convocados de una selección del Mundial (tabla wc_squads). */
+async function getTeamSquad(teamName: string): Promise<string> {
+  if (!teamName?.trim()) return "Necesito el nombre de la selección para consultar su convocatoria."
+  try {
+    const sb = createServiceClient()
+    const { data } = await sb
+      .from("wc_squads")
+      .select("team_name, players, updated_at")
+      .ilike("team_name", `%${teamName.trim()}%`)
+      .limit(1)
+    const row = data?.[0] as any
+    const players = Array.isArray(row?.players) ? row.players : []
+    if (!row || players.length === 0) {
+      return `No hay convocatoria registrada para "${teamName}" todavía. Las listas del Mundial se publican cerca del torneo. NO inventes jugadores ni números de dorsal.`
+    }
+    const lines = players.slice(0, 60).map((p: any) =>
+      `- ${p.name ?? "?"}${p.number ? ` (#${p.number})` : ""}${p.position ? ` · ${p.position}` : ""}${p.age ? ` · ${p.age}a` : ""}`,
+    )
+    return `Convocatoria de ${row.team_name ?? teamName} (${players.length} jugadores · datos oficiales API-Football):\n${lines.join("\n")}\nUsa SOLO estos nombres reales; no inventes jugadores.`
+  } catch {
+    return "No se pudo consultar la convocatoria ahora mismo. NO inventes jugadores."
+  }
+}
+
 // ─── Definición de herramientas ────────────────────────────────────────────────
 
 const TOOLS: Anthropic.Tool[] = [
@@ -235,6 +261,11 @@ const TOOLS: Anthropic.Tool[] = [
     description: "Historial de enfrentamientos directos (H2H) entre DOS equipos: devuelve los últimos 3 partidos reales entre ellos (fecha, marcador, competición) e indica si son de ida/vuelta. Úsala cuando el usuario pregunte por un cruce, eliminatoria o playoff entre dos equipos concretos, para fundamentar el análisis en su historial real. NO inventes enfrentamientos: usa solo lo que devuelve esta herramienta.",
     input_schema: { type: "object" as const, properties: { team_a: { type: "string", description: "Primer equipo del cruce." }, team_b: { type: "string", description: "Segundo equipo del cruce." } }, required: ["team_a", "team_b"] },
   },
+  {
+    name: "get_team_squad",
+    description: "Convocatoria (lista de jugadores) de una selección del Mundial 2026. Úsala cuando el usuario pregunte por los jugadores, convocados, plantilla o estrellas de una selección. Devuelve nombres, dorsal y posición REALES (API-Football). Si la lista aún no está publicada, lo indica — NUNCA inventes jugadores.",
+    input_schema: { type: "object" as const, properties: { team_name: { type: "string", description: "Nombre de la selección (ej. España, Argentina, Brasil)." } }, required: ["team_name"] },
+  },
 ]
 
 async function executeTool(name: string, input: Record<string, string>): Promise<string> {
@@ -245,6 +276,7 @@ async function executeTool(name: string, input: Record<string, string>): Promise
       daysAhead: input.days_ahead != null ? Number(input.days_ahead) : undefined,
     })
     if (name === "get_head_to_head") return await getHeadToHead(input.team_a, input.team_b)
+    if (name === "get_team_squad") return await getTeamSquad(input.team_name)
     return "Herramienta no reconocida."
   } catch (e: any) {
     return `Error obteniendo datos: ${e.message}. NO inventes el dato — indica que no está disponible.`
@@ -304,6 +336,7 @@ const SYSTEM_PROMPT = `Eres PicksBot, analista de datos deportivos de SportsPick
 FUENTES OFICIALES (tus únicas herramientas):
 - get_fixtures_db — partidos de NUESTRA base de datos (liga, hora, estado, posición, racha). Llámala SIEMPRE antes de hablar de cualquier partido. Para el MUNDIAL 2026 llámala con world_cup=true (devuelve TODO el calendario futuro: grupos y eliminatorias) — NUNCA digas que no sabes del Mundial sin haberla llamado así primero. Para otras fechas futuras usa days_ahead.
 - get_head_to_head — cuando el usuario pregunte por un CRUCE entre dos equipos (eliminatoria, playoff, partido concreto), llámala para obtener los últimos 3 enfrentamientos reales y si es ida/vuelta. Fundamenta el análisis del cruce en ese historial.
+- get_team_squad — cuando pregunten por los JUGADORES/convocatoria/plantilla de una selección del Mundial, llámala. Si la lista aún no está publicada, dilo; NUNCA inventes jugadores ni dorsales.
 - PROHIBIDO inventar estadísticas, posiciones, cuotas, árbitros, alineaciones o enfrentamientos previos, o usar tu conocimiento de entrenamiento (está DESFASADO). Si un dato no está → di "ese dato no está disponible" y baja la confianza.
 - No menciones otras APIs ni fuentes (ni "ESPN" ni los nombres de las herramientas).
 

@@ -497,3 +497,55 @@ export async function ingestWorldCupFixtures(season = 2026): Promise<{ count: nu
     return { count: 0, error: e instanceof Error ? e.message : String(e) }
   }
 }
+
+// ─── Convocatorias del Mundial (/players/squads) → tabla wc_squads ─────────────
+// Recoge los team_id de los fixtures del Mundial ya ingestados y consulta
+// /players/squads?team=ID (throttled). Degrada con gracia: si las listas aún no
+// están publicadas, no escribe nada (no inventa jugadores).
+export async function syncWorldCupSquads(): Promise<{ teams: number; players: number; error?: string }> {
+  const apiKey = process.env.FOOTBALL_API_KEY
+  if (!apiKey) return { teams: 0, players: 0, error: "FOOTBALL_API_KEY no configurada" }
+  try {
+    const sb = createServiceClient()
+    const { data } = await sb
+      .from("fixtures")
+      .select("stats")
+      .eq("stats->>league_id", String(FIFA_WC_LEAGUE))
+      .limit(300)
+
+    const ids = new Set<number>()
+    for (const r of (data ?? [])) {
+      const h = (r as any).stats?.home?.id, a = (r as any).stats?.away?.id
+      if (h) ids.add(Number(h))
+      if (a) ids.add(Number(a))
+    }
+    if (!ids.size) return { teams: 0, players: 0 }
+
+    let teams = 0, players = 0
+    for (const id of ids) {
+      try {
+        const res = await fetch(`${API_BASE}/players/squads?team=${id}`, {
+          headers: { "x-apisports-key": apiKey, "Accept": "application/json" }, cache: "no-store",
+        })
+        if (!res.ok) { await sleep(STANDINGS_THROTTLE_MS); continue }
+        const json = await res.json() as any
+        const entry = json?.response?.[0]
+        const list = (entry?.players ?? []).map((p: any) => ({
+          id: p.id ?? null, name: p.name ?? null, number: p.number ?? null,
+          position: p.position ?? null, age: p.age ?? null, photo: p.photo ?? null,
+        }))
+        if (list.length) {
+          await sb.from("wc_squads").upsert({
+            team_id: id, team_name: entry?.team?.name ?? null,
+            players: list, updated_at: new Date().toISOString(),
+          }, { onConflict: "team_id" })
+          teams++; players += list.length
+        }
+        await sleep(STANDINGS_THROTTLE_MS)   // respeta 300 req/min
+      } catch { /* best-effort por equipo */ }
+    }
+    return { teams, players }
+  } catch (e) {
+    return { teams: 0, players: 0, error: e instanceof Error ? e.message : String(e) }
+  }
+}
