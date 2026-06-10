@@ -5,6 +5,7 @@ import { getStore } from "@/lib/store"
 import { createServiceClient } from "@/lib/supabase/client"
 import { getGrantedPlan } from "@/lib/plan-grants"
 import type { Fixture, FixtureStats, StandingRow } from "@/lib/infrastructure/footballApi"
+import { fetchFixtureOddsAF } from "@/lib/infrastructure/footballApi"
 
 export const runtime = "nodejs"
 export const maxDuration = 60
@@ -246,6 +247,68 @@ async function getTeamSquad(teamName: string): Promise<string> {
   }
 }
 
+// ─── Combinadas: SOLO con cuotas reales (HARD-BLOCK anti-invención) ───────────
+
+const NO_ODDS_MSG = "No hay cuotas oficiales disponibles en la base de datos para estos partidos todavía."
+
+function splitPair(text: string): [string, string] | null {
+  const p = (text ?? "").replace(/\s+/g, " ").trim().split(/\s+(?:vs?\.?|v|-|–|—|@|contra)\s+/i)
+  return p.length >= 2 && p[0] && p[1] ? [p[0].trim(), p[1].trim()] : null
+}
+
+/**
+ * Devuelve las cuotas REALES (API-Football /odds) de los partidos pedidos para
+ * una combinada. Si NINGUNO tiene cuotas reales, devuelve el mensaje de rechazo
+ * exacto. El bot DEBE construir combinadas solo con lo que devuelve esto.
+ */
+async function getCombinadaOdds(matchesStr: string): Promise<string> {
+  if (!matchesStr?.trim()) return "Indica los partidos (equipo vs equipo) que quieres en la combinada."
+  const pairs = matchesStr.split(/[;\n]+/).map((s) => s.trim()).filter(Boolean).slice(0, 8)
+  try {
+    const sb = createServiceClient()
+    const { data } = await sb
+      .from("fixtures")
+      .select("fixture_id, home_team, away_team, match_date")
+      .gte("match_date", new Date(Date.now() - 12 * 3600_000).toISOString())
+      .order("match_date", { ascending: true })
+      .limit(800)
+    const fixtures = data ?? []
+
+    const lines: string[] = []
+    let anyOdds = false
+    for (const raw of pairs) {
+      const sp = splitPair(raw)
+      if (!sp) { lines.push(`- "${raw}": no pude interpretar el partido.`); continue }
+      const a = norm(sp[0]), b = norm(sp[1])
+      const fx = fixtures.find((f: any) => {
+        const h = norm(f.home_team ?? ""), aw = norm(f.away_team ?? "")
+        return ((h.includes(a) || a.includes(h)) && (aw.includes(b) || b.includes(aw))) ||
+               ((h.includes(b) || b.includes(h)) && (aw.includes(a) || a.includes(aw)))
+      })
+      if (!fx?.fixture_id) { lines.push(`- ${raw}: partido no encontrado en la BD.`); continue }
+      const odds = await fetchFixtureOddsAF(Number(fx.fixture_id))
+      if (!odds || (odds.home == null && odds.away == null)) {
+        lines.push(`- ${fx.home_team} vs ${fx.away_team}: SIN cuotas oficiales en la BD.`)
+        continue
+      }
+      anyOdds = true
+      const parts = [
+        odds.home != null ? `1 @${odds.home}` : null,
+        odds.draw != null ? `X @${odds.draw}` : null,
+        odds.away != null ? `2 @${odds.away}` : null,
+        odds.over25 != null ? `Over2.5 @${odds.over25}` : null,
+        odds.under25 != null ? `Under2.5 @${odds.under25}` : null,
+      ].filter(Boolean).join(" · ")
+      lines.push(`- ${fx.home_team} vs ${fx.away_team}: ${parts}`)
+    }
+
+    if (!anyOdds) return NO_ODDS_MSG
+    return `Cuotas REALES (API-Football) para la combinada:\n${lines.join("\n")}\nConstruye la combinada SOLO con estas cuotas reales. Excluye cualquier partido marcado "SIN cuotas". NUNCA inventes una cuota.`
+  } catch {
+    return NO_ODDS_MSG
+  }
+}
+
 // ─── Definición de herramientas ────────────────────────────────────────────────
 
 const TOOLS: Anthropic.Tool[] = [
@@ -268,6 +331,11 @@ const TOOLS: Anthropic.Tool[] = [
     description: "Convocatoria (lista de jugadores) de una selección del Mundial 2026. Úsala cuando el usuario pregunte por los jugadores, convocados, plantilla o estrellas de una selección. Devuelve nombres, dorsal y posición REALES (API-Football). Si la lista aún no está publicada, lo indica — NUNCA inventes jugadores.",
     input_schema: { type: "object" as const, properties: { team_name: { type: "string", description: "Nombre de la selección (ej. España, Argentina, Brasil)." } }, required: ["team_name"] },
   },
+  {
+    name: "get_combinada_odds",
+    description: "OBLIGATORIA antes de proponer CUALQUIER combinada/parlay. Devuelve las CUOTAS REALES (API-Football) de los partidos que el usuario quiere combinar. Construye la combinada usando EXCLUSIVAMENTE las cuotas que devuelve. Si responde que no hay cuotas, relaya ese mensaje TAL CUAL y NO generes la combinada. PROHIBIDO inventar cuotas.",
+    input_schema: { type: "object" as const, properties: { matches: { type: "string", description: "Partidos a combinar, uno por línea o separados por ';' (ej. 'España vs Francia; Brasil vs Argentina')." } }, required: ["matches"] },
+  },
 ]
 
 async function executeTool(name: string, input: Record<string, string>): Promise<string> {
@@ -279,6 +347,7 @@ async function executeTool(name: string, input: Record<string, string>): Promise
     })
     if (name === "get_head_to_head") return await getHeadToHead(input.team_a, input.team_b)
     if (name === "get_team_squad") return await getTeamSquad(input.team_name)
+    if (name === "get_combinada_odds") return await getCombinadaOdds(input.matches)
     return "Herramienta no reconocida."
   } catch (e: any) {
     return `Error obteniendo datos: ${e.message}. NO inventes el dato — indica que no está disponible.`
@@ -339,6 +408,7 @@ FUENTES OFICIALES (tus únicas herramientas):
 - get_fixtures_db — partidos de NUESTRA base de datos (liga, hora, estado, posición, racha). Llámala SIEMPRE antes de hablar de cualquier partido. Para el MUNDIAL 2026 llámala con world_cup=true (devuelve TODO el calendario futuro: grupos y eliminatorias) — NUNCA digas que no sabes del Mundial sin haberla llamado así primero. Para otras fechas futuras usa days_ahead.
 - get_head_to_head — cuando el usuario pregunte por un CRUCE entre dos equipos (eliminatoria, playoff, partido concreto), llámala para obtener los últimos 3 enfrentamientos reales y si es ida/vuelta. Fundamenta el análisis del cruce en ese historial.
 - get_team_squad — cuando pregunten por los JUGADORES/convocatoria/plantilla de una selección del Mundial, llámala. Si la lista aún no está publicada, dilo; NUNCA inventes jugadores ni dorsales.
+- get_combinada_odds — OBLIGATORIA antes de proponer cualquier COMBINADA/parlay. PROHIBIDO TERMINANTEMENTE inventar o estimar una cuota. Construye la combinada SOLO con las cuotas reales que devuelve. Si un partido (p.ej. del Mundial) no tiene cuotas en la BD, NO lo incluyas; y si NINGUNO tiene cuotas, responde EXACTAMENTE "No hay cuotas oficiales disponibles en la base de datos para estos partidos todavía" y NO generes la combinada.
 - PROHIBIDO inventar estadísticas, posiciones, cuotas, árbitros, alineaciones o enfrentamientos previos, o usar tu conocimiento de entrenamiento (está DESFASADO). Si un dato no está → di "ese dato no está disponible" y baja la confianza.
 - No menciones otras APIs ni fuentes (ni "ESPN" ni los nombres de las herramientas).
 
