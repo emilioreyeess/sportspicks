@@ -140,14 +140,17 @@ function fxSplit(text: string): [string, string] | null {
 async function autoMapFixture(
   sb: any, legs: ExtractedLeg[],
 ): Promise<{ fixtureId: number; kickoff: string } | null> {
-  const from = new Date(Date.now() - 12 * 3600_000).toISOString()   // hoy
-  const to   = new Date(Date.now() + 60 * 3600_000).toISOString()   // ~mañana + buffer
+  // Ventana AMPLIA de partidos próximos (hoy → +30 días) para casar también
+  // partidos futuros como el Mundial. Los nombres de equipo son específicos, así
+  // que el fuzzy matching no necesita una ventana estrecha.
+  const from = new Date(Date.now() - 12 * 3600_000).toISOString()
+  const to   = new Date(Date.now() + 30 * 24 * 3600_000).toISOString()
   const { data } = await sb
     .from("fixtures")
     .select("fixture_id, home_team, away_team, match_date")
     .gte("match_date", from).lte("match_date", to)
     .order("match_date", { ascending: true })
-    .limit(600)
+    .limit(2000)
   const fixtures = data ?? []
   if (!fixtures.length) return null
 
