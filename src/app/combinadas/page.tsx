@@ -109,6 +109,7 @@ export default function CombinadasPage() {
         const tierMap: Record<ModeKey, string> = { safe: "segura", balanced: "balanceada", dream: "soñadora" }
         const res = await fetch(`/api/world-cup/combinadas?tier=${tierMap[mode]}`)
         const wc = await res.json()
+        console.log("JSON DE COMBINADA (WC):", JSON.stringify(wc, null, 2))
         if (!wc || wc.error) { setError("No hay partidos del Mundial disponibles aún."); return }
         // Mapear WCCombinada → Result
         const mapped: Result = {
@@ -130,6 +131,7 @@ export default function CombinadasPage() {
         if (!isPremium) { incrementTodayCount(); setTodayCount(getTodayCount()) }
       } else {
         const data = await getCombinada(mode, leagueId)
+        console.log("JSON DE COMBINADA:", JSON.stringify(data, null, 2))
         if (data?.error) setError(data.error)
         else {
           setResult(data)
