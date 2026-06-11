@@ -243,6 +243,8 @@ export interface RealOdds {
   home?: number; draw?: number; away?: number
   over25?: number; under25?: number
   spreadLine?: number; spreadHome?: number; spreadAway?: number
+  // BTTS — Ambos Marcan (mercado REAL ID 8 de API-Football: "Yes"/"No").
+  bttsYes?: number; bttsNo?: number
   // Doble Oportunidad (mercado REAL de API-Football, no derivado de 1X2).
   // Respaldo legítimo cuando un partido no tiene 1X2 publicado.
   doubleChance?: { homeDraw?: number; homeAway?: number; drawAway?: number }

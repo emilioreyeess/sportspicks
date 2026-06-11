@@ -434,6 +434,7 @@ export async function fetchFixtureOddsAF(fixtureId: number): Promise<RealOdds | 
     }
     let home: number | undefined, draw: number | undefined, away: number | undefined
     let over25: number | undefined, under25: number | undefined, provider: string | undefined
+    let bttsYes: number | undefined, bttsNo: number | undefined
     let dcHomeDraw: number | undefined, dcHomeAway: number | undefined, dcDrawAway: number | undefined
     let dcProvider: string | undefined
 
@@ -461,6 +462,16 @@ export async function fetchFixtureOddsAF(fixtureId: number): Promise<RealOdds | 
           if (over25 != null || under25 != null)
             console.log(`DEBUG_CUOTA: Partido: ${fixtureId}  Mercado: O/U2.5(${bk.name})  Valor_API: over=${over25 ?? "N/D"} under=${under25 ?? "N/D"}`)
         }
+        // BTTS — Ambos Marcan (ID 8). Valores exactos "Yes"/"No", sin derivar.
+        if (name === "both teams score" && bttsYes == null && bttsNo == null) {
+          for (const v of (bet.values ?? [])) {
+            const val = String(v.value ?? "").toLowerCase(); const o = dec(v.odd)
+            if (val === "yes") bttsYes = o
+            else if (val === "no") bttsNo = o
+          }
+          if (bttsYes != null || bttsNo != null)
+            console.log(`DEBUG_CUOTA: Partido: ${fixtureId}  Mercado: BTTS(${bk.name})  Valor_API: yes=${bttsYes ?? "N/D"} no=${bttsNo ?? "N/D"}`)
+        }
         // RESPALDO REAL: Doble Oportunidad (no derivada — leída tal cual del bookmaker).
         if (name === "double chance" && dcHomeDraw == null && dcHomeAway == null && dcDrawAway == null) {
           for (const v of (bet.values ?? [])) {
@@ -475,7 +486,8 @@ export async function fetchFixtureOddsAF(fixtureId: number): Promise<RealOdds | 
           }
         }
       }
-      if (home != null && away != null && over25 != null) break
+      // Sigue escaneando hasta tener 1X2 + O/U + BTTS (multi-mercado completo).
+      if (home != null && away != null && over25 != null && bttsYes != null) break
     }
 
     const doubleChance = (dcHomeDraw != null || dcHomeAway != null || dcDrawAway != null)
@@ -486,13 +498,13 @@ export async function fetchFixtureOddsAF(fixtureId: number): Promise<RealOdds | 
     if (home == null && away == null) {
       if (doubleChance) {
         console.log(`DEBUG_CUOTA: Partido: ${fixtureId}  Mercado: 1X2 ausente → usando DobleOport real (${dcProvider})`)
-        return { provider: dcProvider ?? "API-Football", over25, under25, doubleChance }
+        return { provider: dcProvider ?? "API-Football", over25, under25, bttsYes, bttsNo, doubleChance }
       }
       // Sin 1X2 NI Doble Oportunidad → N/D total: el caller descarta el partido.
       console.log(`DEBUG_CUOTA: Partido: ${fixtureId}  Mercado: 1X2/DobleOport  Valor_API: N/D → partido BLOQUEADO (sin cuota real)`)
       return null
     }
-    return { provider: provider ?? "API-Football", home, draw, away, over25, under25, doubleChance }
+    return { provider: provider ?? "API-Football", home, draw, away, over25, under25, bttsYes, bttsNo, doubleChance }
   } catch {
     return null
   }
@@ -533,6 +545,8 @@ export async function fetchOddsBackedFixtures(
           away: f.stats.odds.away ?? undefined,
           over25: f.stats.odds.over25 ?? undefined,
           under25: f.stats.odds.under25 ?? undefined,
+          bttsYes: f.stats.odds.bttsYes ?? undefined,
+          bttsNo: f.stats.odds.bttsNo ?? undefined,
           doubleChance: f.stats.odds.doubleChance ?? undefined,
         },
       }))

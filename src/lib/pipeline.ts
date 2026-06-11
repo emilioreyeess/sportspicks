@@ -89,7 +89,7 @@ interface DailyData {
   fetchedAt: string
 }
 
-type OddKey = "home" | "draw" | "away" | "over25" | "under25" | "spreadHome" | "spreadAway"
+type OddKey = "home" | "draw" | "away" | "over25" | "under25" | "spreadHome" | "spreadAway" | "bttsYes" | "bttsNo"
 
 // ─── Fase 1-4: descarga de datos reales ─────────────────────────────────────
 
@@ -383,6 +383,29 @@ function buildCandidates(m: MatchModel): Candidate[] {
         `Portería a 0 reciente: ${m.homeName} ${Math.round(home.cleanSheetPct * 100)}% · ${m.awayName} ${Math.round(away.cleanSheetPct * 100)}%`,
       ],
     })
+  }
+
+  // BTTS — Ambos Marcan. Probabilidad REAL del modelo Poisson (no inventada):
+  //   P(ambos marcan) = (1 − e^−λLocal)·(1 − e^−λVisitante)   [Poisson independiente]
+  // Solo se publica si existe la cuota real del mercado BTTS (m.odds.bttsYes/No).
+  {
+    const pBttsYes = (1 - Math.exp(-mdl.lambdaHome)) * (1 - Math.exp(-mdl.lambdaAway))
+    if (m.odds.bttsYes && pBttsYes >= 0.55) {
+      cands.push({
+        market: "BTTS", selection: "Ambos marcan: Sí", key: "bttsYes", prob: pBttsYes,
+        contextScore: clamp((pBttsYes - 0.5) * 160 + 40, 0, 100),
+        story: `Ambas porterías expuestas: el modelo da ${Math.round(pBttsYes * 100)}% a que ambos marquen (λ ${mdl.lambdaHome.toFixed(2)}/${mdl.lambdaAway.toFixed(2)}).`,
+        extra: [`Goles esperados (Poisson): ${m.homeName} ${mdl.lambdaHome.toFixed(2)} — ${m.awayName} ${mdl.lambdaAway.toFixed(2)}`],
+      })
+    }
+    if (m.odds.bttsNo && (1 - pBttsYes) >= 0.55) {
+      cands.push({
+        market: "BTTS", selection: "Ambos marcan: No", key: "bttsNo", prob: 1 - pBttsYes,
+        contextScore: clamp(((1 - pBttsYes) - 0.5) * 160 + 40, 0, 100),
+        story: `Al menos una portería fiable: el modelo da ${Math.round((1 - pBttsYes) * 100)}% a que NO marquen ambos (λ ${mdl.lambdaHome.toFixed(2)}/${mdl.lambdaAway.toFixed(2)}).`,
+        extra: [`Goles esperados (Poisson): ${m.homeName} ${mdl.lambdaHome.toFixed(2)} — ${m.awayName} ${mdl.lambdaAway.toFixed(2)}`],
+      })
+    }
   }
 
   // Hándicap (si hay cuota real de spread)
@@ -960,8 +983,32 @@ export function buildCombinadaPool(data: DailyData, excludeMatchIds: Set<string>
       homeDead: false, awayDead: false,
       kickoff: m.kickoff,
     })
+    // VARIEDAD MULTI-MERCADO (sin modelo): añade O/U 2.5 y BTTS con su prob.
+    // IMPLÍCITA de la cuota REAL. Solo si la cuota existe y la implícita ≥ 40%
+    // (evita longshots). Cuotas 100% reales — cero invención.
+    const extraMkts: { key: OddKey; market: string; selection: string }[] = [
+      { key: "over25",  market: "Over/Under 2.5", selection: "Over 2.5 Goles" },
+      { key: "under25", market: "Over/Under 2.5", selection: "Under 2.5 Goles" },
+      { key: "bttsYes", market: "BTTS", selection: "Ambos marcan: Sí" },
+      { key: "bttsNo",  market: "BTTS", selection: "Ambos marcan: No" },
+    ]
+    for (const em of extraMkts) {
+      const odd = m.odds[em.key]
+      if (typeof odd !== "number" || odd < 1.10) continue
+      const ip = 1 / odd
+      if (ip < 0.40) continue
+      pool.push({
+        matchId: m.id, match: `${m.homeName} vs ${m.awayName}`,
+        league: LEAGUE_NAMES[m.slug] ?? m.slug, slug: m.slug,
+        market: em.market, selection: em.selection,
+        odd, prob: ip,
+        reasoning: `${em.market} (${m.odds.provider}): prob. implícita ${Math.round(ip * 100)}% · cuota real de mercado`,
+        homeDead: false, awayDead: false,
+        kickoff: m.kickoff,
+      })
+    }
   }
-  if (rescued > 0) console.log(`[combinadas] fallback de mercado: +${rescued} favoritos (1.20–1.60, prob. implícita)`)
+  if (rescued > 0) console.log(`[combinadas] fallback de mercado: +${rescued} favoritos (1.20–1.60) + O/U y BTTS (prob. implícita)`)
 
   // ── FALLBACK 2 (cierre del hueco): partidos CON forma cuyos candidatos del
   //    modelo no superaron los gates tampoco aportaban nada — y el fallback de
@@ -1025,36 +1072,35 @@ export function pickCombinadaFromPool(pool: PoolEntry[], mode: string, leagueId:
     return { error: "No hay combinadas generadas" }
   }
 
-  // ── 2) Mejor selección POR PARTIDO orientada al target por pata ──
-  const perLegTarget = Math.pow(cfg.target, 1 / cfg.legs)
-  const lnLeg = Math.log(perLegTarget)
-  const byMatch = new Map<string, PoolEntry>()
-  for (const p of todayPool) {
-    if (p.prob < 0.40) continue   // sin longshots: nada por debajo del 40% real
-    const cur = byMatch.get(p.matchId)
-    if (!cur || Math.abs(Math.log(p.odd) - lnLeg) < Math.abs(Math.log(cur.odd) - lnLeg)) {
-      byMatch.set(p.matchId, p)
-    }
-  }
-  // Si el piso de 40% deja todo fuera, relaja a la pata más probable por partido.
-  if (byMatch.size === 0) {
-    for (const p of todayPool) {
-      const cur = byMatch.get(p.matchId)
-      if (!cur || p.prob > cur.prob) byMatch.set(p.matchId, p)
-    }
-  }
+  // ── 2) Candidatos de HOY: TODAS las selecciones reales (1X2 + O/U + BTTS) con
+  //    prob ≥ 40%. Se permiten varias por partido → el armador mezcla mercados;
+  //    la restricción de "partidos distintos" se aplica al combinar las patas. ──
+  let candidates = todayPool.filter((p) => p.prob >= 0.40)
+  if (candidates.length === 0) candidates = todayPool   // relaja si el piso vacía todo
 
-  // Acota la búsqueda combinatoria a las 40 mejores cuotas (DFS exhaustivo).
-  const candidates = [...byMatch.values()].sort((a, b) => b.odd - a.odd).slice(0, 40)
-  const legs = Math.min(cfg.legs, candidates.length)
+  // ── 3) ENTROPÍA: baraja (Fisher-Yates) ANTES de calcular el multiplicador →
+  //    combinada distinta en cada clic. Acota a 24 selecciones (subconjunto
+  //    aleatorio si hay más, gracias al barajado previo). ──
+  shuffle(candidates)
+  candidates = candidates.slice(0, 24)
 
-  // ── 3) MEJOR ESFUERZO: subconjunto cuyo producto se acerca más al target ──
-  const chosen = bestSubsetForTarget(candidates, legs, cfg.target)
+  const distinctMatches = new Set(candidates.map((c) => c.matchId)).size
+  const legs = Math.min(cfg.legs, distinctMatches)
+
+  // Reúne las mejores combinaciones (patas de PARTIDOS DISTINTOS) por cercanía al
+  // target y elige UNA al azar dentro de la banda aceptable → variedad real,
+  // mejor esfuerzo si hoy no alcanza el objetivo. Cero cuotas inventadas.
+  const combos = collectSubsetsForTarget(candidates, legs, cfg.target)
+  const chosen = pickVariedCombo(combos, cfg.target)
+
+  if (chosen.length === 0) return { error: "No hay combinadas generadas" }
+
   const combinedOdd = chosen.reduce((a, l) => a * l.odd, 1)
-  const reached = combinedOdd >= cfg.target * 0.95
+  const reached = combinedOdd >= cfg.target * 0.85
   const roundedOdd = Math.round(combinedOdd * 100) / 100
+  const markets = [...new Set(chosen.map((l) => l.market))].join(" + ")
 
-  console.log(`[combinadas] modo=${cfg.label} target=${cfg.target} · hoy=${candidates.length} candidatos · patas=${chosen.length} · cuota=${roundedOdd}${reached ? " (objetivo alcanzado)" : " (máx. posible hoy)"}`)
+  console.log(`[combinadas] modo=${cfg.label} target=${cfg.target} · hoy=${distinctMatches} partidos · patas=${chosen.length} · mercados=${markets} · cuota=${roundedOdd}${reached ? " (objetivo)" : " (máx. posible hoy)"}`)
 
   return {
     mode: cfg.label,
@@ -1077,34 +1123,64 @@ export function pickCombinadaFromPool(pool: PoolEntry[], mode: string, leagueId:
 /**
  * Subconjunto de `legs` partidos (el pool ya viene con una sola entrada por
  * partido) cuyo producto de cuotas queda más cerca del target en escala log.
- * DFS exhaustivo acotado (legs ≤ 4, pool ≤ 40 → a lo sumo ~92k combinaciones).
- * MEJOR ESFUERZO: si ninguna combinación alcanza el target, el de producto
- * máximo es el más cercano "por debajo" y gana. Desempate: mayor probabilidad.
+ * Barajado in-place Fisher-Yates — fuente de ENTROPÍA del motor interactivo.
+ * Se aplica al array de selecciones válidas ANTES de calcular el multiplicador,
+ * para que cada clic del usuario produzca una combinada distinta.
  */
-function bestSubsetForTarget(entries: PoolEntry[], legs: number, target: number): PoolEntry[] {
-  if (entries.length <= legs) return entries
+function shuffle<T>(arr: T[]): void {
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1))
+    const tmp = arr[i]; arr[i] = arr[j]; arr[j] = tmp
+  }
+}
+
+/**
+ * Reúne combinaciones de `legs` patas de PARTIDOS DISTINTOS (aunque el array
+ * traiga varias selecciones por partido), ordenadas por cercanía del producto
+ * de cuotas al target en escala logarítmica. DFS acotado (entradas ≤ 24).
+ * Devuelve hasta 30 combinaciones candidatas — el caller elige una al azar.
+ */
+function collectSubsetsForTarget(entries: PoolEntry[], legs: number, target: number): PoolEntry[][] {
+  if (legs <= 0 || entries.length === 0) return []
+  // Si hay menos partidos distintos que patas, best-effort: una sola combinación
+  // con las patas disponibles (garantizando partidos distintos).
+  const distinct: PoolEntry[] = []
+  const seen = new Set<string>()
+  for (const e of entries) { if (!seen.has(e.matchId)) { seen.add(e.matchId); distinct.push(e) } }
+  if (distinct.length <= legs) return [distinct.slice(0, legs)]
+
   const lnT = Math.log(target)
-  const n = entries.length
-  let best: PoolEntry[] | null = null
-  let bestScore = Infinity
-  let bestProb = -Infinity
-  const idx: number[] = new Array(legs)
-  const dfs = (start: number, depth: number, lnProd: number, probProd: number) => {
-    if (depth === legs) {
-      const score = Math.abs(lnProd - lnT)
-      if (score < bestScore - 1e-9 || (Math.abs(score - bestScore) < 1e-9 && probProd > bestProb)) {
-        bestScore = score; bestProb = probProd
-        best = idx.map((i) => entries[i])
-      }
-      return
-    }
-    for (let i = start; i < n; i++) {
-      idx[depth] = i
-      dfs(i + 1, depth + 1, lnProd + Math.log(entries[i].odd), probProd * entries[i].prob)
+  const out: { score: number; combo: PoolEntry[] }[] = []
+  const idx: PoolEntry[] = []
+  const used = new Set<string>()
+  const dfs = (start: number, depth: number, lnProd: number) => {
+    if (depth === legs) { out.push({ score: Math.abs(lnProd - lnT), combo: idx.slice() }); return }
+    for (let i = start; i < entries.length; i++) {
+      const e = entries[i]
+      if (used.has(e.matchId)) continue   // un solo pick por partido
+      used.add(e.matchId); idx.push(e)
+      dfs(i + 1, depth + 1, lnProd + Math.log(e.odd))
+      idx.pop(); used.delete(e.matchId)
     }
   }
-  dfs(0, 0, 0, 1)
-  return best ?? entries.slice(0, legs)
+  dfs(0, 0, 0)
+  out.sort((a, b) => a.score - b.score)
+  return out.slice(0, 30).map((o) => o.combo)
+}
+
+/**
+ * Elige una combinada con VARIEDAD: al azar entre las que caen dentro de la banda
+ * aceptable del target (±25% en escala log). Si ninguna entra en banda (hoy no da
+ * para el target), elige al azar entre las 6 más cercanas → mejor esfuerzo + algo
+ * de entropía. PROHIBIDO inventar: solo combina cuotas reales del pool.
+ */
+function pickVariedCombo(combos: PoolEntry[][], target: number): PoolEntry[] {
+  if (combos.length === 0) return []
+  const lnT = Math.log(target)
+  const band = Math.log(1.25)
+  const inBand = combos.filter((c) => Math.abs(Math.log(c.reduce((a, l) => a * l.odd, 1)) - lnT) <= band)
+  const pickFrom = inBand.length > 0 ? inBand : combos.slice(0, Math.min(6, combos.length))
+  return pickFrom[Math.floor(Math.random() * pickFrom.length)]
 }
 
 // ─── Retos V2 ────────────────────────────────────────────────────────────────

@@ -44,7 +44,7 @@ export interface EvalMatch {
 export interface EvalCandidate {
   market: string
   selection: string
-  key: "home" | "draw" | "away" | "over25" | "under25" | "spreadHome" | "spreadAway"
+  key: "home" | "draw" | "away" | "over25" | "under25" | "spreadHome" | "spreadAway" | "bttsYes" | "bttsNo"
   prob: number             // prob inicial del modelo Poisson
   contextScore: number     // score de contexto del pipeline (0-100)
   odd: number
