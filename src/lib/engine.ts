@@ -243,6 +243,9 @@ export interface RealOdds {
   home?: number; draw?: number; away?: number
   over25?: number; under25?: number
   spreadLine?: number; spreadHome?: number; spreadAway?: number
+  // Doble Oportunidad (mercado REAL de API-Football, no derivado de 1X2).
+  // Respaldo legítimo cuando un partido no tiene 1X2 publicado.
+  doubleChance?: { homeDraw?: number; homeAway?: number; drawAway?: number }
 }
 
 export function extractOdds(comp: any): RealOdds | null {

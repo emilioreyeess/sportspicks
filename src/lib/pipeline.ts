@@ -247,9 +247,12 @@ async function fetchDailyData(): Promise<DailyData> {
   //    Entran a marketOnly → alimentan combinadas/retos/value-último-nivel vía
   //    el fallback de favoritos. Dedupe por nombres contra lo ya descubierto. ──
   try {
-    const nowIso2 = new Date().toISOString()
-    const toIso = new Date(Date.now() + 2 * 86400000).toISOString().slice(0, 10) + "T00:00:00.000Z"
-    const backed = await fetchOddsBackedFixtures(nowIso2, toIso)
+    // Ventana DINÁMICA en UTC: desde el INICIO del día de hoy (00:00:00Z), no la
+    // hora actual — así un partido de hoy que ya empezó (p.ej. 19:00 UTC) NO se
+    // excluye por correr el pipeline más tarde. Hasta fin de pasado mañana.
+    const startOfTodayUTC = new Date().toISOString().slice(0, 10) + "T00:00:00.000Z"
+    const toIso = new Date(Date.now() + 2 * 86400000).toISOString().slice(0, 10) + "T23:59:59.999Z"
+    const backed = await fetchOddsBackedFixtures(startOfTodayUTC, toIso)
     const known = new Set<string>()
     const normKey = (a: string, b: string) =>
       [a, b].map((s) => (s ?? "").toLowerCase().normalize("NFD").replace(/[^a-z0-9]/g, "")).join("|")

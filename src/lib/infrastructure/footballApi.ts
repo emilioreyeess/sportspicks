@@ -434,6 +434,8 @@ export async function fetchFixtureOddsAF(fixtureId: number): Promise<RealOdds | 
     }
     let home: number | undefined, draw: number | undefined, away: number | undefined
     let over25: number | undefined, under25: number | undefined, provider: string | undefined
+    let dcHomeDraw: number | undefined, dcHomeAway: number | undefined, dcDrawAway: number | undefined
+    let dcProvider: string | undefined
 
     for (const bk of bookmakers) {
       for (const bet of (bk.bets ?? [])) {
@@ -459,16 +461,38 @@ export async function fetchFixtureOddsAF(fixtureId: number): Promise<RealOdds | 
           if (over25 != null || under25 != null)
             console.log(`DEBUG_CUOTA: Partido: ${fixtureId}  Mercado: O/U2.5(${bk.name})  Valor_API: over=${over25 ?? "N/D"} under=${under25 ?? "N/D"}`)
         }
+        // RESPALDO REAL: Doble Oportunidad (no derivada — leída tal cual del bookmaker).
+        if (name === "double chance" && dcHomeDraw == null && dcHomeAway == null && dcDrawAway == null) {
+          for (const v of (bet.values ?? [])) {
+            const val = String(v.value ?? "").toLowerCase().replace(/\s/g, ""); const o = dec(v.odd)
+            if (val === "home/draw" || val === "1x") dcHomeDraw = o
+            else if (val === "home/away" || val === "12") dcHomeAway = o
+            else if (val === "draw/away" || val === "x2") dcDrawAway = o
+          }
+          if (dcHomeDraw != null || dcDrawAway != null) {
+            dcProvider = bk.name
+            console.log(`DEBUG_CUOTA: Partido: ${fixtureId}  Mercado: DobleOport(${bk.name})  Valor_API: 1X=${dcHomeDraw ?? "N/D"} 12=${dcHomeAway ?? "N/D"} X2=${dcDrawAway ?? "N/D"}`)
+          }
+        }
       }
       if (home != null && away != null && over25 != null) break
     }
-    // Si no existe la cuota exacta del mercado principal (1X2) → N/D total: el
-    // caller DEBE descartar el partido en cualquier combinada (anti-alucinación).
+
+    const doubleChance = (dcHomeDraw != null || dcHomeAway != null || dcDrawAway != null)
+      ? { homeDraw: dcHomeDraw, homeAway: dcHomeAway, drawAway: dcDrawAway } : undefined
+
+    // Si no existe 1X2 PERO sí Doble Oportunidad (mercado real) → NO es N/D: el
+    // partido sigue siendo usable con su cuota real de Doble Oportunidad.
     if (home == null && away == null) {
-      console.log(`DEBUG_CUOTA: Partido: ${fixtureId}  Mercado: 1X2  Valor_API: N/D → partido BLOQUEADO (sin cuota real)`)
+      if (doubleChance) {
+        console.log(`DEBUG_CUOTA: Partido: ${fixtureId}  Mercado: 1X2 ausente → usando DobleOport real (${dcProvider})`)
+        return { provider: dcProvider ?? "API-Football", over25, under25, doubleChance }
+      }
+      // Sin 1X2 NI Doble Oportunidad → N/D total: el caller descarta el partido.
+      console.log(`DEBUG_CUOTA: Partido: ${fixtureId}  Mercado: 1X2/DobleOport  Valor_API: N/D → partido BLOQUEADO (sin cuota real)`)
       return null
     }
-    return { provider: provider ?? "API-Football", home, draw, away, over25, under25 }
+    return { provider: provider ?? "API-Football", home, draw, away, over25, under25, doubleChance }
   } catch {
     return null
   }
@@ -492,7 +516,10 @@ export async function fetchOddsBackedFixtures(
       .not("stats->odds", "is", null)
       .limit(300)
     return (data ?? [])
-      .filter((f: any) => f.stats?.odds && (f.stats.odds.home != null || f.stats.odds.away != null))
+      // Usable si tiene 1X2 (home/away) O Doble Oportunidad real — nunca N/D puro.
+      .filter((f: any) => f.stats?.odds && (
+        f.stats.odds.home != null || f.stats.odds.away != null || f.stats.odds.doubleChance != null
+      ))
       .map((f: any) => ({
         fixtureId: Number(f.fixture_id),
         homeTeam: f.home_team ?? "?",
@@ -506,6 +533,7 @@ export async function fetchOddsBackedFixtures(
           away: f.stats.odds.away ?? undefined,
           over25: f.stats.odds.over25 ?? undefined,
           under25: f.stats.odds.under25 ?? undefined,
+          doubleChance: f.stats.odds.doubleChance ?? undefined,
         },
       }))
   } catch {
