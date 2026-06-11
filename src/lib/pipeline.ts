@@ -1041,17 +1041,18 @@ export function pickCombinadaFromPool(pool: PoolEntry[], mode: string, leagueId:
   const cfg = COMBI_MODES[mode] ?? COMBI_MODES.balanced
   const slug = leagueId ? LEAGUE_MAP[leagueId] : null
   const today = new Date().toISOString().slice(0, 10)
-  // VENTANA DE INVENTARIO: hoy → +7 días (UTC). Amplía el material para que el
-  // shuffle + mejor esfuerzo armen combinadas reales de 2/3/4 patas — antes,
-  // "solo hoy" devolvía 1 pata por falta de partidos en la víspera del Mundial.
-  // La regla "un solo mercado por partido" se mantiene (distinct matchId en el
-  // armador) → nunca apuestas correlacionadas del mismo partido.
-  const horizonEnd = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10)
+  // VENTANA DE INVENTARIO EXACTA (FASE 4): [AHORA, AHORA+7 días] comparando el
+  // TIMESTAMP real del kickoff, no solo la fecha. Así se DESCARTA cualquier
+  // partido que YA HAYA EMPEZADO (kickoff < ahora) y cualquiera fuera del rango.
+  // Un kickoff inválido (NaN) también se descarta. La regla "un solo mercado por
+  // partido" se mantiene (distinct matchId en el armador).
+  const nowMs = Date.now()
+  const horizonMs = nowMs + 7 * 86400000
 
-  // ── 1) VENTANA 7 DÍAS + liga + descartar partidos con ambos equipos "muertos" ──
+  // ── 1) VENTANA [ahora, +7d] exacta + liga + descartar partidos "muertos" ──
   let todayPool = pool.filter((p) => {
-    const d = (p.kickoff ?? "").slice(0, 10)
-    return d >= today && d <= horizonEnd
+    const ms = new Date(p.kickoff ?? "").getTime()
+    return Number.isFinite(ms) && ms >= nowMs && ms <= horizonMs
   })
   if (slug) todayPool = todayPool.filter((p) => p.slug === slug)
   todayPool = todayPool.filter((p) => !(p.homeDead && p.awayDead))
@@ -1249,36 +1250,49 @@ type RawCand = { match: MatchModel; c: Candidate; odd: number; edge: number; qua
 
 /**
  * FALLBACK de mercado para RETOS (doc API-Football: predictions null al inicio
- * de competiciones). Convierte cada marketOnly en un RawCand del FAVORITO de
- * mercado (cuota 1.20–1.60) con probabilidad IMPLÍCITA de la cuota real.
- * Solo se usa para completar cuando el modelo no alcanza. Cero invención.
+ * de competiciones). Por cada partido marketOnly emite VARIOS RawCand con su
+ * probabilidad IMPLÍCITA de la cuota real — MULTI-MERCADO (FASE 3):
+ *   · 1X2 (favorito 1.20–1.60)   · Over 2.5 / Under 2.5   · BTTS Sí / BTTS No
+ * Así los Retos ya no se limitan a ganadores puros: pueden usar Ambos Marcan y
+ * Over/Under. Cuotas 100% reales — cero invención.
  */
 function marketFallbackCands(data: DailyData): RawCand[] {
   const out: RawCand[] = []
   for (const mo of (data.marketOnly ?? [])) {
-    const sides: { key: OddKey; name: string }[] = [
+    const mkRaw = (key: OddKey, market: string, selection: string, quality: number): void => {
+      const odd = mo.odds[key]
+      if (typeof odd !== "number" || !isFinite(odd) || odd < 1.10 || odd > 7.0) return
+      const prob = 1 / odd
+      if (prob < 0.40) return   // sin longshots
+      out.push({
+        match: {
+          id: mo.id, slug: mo.slug, homeName: mo.homeName, awayName: mo.awayName,
+          kickoff: mo.kickoff, odds: mo.odds,
+        } as unknown as MatchModel,
+        c: {
+          market, selection, prob, key,
+          story: `${market} (${mo.odds.provider ?? "API-Football"}) — prob. implícita ${Math.round(prob * 100)}%`,
+          extra: [] as string[],
+        } as unknown as Candidate,
+        odd, edge: 0, quality,
+      })
+    }
+
+    // 1X2 — favorito (la cuota más baja en 1.20–1.60).
+    const fav = ([
       { key: "home" as OddKey, name: mo.homeName },
       { key: "away" as OddKey, name: mo.awayName },
-    ]
-    const fav = sides
+    ])
       .map((s) => ({ ...s, odd: mo.odds[s.key] }))
       .filter((s): s is typeof s & { odd: number } => typeof s.odd === "number" && s.odd >= 1.20 && s.odd <= 1.60)
       .sort((a, b) => a.odd - b.odd)[0]
-    if (!fav) continue
-    const prob = 1 / fav.odd
-    out.push({
-      // Shape mínimo que consume buildRetoPick / los selectores (id, nombres, slug, kickoff, odds).
-      match: {
-        id: mo.id, slug: mo.slug, homeName: mo.homeName, awayName: mo.awayName,
-        kickoff: mo.kickoff, odds: mo.odds,
-      } as unknown as MatchModel,
-      c: {
-        market: "1x2", selection: fav.name, prob,
-        story: `Favorito de mercado (${mo.odds.provider ?? "API-Football"}) — prob. implícita ${Math.round(prob * 100)}%`,
-        extra: [] as string[],
-      } as unknown as Candidate,
-      odd: fav.odd, edge: 0, quality: 55,
-    })
+    if (fav) mkRaw(fav.key, "1x2", fav.name, 55)
+
+    // Over/Under 2.5 y BTTS — inyectados al pool de Retos (FASE 3).
+    mkRaw("over25",  "Over/Under 2.5", "Over 2.5 Goles", 52)
+    mkRaw("under25", "Over/Under 2.5", "Under 2.5 Goles", 52)
+    mkRaw("bttsYes", "BTTS", "Ambos marcan: Sí", 50)
+    mkRaw("bttsNo",  "BTTS", "Ambos marcan: No", 50)
   }
   return out
 }
@@ -1347,19 +1361,27 @@ function computeRetoCombi(
   }
   cands.push(...marketFallbackCands(data))
 
-  // UNA sola entrada por partido (la de mejor calidad) → evita correlación y
-  // garantiza partidos distintos en las parejas. Excluye partidos ya usados.
+  const lnTarget = Math.log(spec.targetOdd)
+  const round2 = (x: number) => Math.round(x * 100) / 100
+
+  // UNA sola entrada por partido → evita correlación y garantiza partidos
+  // distintos en las parejas. Se conserva, por partido, la selección cuya cuota
+  // mejor encaja con el OBJETIVO POR PATA (targetOdd^(1/nLegs)) — así los retos
+  // de cuota alta surfacean Over/Under o BTTS (no siempre el favorito 1X2), y los
+  // de cuota baja el favorito. Desempate por calidad. Excluye partidos ya usados.
+  const lnLegTarget = Math.log(Math.pow(spec.targetOdd, 1 / spec.nLegs))
+  const fitness = (rc: RawCand) => Math.abs(Math.log(rc.odd) - lnLegTarget)
   const byMatch = new Map<string, RawCand>()
   for (const rc of cands) {
     if (usedMatches.has(rc.match.id)) continue
     const cur = byMatch.get(rc.match.id)
-    if (!cur || rc.quality > cur.quality) byMatch.set(rc.match.id, rc)
+    if (!cur || fitness(rc) < fitness(cur) - 1e-9 ||
+        (Math.abs(fitness(rc) - fitness(cur)) < 1e-9 && rc.quality > cur.quality)) {
+      byMatch.set(rc.match.id, rc)
+    }
   }
   const avail = [...byMatch.values()]
   if (avail.length === 0) return null   // sin inventario real → no hay reto hoy
-
-  const lnTarget = Math.log(spec.targetOdd)
-  const round2 = (x: number) => Math.round(x * 100) / 100
 
   // ── MEJOR ESFUERZO · 1 pata: la cuota más cercana al target (escala log) ──
   if (spec.nLegs === 1) {
