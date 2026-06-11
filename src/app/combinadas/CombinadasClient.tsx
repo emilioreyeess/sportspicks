@@ -5,17 +5,17 @@ import { getCombinada } from "@/lib/api"
 import { PageHeader, Card } from "@/components/ui/primitives"
 import { Icon } from "@/components/ui/icons"
 import { usePlan } from "@/lib/plan"
-import { useUpgradeModal, PremiumBadge } from "@/components/premium"
+import { useUpgradeModal } from "@/components/premium"
 import Link from "next/link"
 
 interface Leg {
   match: string; league: string; selection: string
   odd: number; prob: number; market: string; reasoning?: string
+  kickoff?: string   // ISO 8601 — viaja al cliente y al POST del grupo
 }
 interface Result {
   mode: string; date: string; legs: Leg[]
   combined_odd: number; combined_prob: number
-  ai_reasoning?: string; interpretation?: string; prompt?: string
   fallback_reason?: string
 }
 
@@ -28,17 +28,6 @@ const LEAGUES = [
   { id: "4", label: "Serie A", flag: "🇮🇹" },
   { id: "5", label: "Ligue 1", flag: "🇫🇷" },
 ]
-interface NoMatchResult {
-  no_match: true
-  requested_market?: string
-  requested_league?: string
-  message: string
-  explanation: string
-  available_markets?: string[]
-  available_leagues?: string[]
-  suggestion?: string
-}
-
 type ModeKey = "safe" | "balanced" | "dream"
 
 // safe + balanced son FREE · dream y AI son PREMIUM+
@@ -83,14 +72,10 @@ export default function CombinadasClient() {
   const [error, setError] = useState("")
   const [todayCount, setTodayCount] = useState(0)
 
-  // AI combinadas (PREMIUM+)
-  const [aiPrompt, setAiPrompt] = useState("")
-  const [aiResult, setAiResult] = useState<Result | null>(null)
-  const [aiNoMatch, setAiNoMatch] = useState<NoMatchResult | null>(null)
-  const [aiLoading, setAiLoading] = useState(false)
-  const [aiError, setAiError] = useState("")
-
   useEffect(() => { setTodayCount(getTodayCount()) }, [])
+
+  // Mensaje único y limpio cuando no hay material para la combinada pedida.
+  const EMPTY_MSG = "No hay suficientes partidos con cuota en los próximos 7 días para armar esta combinada"
 
   const meta = MODES.find((m) => m.key === mode)!
   const freeAtLimit = !isPremium && todayCount >= FREE_DAILY_LIMIT
@@ -113,7 +98,7 @@ export default function CombinadasClient() {
         const res = await fetch(`/api/world-cup/combinadas?tier=${tierMap[targetMode]}&t=${Date.now()}`, { cache: "no-store" })
         const wc = await res.json()
         console.log("JSON DE COMBINADA (WC):", JSON.stringify(wc, null, 2))
-        if (!wc || wc.error) { setError("No hay partidos del Mundial disponibles aún."); return }
+        if (!wc || wc.error || !(wc.legs?.length)) { setError(EMPTY_MSG); return }
         // Mapear WCCombinada → Result
         const mapped: Result = {
           mode: wc.tierLabel ?? targetMode,
@@ -135,31 +120,16 @@ export default function CombinadasClient() {
       } else {
         const data = await getCombinada(targetMode, leagueId)
         console.log("JSON DE COMBINADA:", JSON.stringify(data, null, 2))
-        if (data?.error) setError(data.error)
+        // FASE 3: respuesta vacía/sin legs → mensaje limpio (sin mock estático).
+        if (data?.error || !(data?.legs?.length)) setError(EMPTY_MSG)
         else {
           setResult(data)
           if (!isPremium) { incrementTodayCount(); setTodayCount(getTodayCount()) }
         }
       }
     } catch {
-      setError("No hay suficientes selecciones. Prueba otro modo.")
+      setError(EMPTY_MSG)
     } finally { setLoading(false) }
-  }
-
-  async function generateAi() {
-    if (!aiPrompt.trim()) return
-    setAiLoading(true); setAiError(""); setAiResult(null); setAiNoMatch(null)
-    try {
-      const r = await fetch("/api/combinadas/ai", {
-        method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt: aiPrompt }),
-      })
-      const d = await r.json()
-      if (d?.no_match) setAiNoMatch(d as NoMatchResult)
-      else if (d?.error) setAiError(d.error)
-      else setAiResult(d)
-    } catch (e: any) { setAiError(e?.message ?? "Error al generar") }
-    finally { setAiLoading(false) }
   }
 
   return (
@@ -259,157 +229,21 @@ export default function CombinadasClient() {
       {/* Resultado estándar */}
       {result && <CombinadaResult result={result} accent={meta.accent} bar={meta.bar} />}
 
-      {/* ── AI Combinada por prompt (PREMIUM+) ──────────────────────────────── */}
-      <Card className="p-5 sm:p-6 space-y-4">
-        <div className="flex items-center gap-2">
-          <Icon name="spark" className="w-5 h-5 text-emerald-400/90" />
-          <h2 className="text-base font-bold text-white">Combinada IA por prompt</h2>
-          <PremiumBadge plan="premium" />
-        </div>
-
-        {isPremium ? (
-          <>
-            <p className="text-xs text-zinc-500 leading-relaxed">
-              Escribe lo que quieres y la IA lo construye del pool real de hoy.
-              <span className="block mt-1 text-zinc-600">
-                Ejemplos: <em className="text-zinc-400 not-italic">"cuota 3"</em> · <em className="text-zinc-400 not-italic">"BTTS Premier"</em> · <em className="text-zinc-400 not-italic">"combinada defensiva"</em> · <em className="text-zinc-400 not-italic">"cuota 8 soñadora"</em>
-              </span>
-            </p>
-            <div className="flex gap-2">
-              <input
-                value={aiPrompt}
-                onChange={(e) => setAiPrompt(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter" && aiPrompt.trim()) generateAi() }}
-                placeholder="Describe tu combinada ideal…"
-                maxLength={500}
-                className="flex-1 bg-white/[0.04] focus:bg-white/[0.06] rounded-xl px-4 py-3 text-sm text-white outline-none transition-colors"
-              />
-              <button onClick={generateAi} disabled={aiLoading || !aiPrompt.trim()}
-                className="px-4 py-3 bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-semibold rounded-xl text-sm tap disabled:opacity-40 shrink-0 inline-flex items-center gap-1.5 transition-colors">
-                {aiLoading
-                  ? <Icon name="settings" className="w-4 h-4 animate-spin" />
-                  : <Icon name="spark" className="w-4 h-4" strokeWidth={2.2} />}
-                {aiLoading ? "IA…" : "Generar"}
-              </button>
-            </div>
-            {aiError && (
-              <div className="flex items-start gap-2.5 rounded-2xl bg-amber-400/[0.08] px-4 py-3">
-                <Icon name="shield" className="w-4 h-4 text-amber-400/90 shrink-0 mt-0.5" />
-                <p className="text-sm text-amber-200/90 leading-snug">{aiError}</p>
-              </div>
-            )}
-            {aiNoMatch && <NoMatchPanel nm={aiNoMatch} onRetry={(q) => { setAiPrompt(q); setAiNoMatch(null) }} />}
-            {aiResult && <CombinadaResult result={aiResult} accent="text-emerald-400" bar="bg-emerald-500" isAi />}
-          </>
-        ) : (
-          <div className="rounded-2xl bg-emerald-400/[0.06] p-5 sm:p-6 text-center">
-            <div className="grid place-items-center w-12 h-12 rounded-2xl bg-emerald-400/10 mx-auto mb-3">
-              <Icon name="spark" className="w-6 h-6 text-emerald-400/90" />
-            </div>
-            <p className="text-sm font-bold text-white mb-1">Disponible en Premium ⭐</p>
-            <p className="text-xs text-zinc-400 mb-4 leading-snug max-w-xs mx-auto">
-              Pide cualquier combinada: <span className="text-zinc-300">"cuota 3"</span>, <span className="text-zinc-300">"BTTS Premier"</span>, <span className="text-zinc-300">"combinada corners MLS"</span>. La IA la construye del pool real del día.
-            </p>
-            <Link href="/pricing"
-              className="inline-flex items-center gap-1.5 px-5 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-400 text-zinc-950 font-semibold text-sm tap transition-colors">
-              <Icon name="crown" className="w-4 h-4" strokeWidth={2.2} /> Ver Premium
-            </Link>
-          </div>
-        )}
-      </Card>
-
       <upgrade.Modal />
-    </div>
-  )
-}
-
-// ─── No Match Panel ───────────────────────────────────────────────────────────
-
-function NoMatchPanel({ nm, onRetry }: { nm: NoMatchResult; onRetry: (q: string) => void }) {
-  const what = nm.requested_market ?? nm.requested_league ?? "lo pedido"
-  return (
-    <div className="rounded-2xl bg-zinc-900/40 border border-white/[0.05] overflow-hidden animate-scale-in">
-      {/* Header */}
-      <div className="px-4 py-3.5 bg-amber-400/[0.06] flex items-start gap-2.5">
-        <span className="text-base shrink-0 mt-0.5">🔍</span>
-        <div>
-          <p className="text-sm font-semibold text-amber-300">{nm.message}</p>
-          <p className="text-xs text-zinc-400 mt-1 leading-snug">{nm.explanation}</p>
-        </div>
-      </div>
-
-      {/* Available markets */}
-      {nm.available_markets && nm.available_markets.length > 0 && (
-        <div className="px-4 pt-3.5">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-600 mb-2">
-            Mercados disponibles en el pool de hoy
-          </p>
-          <div className="flex flex-wrap gap-1.5">
-            {nm.available_markets.map((m) => (
-              <span key={m} className="px-2.5 py-1 rounded-lg bg-white/[0.05] text-xs text-zinc-300 font-medium">
-                {m}
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Available leagues */}
-      {nm.available_leagues && nm.available_leagues.length > 0 && (
-        <div className="px-4 pt-3.5">
-          <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-600 mb-2">
-            Ligas disponibles hoy
-          </p>
-          <div className="flex flex-wrap gap-1.5">
-            {nm.available_leagues.slice(0, 8).map((l) => (
-              <span key={l} className="px-2.5 py-1 rounded-lg bg-white/[0.05] text-xs text-zinc-300 font-medium">
-                {l}
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* Suggestion + retry */}
-      {nm.suggestion && (
-        <div className="px-4 py-3.5">
-          <p className="text-xs text-zinc-400 leading-snug mb-3">{nm.suggestion}</p>
-          <button
-            onClick={() => onRetry("combinada 3 patas cuota 4")}
-            className="text-xs font-semibold text-emerald-400/90 flex items-center gap-1 tap hover:text-emerald-300">
-            <Icon name="spark" className="w-3.5 h-3.5" strokeWidth={2.2} />
-            Probar combinada estándar →
-          </button>
-        </div>
-      )}
     </div>
   )
 }
 
 // ─── Combinada Result ─────────────────────────────────────────────────────────
 
-function CombinadaResult({ result, accent, bar, isAi = false }: {
-  result: Result; accent: string; bar: string; isAi?: boolean
+function CombinadaResult({ result, accent, bar }: {
+  result: Result; accent: string; bar: string
 }) {
   return (
     <Card className="overflow-hidden animate-scale-in">
       {result.fallback_reason && (
         <div className="px-5 py-2.5 bg-amber-400/[0.08]">
           <p className="text-[11px] text-amber-400/90">ℹ️ {result.fallback_reason}</p>
-        </div>
-      )}
-      {/* Interpretation badge (AI only) */}
-      {isAi && result.interpretation && (
-        <div className="px-5 py-3 bg-white/[0.02]">
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-emerald-400/90 mb-0.5">✦ IA interpretó</p>
-          <p className="text-xs text-zinc-300 leading-snug">{result.interpretation}</p>
-        </div>
-      )}
-
-      {/* Reasoning (AI only) */}
-      {isAi && result.ai_reasoning && (
-        <div className="px-5 py-3 bg-emerald-400/[0.04]">
-          <p className="text-xs text-zinc-400 leading-snug">{result.ai_reasoning}</p>
         </div>
       )}
 

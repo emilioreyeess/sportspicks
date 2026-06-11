@@ -1103,6 +1103,9 @@ export function pickCombinadaFromPool(pool: PoolEntry[], mode: string, leagueId:
       match: l.match, league: l.league, selection: l.selection,
       odd: l.odd, prob: Math.round(l.prob * 100), market: l.market,
       reasoning: l.reasoning,
+      // FASE 4: kickoff ISO 8601 intacto → viaja al cliente y al POST del grupo
+      // para que la validación de "hora del partido" no falle.
+      kickoff: l.kickoff,
     })),
     combined_odd: roundedOdd,
     combined_prob: Math.round(chosen.reduce((a, l) => a * l.prob, 1) * 1000) / 10,

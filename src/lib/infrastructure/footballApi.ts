@@ -144,6 +144,10 @@ export async function getFixtures(date: string): Promise<Fixture[]> {
         const cachedStats = statsById.get(f.fixture_id)
         return cachedStats ? { ...f, stats: cachedStats } : f
       })
+      // ORDEN CRONOLÓGICO ESTRICTO (FASE 1): la API devuelve los fixtures por
+      // liga/grupo, no por hora. Reordenamos el array FINAL por hora de inicio
+      // absoluta para que la cartelera salga en orden de kickoff, no por grupo.
+      merged.sort((a, b) => new Date(a.match_date).getTime() - new Date(b.match_date).getTime())
       logFixturesShape("getFixtures(refresh+merge)", date, merged)
       return merged
     }
