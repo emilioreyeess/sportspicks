@@ -214,6 +214,28 @@ function ChatView({ group, onBack }: { group: Group; onBack: () => void }) {
     loadGroupBets()
   }
 
+  // FASE 2/3 (sistema de honor): el dueño marca su boleto Ganada/Perdida.
+  const [resolvingBet, setResolvingBet] = useState<string | null>(null)
+  const resolveGroupBet = async (betId: string, status: "won" | "lost" | "pending") => {
+    setResolvingBet(betId)
+    // Optimista: refleja el estado en el feed al instante.
+    setGroupBets((prev) => prev.map((gb) =>
+      gb.bet.id === betId ? { ...gb, bet: { ...gb.bet, status } } : gb))
+    try {
+      const res = await fetch(`/api/groups/${group.id}/bets/${betId}/status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status }),
+      })
+      if (!res.ok) { loadGroupBets(); return }   // revertir desde el servidor si falla
+      loadGroupBets()   // recarga boletos + ranking recalculado
+    } catch {
+      loadGroupBets()
+    } finally {
+      setResolvingBet(null)
+    }
+  }
+
   function copyInviteLink() {
     if (!group.invite_code) return
     const msg = `¡Únete a mi grupo "${group.name}" en SportsPicks! Usa el código: ${group.invite_code}\nhttps://sportspicks.vercel.app/groups?code=${group.invite_code}`
@@ -780,6 +802,39 @@ function ChatView({ group, onBack }: { group: Group; onBack: () => void }) {
                             )}
                           </div>
                         </div>
+
+                        {/* FASE 3 — Resolución manual (sistema de honor): solo el
+                            DUEÑO y mientras el boleto siga pendiente. */}
+                        {gb.isOwn && bet.status === "pending" && (
+                          <div className="flex gap-2 px-3 pb-3">
+                            <button
+                              onClick={() => resolveGroupBet(bet.id, "won")}
+                              disabled={resolvingBet === bet.id}
+                              className="flex-1 py-2 rounded-xl bg-emerald-500/15 hover:bg-emerald-500/25 text-emerald-300 text-xs font-bold tap disabled:opacity-40 transition-colors"
+                            >
+                              ✅ Marcar Ganada
+                            </button>
+                            <button
+                              onClick={() => resolveGroupBet(bet.id, "lost")}
+                              disabled={resolvingBet === bet.id}
+                              className="flex-1 py-2 rounded-xl bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 text-xs font-bold tap disabled:opacity-40 transition-colors"
+                            >
+                              ❌ Marcar Perdida
+                            </button>
+                          </div>
+                        )}
+                        {/* Deshacer: vuelve a pendiente (solo el dueño, ya resuelto). */}
+                        {gb.isOwn && (bet.status === "won" || bet.status === "lost") && (
+                          <div className="px-3 pb-3 -mt-1">
+                            <button
+                              onClick={() => resolveGroupBet(bet.id, "pending")}
+                              disabled={resolvingBet === bet.id}
+                              className="text-[10px] text-zinc-500 hover:text-zinc-300 tap disabled:opacity-40 transition-colors"
+                            >
+                              ↩︎ Deshacer
+                            </button>
+                          </div>
+                        )}
                       </div>
                     )
                   })}

@@ -163,25 +163,23 @@ export async function POST(req: NextRequest, { params }: { params: Promise<{ id:
     if (resolved) { kickoff = resolved.kickoff; fixtureId = resolved.fixtureId }
   }
 
-  // HARD-BLOCK: si no se pudo verificar contra la BD oficial (fixture_id o
-  // kickoff null), se RECHAZA. Nunca se asume null=válido.
-  if (fixtureId == null || kickoff == null) {
+  // ── CANDADO DE TIEMPO (SISTEMA DE HONOR) ──────────────────────
+  // Entorno entre amigos: el servidor SOLO bloquea compartir un boleto cuyo
+  // partido YA HA EMPEZADO. Si la hora no se puede determinar, se PERMITE (no se
+  // bloquea por "imposible verificar"); el resultado lo marcará el propio usuario.
+  if (kickoff != null && Date.now() > new Date(kickoff).getTime()) {
     return Response.json(
-      { error: "Imposible verificar la hora del partido. Selecciona el partido manualmente antes de compartir." },
+      { error: "Trampa detectada: El partido ya ha empezado. No puedes subir este boleto." },
       { status: 400 },
     )
   }
 
-  // El partido no puede haber empezado.
-  if (Date.now() > new Date(kickoff).getTime()) {
-    return Response.json(
-      { error: "El partido ya ha empezado. No puedes compartirla al grupo." },
-      { status: 422 },
-    )
+  // Persistir el enlace verificado (si se resolvió) para auditoría/UI.
+  if (kickoff != null) {
+    await sb.from("bets")
+      .update({ kickoff, ...(fixtureId != null ? { fixture_id: fixtureId } : {}) })
+      .eq("id", body.bet_id)
   }
-
-  // Persistir el enlace verificado al fixture (auto-resolución de FASE 3 / auditoría).
-  await sb.from("bets").update({ fixture_id: fixtureId, kickoff }).eq("id", body.bet_id)
 
   // Insert — UNIQUE(group_id, bet_id) evita duplicados. `.select()` confirma que
   // la fila se insertó (antes el insert podía fallar en silencio sin devolverla).
