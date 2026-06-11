@@ -689,40 +689,19 @@ export function computeValuePicks(data: DailyData): { picks: any[]; note?: strin
     picks.sort((a: any, b: any) => b.quality_score - a.quality_score)
   }
 
-  // ── ÚLTIMO NIVEL (doc API-Football: predictions null al inicio de competiciones):
-  // si tras el fallback relajado seguimos en CERO, publicamos FAVORITOS DE MERCADO
-  // (cuota real 1.20–1.60, prob. implícita) etiquetados como tal. Garantiza
-  // contenido diario sin inventar nada: la cuota es real y el edge declarado es 0.
-  if (picks.length === 0) {
-    const marketPicks: any[] = []
-    for (const rc of marketFallbackCands(data)) {
-      const m: any = rc.match
-      const imp = impliedPct(rc.odd)
-      marketPicks.push({
-        id: m.id,
-        home_team: m.homeName, away_team: m.awayName,
-        league_name: LEAGUE_NAMES[m.slug] ?? m.slug, kickoff_utc: m.kickoff,
-        market: "1x2", selection: (rc.c as any).selection,
-        confidence_pct: Math.round(rc.c.prob * 100), confidence_tier: "MEDIUM",
-        model_prob: Math.round(rc.c.prob * 1000) / 10,
-        best_odd: rc.odd, value_edge: 0, bookmaker: m.odds?.provider ?? "API-Football",
-        quality_score: rc.quality,
-        value_reason: `Favorito de mercado: cuota real ${rc.odd.toFixed(2)} → probabilidad implícita ${imp}%. Sin edge estadístico declarado (modelo sin histórico suficiente).`,
-        risk_tier: "LOW",
-        result: "PENDING", plan_required: "basic",
-        _market_fallback: true,
-        engine: { consensus_prob: Math.round(rc.c.prob * 1000) / 10, consensus_agreement: 50, uncertainty: 50, contradiction: 0, models: [] },
-        reasons: [
-          `💡 ${(rc.c as any).story}`,
-          `Cuota real verificada (${m.odds?.provider ?? "API-Football"}): ${rc.odd.toFixed(2)} → prob. implícita ${imp}%`,
-          "Pick de mercado: sin predicción del modelo (inicio de competición) — se usa la probabilidad implícita.",
-        ],
-      })
-      if (marketPicks.length >= MIN_DAILY_PICKS) break
-    }
-    if (marketPicks.length > 0) {
-      picks.push(...marketPicks)
-      console.log(`[value-picks] último nivel: +${marketPicks.length} favoritos de mercado (prob. implícita, edge 0)`)
+  // ── INTEGRIDAD ESTRICTA (FASE 3): los Value Picks JAMÁS recaen en favoritos de
+  // mercado. Un value pick EXIGE `value_edge > 0` (ventaja matemática del modelo
+  // sobre la cuota). Si no hay edge demostrable, el feed se queda VACÍO — prohibido
+  // rellenar con favoritos sin ventaja (prob. implícita = edge 0). El bloque
+  // "último nivel" de favoritos de mercado fue eliminado a propósito.
+  // Salvaguarda final: descarta cualquier pick que se haya colado con edge ≤ 0.
+  {
+    const before = picks.length
+    const strict = picks.filter((p: any) => typeof p.value_edge === "number" && p.value_edge > 0)
+    if (strict.length !== before) {
+      console.log(`[value-picks] integridad: descartados ${before - strict.length} pick(s) con edge ≤ 0 (sin ventaja matemática)`)
+      picks.length = 0
+      picks.push(...strict)
     }
   }
 
@@ -1062,9 +1041,18 @@ export function pickCombinadaFromPool(pool: PoolEntry[], mode: string, leagueId:
   const cfg = COMBI_MODES[mode] ?? COMBI_MODES.balanced
   const slug = leagueId ? LEAGUE_MAP[leagueId] : null
   const today = new Date().toISOString().slice(0, 10)
+  // VENTANA DE INVENTARIO: hoy → +7 días (UTC). Amplía el material para que el
+  // shuffle + mejor esfuerzo armen combinadas reales de 2/3/4 patas — antes,
+  // "solo hoy" devolvía 1 pata por falta de partidos en la víspera del Mundial.
+  // La regla "un solo mercado por partido" se mantiene (distinct matchId en el
+  // armador) → nunca apuestas correlacionadas del mismo partido.
+  const horizonEnd = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 10)
 
-  // ── 1) SOLO HOY (UTC) + liga + descartar partidos con ambos equipos "muertos" ──
-  let todayPool = pool.filter((p) => (p.kickoff ?? "").slice(0, 10) === today)
+  // ── 1) VENTANA 7 DÍAS + liga + descartar partidos con ambos equipos "muertos" ──
+  let todayPool = pool.filter((p) => {
+    const d = (p.kickoff ?? "").slice(0, 10)
+    return d >= today && d <= horizonEnd
+  })
   if (slug) todayPool = todayPool.filter((p) => p.slug === slug)
   todayPool = todayPool.filter((p) => !(p.homeDead && p.awayDead))
 
@@ -1323,13 +1311,16 @@ function buildRetoPick(rc: RawCand): RetoPick {
 }
 
 /**
- * Genera la mini-combinada diaria para un reto.
+ * Genera la mini-combinada diaria para un reto — algoritmo de MEJOR ESFUERZO.
  *
- * Para nLegs=1: busca el mejor pick cuya cuota esté cerca de targetOdd.
- * Para nLegs=2: busca la mejor PAREJA de picks (partidos distintos) cuyo
- *   producto de cuotas se acerque a targetOdd (±25%). Esto permite usar
- *   picks de cuotas bajas y mercados variados (Under, Hándicap, etc.)
- *   en lugar de forzar un único pick de cuota alta.
+ * Pool ampliado: candidatos del modelo (edge≥0.8) + favoritos de mercado reales
+ * (data.marketOnly = descubrimiento de 16 días, incl. Mundial). Una sola entrada
+ * por partido (la de mejor calidad) → nunca apuestas correlacionadas.
+ *
+ * Se eliminó el bloqueo estricto por rango de cuota: en vez de devolver vacío
+ * cuando ninguna pata/pareja cae en [minFinalOdd, maxFinalOdd], el motor ESCALA
+ * a la cuota (1 pata) o pareja (2 patas) cuyo producto quede MÁS CERCA del
+ * targetOdd. Solo devuelve null si literalmente no hay partidos disponibles.
  */
 function computeRetoCombi(
   data: DailyData,
@@ -1337,7 +1328,7 @@ function computeRetoCombi(
   usedMatches: Set<string>,
 ): RetoCombo | null {
 
-  // Pool amplio de candidatos con edge positivo (sin filtro de cuota todavía)
+  // Pool: candidatos del modelo con ventaja + favoritos de mercado (16 días).
   const cands: RawCand[] = []
   for (const m of data.matches) {
     const reliability = (Math.min(m.home.gamesPlayed, 10) + Math.min(m.away.gamesPlayed, 10)) / 20
@@ -1354,62 +1345,63 @@ function computeRetoCombi(
       cands.push({ match: m, c, odd, edge, quality })
     }
   }
-  // FALLBACK: favoritos de mercado (prob. implícita de cuotas reales) para
-  // garantizar contenido cuando el modelo no alcanza. Compiten por calidad.
   cands.push(...marketFallbackCands(data))
-  cands.sort((a, b) => b.quality - a.quality)
 
-  // Pool filtrado por rango de cuota POR PATA (garantiza cuotas con sentido)
-  const legPool = cands
-    .filter((rc) => rc.odd >= spec.minLegOdd && rc.odd <= spec.maxLegOdd)
-    .slice(0, 40)
+  // UNA sola entrada por partido (la de mejor calidad) → evita correlación y
+  // garantiza partidos distintos en las parejas. Excluye partidos ya usados.
+  const byMatch = new Map<string, RawCand>()
+  for (const rc of cands) {
+    if (usedMatches.has(rc.match.id)) continue
+    const cur = byMatch.get(rc.match.id)
+    if (!cur || rc.quality > cur.quality) byMatch.set(rc.match.id, rc)
+  }
+  const avail = [...byMatch.values()]
+  if (avail.length === 0) return null   // sin inventario real → no hay reto hoy
 
-  // ── 1 pata ────────────────────────────────────────────────────────────────
+  const lnTarget = Math.log(spec.targetOdd)
+  const round2 = (x: number) => Math.round(x * 100) / 100
+
+  // ── MEJOR ESFUERZO · 1 pata: la cuota más cercana al target (escala log) ──
   if (spec.nLegs === 1) {
-    // legPool ya filtra por [minLegOdd, maxLegOdd] = [minFinalOdd, maxFinalOdd]
-    const legSorted = [...legPool]
-      .filter((rc) => !usedMatches.has(rc.match.id))
-      .sort((a, b) => {
-        const da = Math.abs(a.odd - spec.targetOdd) / spec.targetOdd
-        const db = Math.abs(b.odd - spec.targetOdd) / spec.targetOdd
-        return (da - db) * 0.6 + (b.quality - a.quality) * 0.4 / 100
-      })
-    if (legSorted.length === 0) return null  // sin cuotas en rango → no publicar
-    const rc = legSorted[0]
-    // Validación estricta de cuota final
-    if (rc.odd < spec.minFinalOdd || rc.odd > spec.maxFinalOdd) return null
+    avail.sort((a, b) => {
+      const da = Math.abs(Math.log(a.odd) - lnTarget)
+      const db = Math.abs(Math.log(b.odd) - lnTarget)
+      return (da - db) || (b.quality - a.quality)
+    })
+    const rc = avail[0]
     usedMatches.add(rc.match.id)
     return {
       picks: [buildRetoPick(rc)],
-      combined_odd: Math.round(rc.odd * 100) / 100,
+      combined_odd: round2(rc.odd),
       combined_prob: Math.round(rc.c.prob * 100),
     }
   }
 
-  // ── 2 patas: buscar pareja cuyo producto esté en [minFinalOdd, maxFinalOdd] ──
-  // Ambas patas deben estar en [minLegOdd, maxLegOdd] Y su producto en el rango final
+  // ── MEJOR ESFUERZO · 2 patas: la pareja (partidos distintos) cuyo PRODUCTO
+  //    quede más cerca del targetOdd. Sin rechazo por rango: siempre escala a la
+  //    mejor pareja disponible. Desempate ligero por calidad. ──
   let bestPair: [RawCand, RawCand] | null = null
-  let bestScore = -Infinity
-
-  const eligible = legPool.filter((rc) => !usedMatches.has(rc.match.id))
-
-  for (let i = 0; i < eligible.length; i++) {
-    for (let j = i + 1; j < eligible.length; j++) {
-      if (eligible[i].match.id === eligible[j].match.id) continue
-      const combined = eligible[i].odd * eligible[j].odd
-      // Validación estricta: el producto debe estar en el rango final del reto
-      if (combined < spec.minFinalOdd || combined > spec.maxFinalOdd) continue
-      const deviation = Math.abs(combined - spec.targetOdd) / spec.targetOdd
-      const score = (eligible[i].quality + eligible[j].quality) / 2 - deviation * 60
-      if (score > bestScore) { bestScore = score; bestPair = [eligible[i], eligible[j]] }
+  let bestScore = Infinity
+  for (let i = 0; i < avail.length; i++) {
+    for (let j = i + 1; j < avail.length; j++) {
+      const combined = avail[i].odd * avail[j].odd
+      const dev = Math.abs(Math.log(combined) - lnTarget)
+      const score = dev - ((avail[i].quality + avail[j].quality) / 2) * 0.0005
+      if (score < bestScore) { bestScore = score; bestPair = [avail[i], avail[j]] }
     }
   }
 
-  if (!bestPair) return null  // sin combinación válida en el rango → no publicar
+  if (!bestPair) {
+    // <2 partidos distintos → best-effort con 1 pata (nunca vacío si hay material).
+    avail.sort((a, b) => Math.abs(Math.log(a.odd) - lnTarget) - Math.abs(Math.log(b.odd) - lnTarget))
+    const rc = avail[0]
+    usedMatches.add(rc.match.id)
+    return { picks: [buildRetoPick(rc)], combined_odd: round2(rc.odd), combined_prob: Math.round(rc.c.prob * 100) }
+  }
 
   usedMatches.add(bestPair[0].match.id)
   usedMatches.add(bestPair[1].match.id)
-  const combined_odd = Math.round(bestPair[0].odd * bestPair[1].odd * 100) / 100
+  const combined_odd = round2(bestPair[0].odd * bestPair[1].odd)
   const combined_prob = Math.round(bestPair[0].c.prob * bestPair[1].c.prob * 10000) / 100
   return { picks: bestPair.map(buildRetoPick), combined_odd, combined_prob }
 }
