@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server"
 import { getServerSession } from "@/lib/auth-server"
 import { createServiceClient } from "@/lib/supabase/client"
+import { resolveBetFixture } from "@/lib/fixtures/resolve-bet-fixture"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -62,7 +63,7 @@ export async function POST(req: NextRequest) {
     title: string
     stake: number
     combined_odds: number
-    legs: { match: string; selection: string; odds: number }[]
+    legs: { match: string; selection: string; odds: number; kickoff?: string }[]
     sport?: string
     notes?: string
     image_url?: string
@@ -168,6 +169,33 @@ export async function POST(req: NextRequest) {
     }))
     const { error: legErr } = await sb.from("bet_legs").insert(legs)
     if (legErr) console.error("[bets] leg insert error:", legErr.message)
+  }
+
+  // ── VERIFICACIÓN DE HORA (FIX envío a grupos): resolvemos kickoff + fixture_id
+  // YA al crear el bet, para que compartirlo a un grupo no falle con "imposible
+  // verificar la hora del partido". Prioridad:
+  //   1) kickoff explícito en los legs (lo trae la combinada del motor) → la más
+  //      temprana en el FUTURO.
+  //   2) resolución robusta por nombre contra la tabla `fixtures` (ES/EN/códigos).
+  // Best-effort: si no se resuelve, el bet queda sin kickoff (el grupo lo pedirá).
+  try {
+    const legKickoffs = (body.legs ?? [])
+      .map((l) => l.kickoff)
+      .filter((k): k is string => typeof k === "string" && !isNaN(new Date(k).getTime()))
+      .sort()
+    let kickoff: string | null = legKickoffs[0] ?? null
+    let fixtureId: number | null = null
+    if (kickoff == null) {
+      const resolved = await resolveBetFixture(sb, body.legs ?? [])
+      if (resolved) { kickoff = resolved.kickoff; fixtureId = resolved.fixtureId }
+    }
+    if (kickoff != null) {
+      await sb.from("bets").update({ kickoff, ...(fixtureId != null ? { fixture_id: fixtureId } : {}) }).eq("id", bet.id)
+      ;(bet as any).kickoff = kickoff
+      if (fixtureId != null) (bet as any).fixture_id = fixtureId
+    }
+  } catch (e) {
+    console.warn("[bets] no se pudo resolver kickoff al crear:", e instanceof Error ? e.message : e)
   }
 
   return Response.json({ ok: true, bet }, { status: 201 })
