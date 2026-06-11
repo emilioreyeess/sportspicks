@@ -249,9 +249,12 @@ async function fetchDailyData(): Promise<DailyData> {
   try {
     // Ventana DINÁMICA en UTC: desde el INICIO del día de hoy (00:00:00Z), no la
     // hora actual — así un partido de hoy que ya empezó (p.ej. 19:00 UTC) NO se
-    // excluye por correr el pipeline más tarde. Hasta fin de pasado mañana.
+    // excluye por correr el pipeline más tarde. Horizonte de 16 días para cubrir
+    // la fase de grupos del Mundial (sus 72 fixtures con cuota real ya ingestada
+    // arrancan el 18-jun y de otro modo quedarían fuera de una ventana corta).
+    const DISCOVERY_HORIZON_DAYS = 16
     const startOfTodayUTC = new Date().toISOString().slice(0, 10) + "T00:00:00.000Z"
-    const toIso = new Date(Date.now() + 2 * 86400000).toISOString().slice(0, 10) + "T23:59:59.999Z"
+    const toIso = new Date(Date.now() + DISCOVERY_HORIZON_DAYS * 86400000).toISOString().slice(0, 10) + "T23:59:59.999Z"
     const backed = await fetchOddsBackedFixtures(startOfTodayUTC, toIso)
     const known = new Set<string>()
     const normKey = (a: string, b: string) =>
