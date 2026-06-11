@@ -696,7 +696,12 @@ export async function ingestWorldCupOdds(): Promise<{ scanned: number; withOdds:
     const { data } = await sb
       .from("fixtures")
       .select("fixture_id, stats")
+      // SOLO el Mundial 2026 masculino: excluye "World Cup - Women - Qualification
+      // Europe" y cualquier clasificatorio que contamine la sección con partidos
+      // de otra competición/fecha.
       .ilike("league", "%world cup%")
+      .not("league", "ilike", "%women%")
+      .not("league", "ilike", "%qualif%")
       .limit(200)
     const rows = data ?? []
     out.scanned = rows.length

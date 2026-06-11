@@ -85,8 +85,10 @@ async function getFixturesFromDb(
       .lte("match_date", dayEnd)
       .order("match_date", { ascending: true })
     // El filtro JSON .eq("stats->>league_id", …) falla en silencio en supabase-js.
-    // Filtramos por la columna REAL `league` ("World Cup"), que es fiable.
-    if (worldCup) query = query.ilike("league", "%world cup%")
+    // Filtramos por la columna REAL `league` ("World Cup"), excluyendo la
+    // clasificación femenina ("World Cup - Women - Qualification Europe") que
+    // contamina la sección del Mundial con partidos de otra competición.
+    if (worldCup) query = query.ilike("league", "%world cup%").not("league", "ilike", "%women%").not("league", "ilike", "%qualif%")
     const { data, error } = await query.limit(160)
     if (error) throw new Error(error.message)
     fixtures = (data ?? []) as Fixture[]
