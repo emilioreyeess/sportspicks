@@ -228,7 +228,8 @@ function ChatView({ group, onBack }: { group: Group; onBack: () => void }) {
         body: JSON.stringify({ status }),
       })
       if (!res.ok) { loadGroupBets(); return }   // revertir desde el servidor si falla
-      loadGroupBets()   // recarga boletos + ranking recalculado
+      loadGroupBets()   // recarga boletos + ranking del feed (recalculado en server)
+      loadRanking()     // recalcula también la pestaña Ranking inmediatamente
     } catch {
       loadGroupBets()
     } finally {
@@ -411,7 +412,10 @@ function ChatView({ group, onBack }: { group: Group; onBack: () => void }) {
         {TABS.map((t) => (
           <button key={t.id} onClick={() => {
             setTab(t.id)
-            if (t.id === "ranking" && !ranking.length) loadRanking()
+            // SIEMPRE recargar el ranking al abrir la pestaña: antes el guard
+            // `&& !ranking.length` lo congelaba tras la primera carga, así que un
+            // boleto marcado Ganada/Perdida no se reflejaba en la puntuación.
+            if (t.id === "ranking") loadRanking()
             if (t.id === "members" && !members.length) loadMembers()
             if (t.id === "bets") { loadGroupBets(); loadMyBets() }
           }}

@@ -12,7 +12,12 @@ import { fifaRankOf } from "@/lib/world-cup/fifa-ranking"
 import type { MatchOdds } from "@/lib/world-cup/odds-service"
 import Link from "next/link"
 
-const WC_KICKOFF_ISO = "2026-06-11T20:00:00-04:00"
+// Kickoff REAL del partido inaugural (México vs Sudáfrica) en UTC explícito (Z).
+// Antes: "2026-06-11T20:00:00-04:00" = 2026-06-12T00:00Z → 5h tarde respecto al
+// inaugural real (19:00Z), por lo que el contador mostraba horas en el futuro de
+// un partido ya jugado. new Date(ISO).getTime() interpreta el instante absoluto
+// correctamente y el navegador lo resta contra Date.now() (también UTC interno).
+const WC_KICKOFF_ISO = "2026-06-11T19:00:00Z"
 const WC_GROUP_ORDER: WCGroup[] = ["A","B","C","D","E","F","G","H","I","J","K","L"]
 
 type PageTab = "grupos" | "eliminatorias" | "partidos"
