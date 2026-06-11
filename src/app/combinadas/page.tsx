@@ -107,7 +107,7 @@ export default function CombinadasPage() {
       if (leagueId === "wc") {
         // Mundial 2026 — motor Poisson propio
         const tierMap: Record<ModeKey, string> = { safe: "segura", balanced: "balanceada", dream: "soñadora" }
-        const res = await fetch(`/api/world-cup/combinadas?tier=${tierMap[mode]}`)
+        const res = await fetch(`/api/world-cup/combinadas?tier=${tierMap[mode]}&t=${Date.now()}`, { cache: "no-store" })
         const wc = await res.json()
         console.log("JSON DE COMBINADA (WC):", JSON.stringify(wc, null, 2))
         if (!wc || wc.error) { setError("No hay partidos del Mundial disponibles aún."); return }

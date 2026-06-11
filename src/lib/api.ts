@@ -28,7 +28,10 @@ export async function getAccumulators() {
 export async function getCombinada(mode: string, leagueId?: string) {
   const params = new URLSearchParams({ mode })
   if (leagueId) params.set("league_id", leagueId)
-  const res = await fetch(`/api/combinadas?${params}`)
+  // CACHE-BUSTING: t=Date.now() + no-store → ni navegador ni CDN sirven respuesta
+  // vieja. Cada clic pega al endpoint dinámico real → variedad garantizada.
+  params.set("t", String(Date.now()))
+  const res = await fetch(`/api/combinadas?${params}`, { cache: "no-store" })
   return res.json()
 }
 
