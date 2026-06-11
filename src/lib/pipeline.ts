@@ -863,10 +863,16 @@ export function findAlternativePick(
 
 // ─── Combinadas ──────────────────────────────────────────────────────────────
 
+// CRITERIO ÚNICO: win_probability. Se eliminó por completo cualquier filtro de
+// value_edge — un pick entra por su probabilidad de acierto, no por su ventaja
+// sobre el mercado. La cuota define solo la franja de riesgo del perfil.
+//   · Segura    (2 patas): prob > 70%, prioriza cuotas bajas 1.10–1.30
+//   · Balanceada(3 patas): prob > 60%
+//   · Soñadora  (4 patas): prob > 50%
 const COMBI_MODES: Record<string, { legs: number; minProb: number; minOdd: number; maxOdd: number; label: string; sort: "prob" | "odd" }> = {
-  safe:     { legs: 2, minProb: 0.58, minOdd: 1.20, maxOdd: 2.6, label: "Segura",     sort: "prob" },
-  balanced: { legs: 3, minProb: 0.50, minOdd: 1.30, maxOdd: 3.5, label: "Balanceada", sort: "prob" },
-  dream:    { legs: 4, minProb: 0.38, minOdd: 1.50, maxOdd: 8.0, label: "Soñadora",   sort: "odd"  },
+  safe:     { legs: 2, minProb: 0.70, minOdd: 1.10, maxOdd: 1.45, label: "Segura",     sort: "prob" },
+  balanced: { legs: 3, minProb: 0.60, minOdd: 1.15, maxOdd: 1.75, label: "Balanceada", sort: "prob" },
+  dream:    { legs: 4, minProb: 0.50, minOdd: 1.25, maxOdd: 2.20, label: "Soñadora",   sort: "prob" },
 }
 
 /** Pool de selecciones candidatas para combinadas — pre-computado en el pipeline */
@@ -1061,7 +1067,31 @@ export function pickCombinadaFromPool(pool: PoolEntry[], mode: string, leagueId:
         combined_prob: Math.round(chosen.reduce((a, l) => a * l.prob, 1) * 1000) / 10,
       }
     }
-    return { error: `Solo ${perMatch.length} selección(es) válidas hoy. Prueba otro modo.` }
+    // ── FALLBACK DE EMERGENCIA (garantizado): PROHIBIDO devolver "No hay partidos".
+    //    Si ningún umbral de probabilidad completa las patas, rellenamos con las
+    //    cuotas más BAJAS (= más seguras) del pool real, sin importar el modo.
+    //    Cuotas 100% reales de API-Football — cero invención. Solo si el pool
+    //    está literalmente vacío (ningún partido con cuota real) se reporta error. ──
+    const safeByMatch = new Map<string, PoolEntry>()
+    for (const p of pool) {
+      const cur = safeByMatch.get(p.matchId)
+      // El "más seguro" por partido = cuota más baja (mayor prob. implícita).
+      if (!cur || p.odd < cur.odd) safeByMatch.set(p.matchId, p)
+    }
+    const safePerMatch = [...safeByMatch.values()].sort((a, b) => a.odd - b.odd)
+    if (safePerMatch.length === 0) {
+      return { error: "No hay ningún partido con cuota real disponible hoy." }
+    }
+    const legsToFill = Math.min(cfg.legs, safePerMatch.length)
+    const chosenSafe = safePerMatch.slice(0, legsToFill)
+    console.log(`[combinadas] fallback EMERGENCIA: ${perMatch.length} válidas <${cfg.legs} → relleno con ${chosenSafe.length} cuotas bajas reales (${chosenSafe.map((l) => l.odd.toFixed(2)).join(", ")})`)
+    return {
+      mode: cfg.label, date: new Date().toISOString().split("T")[0],
+      fallback_reason: `Pocos picks superaron el ${Math.round(cfg.minProb * 100)}% de probabilidad — combinada completada con las cuotas más seguras del día (datos reales API-Football).`,
+      legs: chosenSafe.map((l) => ({ match: l.match, league: l.league, selection: l.selection, odd: l.odd, prob: Math.round(l.prob * 100), market: l.market, reasoning: l.reasoning })),
+      combined_odd: Math.round(chosenSafe.reduce((a, l) => a * l.odd, 1) * 100) / 100,
+      combined_prob: Math.round(chosenSafe.reduce((a, l) => a * l.prob, 1) * 1000) / 10,
+    }
   }
 
   // Top-K por métrica, luego muestreo aleatorio → variedad en cada regeneración

@@ -422,13 +422,24 @@ export async function fetchFixtureOddsAF(fixtureId: number): Promise<RealOdds | 
     const bookmakers = json?.response?.[0]?.bookmakers ?? []
     if (!bookmakers.length) return null
 
-    const dec = (v: any) => { const n = Number(v); return Number.isFinite(n) && n > 1 ? n : undefined }
+    // BLINDAJE anti "cuota fantasma": SOLO valores decimales exactos del bookmaker.
+    // Jamás se promedia, interpola ni estima. Un valor ausente queda `undefined`
+    // (= N/D) y el mercado se descarta — nunca se rellena con el de otro mercado.
+    const dec = (v: any) => {
+      const raw = typeof v === "string" ? v.trim() : v
+      const n = Number(raw)
+      // Rechaza vacío, NaN, ≤1 (cuota imposible) y strings no numéricos limpios.
+      if (raw === "" || raw == null || !Number.isFinite(n) || n <= 1) return undefined
+      return n
+    }
     let home: number | undefined, draw: number | undefined, away: number | undefined
     let over25: number | undefined, under25: number | undefined, provider: string | undefined
 
     for (const bk of bookmakers) {
       for (const bet of (bk.bets ?? [])) {
         const name = String(bet.name ?? "").toLowerCase()
+        // Validación estricta de mercado: el bet.name debe SER exactamente el
+        // mercado pedido. Nada de coincidencias parciales para 1X2.
         if ((name === "match winner" || name === "1x2") && home == null && away == null) {
           for (const v of (bet.values ?? [])) {
             const val = String(v.value ?? "").toLowerCase(); const o = dec(v.odd)
@@ -437,18 +448,26 @@ export async function fetchFixtureOddsAF(fixtureId: number): Promise<RealOdds | 
             else if (val === "away" || val === "2") away = o
           }
           if (home != null || away != null) provider = bk.name
+          console.log(`DEBUG_CUOTA: Partido: ${fixtureId}  Mercado: 1X2(${bk.name})  Valor_API: home=${home ?? "N/D"} draw=${draw ?? "N/D"} away=${away ?? "N/D"}`)
         }
-        if (name.includes("over/under") && over25 == null) {
+        if (name === "goals over/under" || (name.includes("over/under") && over25 == null)) {
           for (const v of (bet.values ?? [])) {
             const val = String(v.value ?? "").toLowerCase(); const o = dec(v.odd)
             if (val === "over 2.5") over25 = o
             else if (val === "under 2.5") under25 = o
           }
+          if (over25 != null || under25 != null)
+            console.log(`DEBUG_CUOTA: Partido: ${fixtureId}  Mercado: O/U2.5(${bk.name})  Valor_API: over=${over25 ?? "N/D"} under=${under25 ?? "N/D"}`)
         }
       }
       if (home != null && away != null && over25 != null) break
     }
-    if (home == null && away == null) return null
+    // Si no existe la cuota exacta del mercado principal (1X2) → N/D total: el
+    // caller DEBE descartar el partido en cualquier combinada (anti-alucinación).
+    if (home == null && away == null) {
+      console.log(`DEBUG_CUOTA: Partido: ${fixtureId}  Mercado: 1X2  Valor_API: N/D → partido BLOQUEADO (sin cuota real)`)
+      return null
+    }
     return { provider: provider ?? "API-Football", home, draw, away, over25, under25 }
   } catch {
     return null
