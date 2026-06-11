@@ -1777,7 +1777,7 @@ export function runPipeline(reason = "scheduled"): Promise<void> {
 /** Stale-while-revalidate: si los datos no son frescos, refresca en segundo plano.
  *  ANTI-ZOMBIE: el refresh va en after() (waitUntil de Vercel). El fire-and-forget
  *  anterior se congelaba con la lambda al responder → una instancia caliente podía
- *  servir su pool en RAM VIEJO para siempre (datos "zombie" tipo la combinada 1.96). */
+ *  servir su pool en RAM VIEJO para siempre (datos "zombie" de cuotas obsoletas). */
 export function ensureFresh(maxAgeMs = 4 * 3600_000): void {
   if (!isFresh(maxAgeMs) && !currentRun) {
     try {
