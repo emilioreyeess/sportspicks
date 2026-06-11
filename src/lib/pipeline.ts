@@ -869,16 +869,19 @@ export function findAlternativePick(
 
 // ─── Combinadas ──────────────────────────────────────────────────────────────
 
-// CRITERIO ÚNICO: win_probability. Se eliminó por completo cualquier filtro de
-// value_edge — un pick entra por su probabilidad de acierto, no por su ventaja
-// sobre el mercado. La cuota define solo la franja de riesgo del perfil.
-//   · Segura    (2 patas): prob > 70%, prioriza cuotas bajas 1.10–1.30
-//   · Balanceada(3 patas): prob > 60%
-//   · Soñadora  (4 patas): prob > 50%
-const COMBI_MODES: Record<string, { legs: number; minProb: number; minOdd: number; maxOdd: number; label: string; sort: "prob" | "odd" }> = {
-  safe:     { legs: 2, minProb: 0.70, minOdd: 1.10, maxOdd: 1.45, label: "Segura",     sort: "prob" },
-  balanced: { legs: 3, minProb: 0.60, minOdd: 1.15, maxOdd: 1.75, label: "Balanceada", sort: "prob" },
-  dream:    { legs: 4, minProb: 0.50, minOdd: 1.25, maxOdd: 2.20, label: "Soñadora",   sort: "prob" },
+// MULTIPLICADOR OBJETIVO: cada modo persigue una CUOTA TOTAL diana, combinando
+// patas reales cuyo producto se acerque al target. Sin franjas de cuota por pata
+// ni umbral de probabilidad: el algoritmo de "mejor esfuerzo" busca el subconjunto
+// de partidos (de HOY) cuyo producto de cuotas quede lo más cerca posible del
+// target. Si los partidos de hoy no dan para el target, devuelve el máximo
+// matemáticamente posible. PROHIBIDO inventar cuotas.
+//   · Segura     (2 patas): cuota total objetivo ≈ 2.0
+//   · Balanceada (3 patas): cuota total objetivo ≈ 5.0
+//   · Soñadora   (4 patas): cuota total objetivo ≈ 10.0
+const COMBI_MODES: Record<string, { legs: number; target: number; label: string }> = {
+  safe:     { legs: 2, target: 2.0,  label: "Segura"     },
+  balanced: { legs: 3, target: 5.0,  label: "Balanceada" },
+  dream:    { legs: 4, target: 10.0, label: "Soñadora"   },
 }
 
 /** Pool de selecciones candidatas para combinadas — pre-computado en el pipeline */
@@ -894,6 +897,7 @@ export interface PoolEntry {
   reasoning: string
   homeDead: boolean
   awayDead: boolean
+  kickoff: string       // ISO — para restringir combinadas a "solo hoy"
 }
 
 export function buildCombinadaPool(data: DailyData, excludeMatchIds: Set<string> = new Set()): PoolEntry[] {
@@ -921,6 +925,7 @@ export function buildCombinadaPool(data: DailyData, excludeMatchIds: Set<string>
         odd, prob: c.prob,
         reasoning: c.story || `Modelo ${Math.round(c.prob * 100)}%`,
         homeDead: m.homeMotiv.dead, awayDead: m.awayMotiv.dead,
+        kickoff: m.kickoff,
       })
     }
   }
@@ -953,6 +958,7 @@ export function buildCombinadaPool(data: DailyData, excludeMatchIds: Set<string>
       odd: fav.odd, prob,
       reasoning: `Favorito de mercado (${m.odds.provider}): prob. implícita ${Math.round(prob * 100)}% · sin histórico suficiente para el modelo`,
       homeDead: false, awayDead: false,
+      kickoff: m.kickoff,
     })
   }
   if (rescued > 0) console.log(`[combinadas] fallback de mercado: +${rescued} favoritos (1.20–1.60, prob. implícita)`)
@@ -984,6 +990,7 @@ export function buildCombinadaPool(data: DailyData, excludeMatchIds: Set<string>
         odd: fav.odd, prob,
         reasoning: `Favorito de mercado (${m.odds.provider}): prob. implícita ${Math.round(prob * 100)}% · candidatos del modelo descartados por los filtros`,
         homeDead: m.homeMotiv.dead, awayDead: m.awayMotiv.dead,
+        kickoff: m.kickoff,
       })
     }
     if (extra > 0) console.log(`[combinadas] fallback 2 (pool corto): +${extra} favoritos de mercado desde matches con modelo`)
@@ -995,132 +1002,109 @@ export function buildCombinadaPool(data: DailyData, excludeMatchIds: Set<string>
 }
 
 /**
- * Selecciona una combinada del pool con variedad — cada llamada da algo distinto.
- * Filtra por modo + liga, deduplica por partido, toma el top-K por la métrica
- * del modo y muestrea cfg.legs al azar de ese top → siempre alta calidad pero
- * sin repetirse en cada regeneración.
+ * Arma una combinada persiguiendo una CUOTA TOTAL objetivo (Segura≈2, Balanceada≈5,
+ * Soñadora≈10) con datos 100% reales del pool. Tres reglas:
+ *   1. SOLO HOY: descarta toda pata cuyo kickoff no sea hoy (UTC).
+ *   2. Una pata por partido, orientada al target POR PATA (target^(1/legs)),
+ *      con piso de probabilidad 40% para no meter longshots basura.
+ *   3. MEJOR ESFUERZO: elige el subconjunto de `legs` partidos cuyo producto de
+ *      cuotas quede más cerca del target; si hoy no da para el target, devuelve
+ *      la cuota máxima posible. PROHIBIDO inventar cuotas para llegar al target.
  */
 export function pickCombinadaFromPool(pool: PoolEntry[], mode: string, leagueId: string): any {
   const cfg = COMBI_MODES[mode] ?? COMBI_MODES.balanced
   const slug = leagueId ? LEAGUE_MAP[leagueId] : null
+  const today = new Date().toISOString().slice(0, 10)
 
-  let eligible = pool.filter((p) => p.odd >= cfg.minOdd && p.odd <= cfg.maxOdd && p.prob >= cfg.minProb)
-  if (slug) eligible = eligible.filter((p) => p.slug === slug)
-  // En segura/balanceada descartamos partidos donde ambos equipos están "muertos"
-  if (cfg.sort === "prob") eligible = eligible.filter((p) => !(p.homeDead && p.awayDead))
+  // ── 1) SOLO HOY (UTC) + liga + descartar partidos con ambos equipos "muertos" ──
+  let todayPool = pool.filter((p) => (p.kickoff ?? "").slice(0, 10) === today)
+  if (slug) todayPool = todayPool.filter((p) => p.slug === slug)
+  todayPool = todayPool.filter((p) => !(p.homeDead && p.awayDead))
 
-  // Mejor selección por partido según la métrica del modo
+  if (todayPool.length === 0) {
+    return { error: "No hay combinadas generadas" }
+  }
+
+  // ── 2) Mejor selección POR PARTIDO orientada al target por pata ──
+  const perLegTarget = Math.pow(cfg.target, 1 / cfg.legs)
+  const lnLeg = Math.log(perLegTarget)
   const byMatch = new Map<string, PoolEntry>()
-  for (const p of eligible) {
+  for (const p of todayPool) {
+    if (p.prob < 0.40) continue   // sin longshots: nada por debajo del 40% real
     const cur = byMatch.get(p.matchId)
-    const better = !cur || (cfg.sort === "prob" ? p.prob > cur.prob : p.odd > cur.odd)
-    if (better) byMatch.set(p.matchId, p)
+    if (!cur || Math.abs(Math.log(p.odd) - lnLeg) < Math.abs(Math.log(cur.odd) - lnLeg)) {
+      byMatch.set(p.matchId, p)
+    }
   }
-  const perMatch = [...byMatch.values()]
-
-  if (perMatch.length < cfg.legs) {
-    // FALLBACK 1: try without league filter if one was specified
-    if (slug) {
-      let fallback = pool.filter((p) => p.odd >= cfg.minOdd && p.odd <= cfg.maxOdd && p.prob >= cfg.minProb)
-      if (cfg.sort === "prob") fallback = fallback.filter((p) => !(p.homeDead && p.awayDead))
-      const fbByMatch = new Map<string, PoolEntry>()
-      for (const p of fallback) {
-        const cur = fbByMatch.get(p.matchId)
-        const better = !cur || (cfg.sort === "prob" ? p.prob > cur.prob : p.odd > cur.odd)
-        if (better) fbByMatch.set(p.matchId, p)
-      }
-      const fbPerMatch = [...fbByMatch.values()]
-      if (fbPerMatch.length >= cfg.legs) {
-        // use multi-league fallback
-        fbPerMatch.sort((a, b) => (cfg.sort === "prob" ? b.prob - a.prob : b.odd - a.odd))
-        const topK = fbPerMatch.slice(0, Math.max(cfg.legs * 3, cfg.legs + 4))
-        for (let i = topK.length - 1; i > 0; i--) {
-          const j = Math.floor(Math.random() * (i + 1))
-          const t = topK[i]; topK[i] = topK[j]; topK[j] = t
-        }
-        const chosen = topK.slice(0, cfg.legs)
-        return {
-          mode: cfg.label, date: new Date().toISOString().split("T")[0],
-          fallback_reason: "Liga sin suficientes selecciones hoy — combinada con las mejores de todas las ligas",
-          legs: chosen.map((l) => ({ match: l.match, league: l.league, selection: l.selection, odd: l.odd, prob: Math.round(l.prob * 100), market: l.market, reasoning: l.reasoning })),
-          combined_odd: Math.round(chosen.reduce((a, l) => a * l.odd, 1) * 100) / 100,
-          combined_prob: Math.round(chosen.reduce((a, l) => a * l.prob, 1) * 1000) / 10,
-        }
-      }
-    }
-    // FALLBACK 2: relax prob threshold by 0.05
-    const relaxed = pool.filter((p) => p.odd >= cfg.minOdd && p.odd <= cfg.maxOdd && p.prob >= Math.max(cfg.minProb - 0.05, 0.35))
-    const rxByMatch = new Map<string, PoolEntry>()
-    for (const p of relaxed) {
-      const cur = rxByMatch.get(p.matchId)
-      const better = !cur || (cfg.sort === "prob" ? p.prob > cur.prob : p.odd > cur.odd)
-      if (better) rxByMatch.set(p.matchId, p)
-    }
-    const rxPerMatch = [...rxByMatch.values()]
-    if (rxPerMatch.length >= cfg.legs) {
-      rxPerMatch.sort((a, b) => (cfg.sort === "prob" ? b.prob - a.prob : b.odd - a.odd))
-      const topK = rxPerMatch.slice(0, Math.max(cfg.legs * 3, cfg.legs + 4))
-      for (let i = topK.length - 1; i > 0; i--) {
-        const j = Math.floor(Math.random() * (i + 1))
-        const t = topK[i]; topK[i] = topK[j]; topK[j] = t
-      }
-      const chosen = topK.slice(0, cfg.legs)
-      return {
-        mode: cfg.label, date: new Date().toISOString().split("T")[0],
-        fallback_reason: "Umbrales ligeramente relajados para completar la combinada",
-        legs: chosen.map((l) => ({ match: l.match, league: l.league, selection: l.selection, odd: l.odd, prob: Math.round(l.prob * 100), market: l.market, reasoning: l.reasoning })),
-        combined_odd: Math.round(chosen.reduce((a, l) => a * l.odd, 1) * 100) / 100,
-        combined_prob: Math.round(chosen.reduce((a, l) => a * l.prob, 1) * 1000) / 10,
-      }
-    }
-    // ── FALLBACK DE EMERGENCIA (garantizado): PROHIBIDO devolver "No hay partidos".
-    //    Si ningún umbral de probabilidad completa las patas, rellenamos con las
-    //    cuotas más BAJAS (= más seguras) del pool real, sin importar el modo.
-    //    Cuotas 100% reales de API-Football — cero invención. Solo si el pool
-    //    está literalmente vacío (ningún partido con cuota real) se reporta error. ──
-    const safeByMatch = new Map<string, PoolEntry>()
-    for (const p of pool) {
-      const cur = safeByMatch.get(p.matchId)
-      // El "más seguro" por partido = cuota más baja (mayor prob. implícita).
-      if (!cur || p.odd < cur.odd) safeByMatch.set(p.matchId, p)
-    }
-    const safePerMatch = [...safeByMatch.values()].sort((a, b) => a.odd - b.odd)
-    if (safePerMatch.length === 0) {
-      return { error: "No hay ningún partido con cuota real disponible hoy." }
-    }
-    const legsToFill = Math.min(cfg.legs, safePerMatch.length)
-    const chosenSafe = safePerMatch.slice(0, legsToFill)
-    console.log(`[combinadas] fallback EMERGENCIA: ${perMatch.length} válidas <${cfg.legs} → relleno con ${chosenSafe.length} cuotas bajas reales (${chosenSafe.map((l) => l.odd.toFixed(2)).join(", ")})`)
-    return {
-      mode: cfg.label, date: new Date().toISOString().split("T")[0],
-      fallback_reason: `Pocos picks superaron el ${Math.round(cfg.minProb * 100)}% de probabilidad — combinada completada con las cuotas más seguras del día (datos reales API-Football).`,
-      legs: chosenSafe.map((l) => ({ match: l.match, league: l.league, selection: l.selection, odd: l.odd, prob: Math.round(l.prob * 100), market: l.market, reasoning: l.reasoning })),
-      combined_odd: Math.round(chosenSafe.reduce((a, l) => a * l.odd, 1) * 100) / 100,
-      combined_prob: Math.round(chosenSafe.reduce((a, l) => a * l.prob, 1) * 1000) / 10,
+  // Si el piso de 40% deja todo fuera, relaja a la pata más probable por partido.
+  if (byMatch.size === 0) {
+    for (const p of todayPool) {
+      const cur = byMatch.get(p.matchId)
+      if (!cur || p.prob > cur.prob) byMatch.set(p.matchId, p)
     }
   }
 
-  // Top-K por métrica, luego muestreo aleatorio → variedad en cada regeneración
-  perMatch.sort((a, b) => (cfg.sort === "prob" ? b.prob - a.prob : b.odd - a.odd))
-  const topK = perMatch.slice(0, Math.max(cfg.legs * 3, cfg.legs + 4))
-  // Fisher-Yates
-  for (let i = topK.length - 1; i > 0; i--) {
-    const j = Math.floor(Math.random() * (i + 1))
-    const t = topK[i]; topK[i] = topK[j]; topK[j] = t
-  }
-  const chosen = topK.slice(0, cfg.legs)
+  // Acota la búsqueda combinatoria a las 40 mejores cuotas (DFS exhaustivo).
+  const candidates = [...byMatch.values()].sort((a, b) => b.odd - a.odd).slice(0, 40)
+  const legs = Math.min(cfg.legs, candidates.length)
+
+  // ── 3) MEJOR ESFUERZO: subconjunto cuyo producto se acerca más al target ──
+  const chosen = bestSubsetForTarget(candidates, legs, cfg.target)
+  const combinedOdd = chosen.reduce((a, l) => a * l.odd, 1)
+  const reached = combinedOdd >= cfg.target * 0.95
+  const roundedOdd = Math.round(combinedOdd * 100) / 100
+
+  console.log(`[combinadas] modo=${cfg.label} target=${cfg.target} · hoy=${candidates.length} candidatos · patas=${chosen.length} · cuota=${roundedOdd}${reached ? " (objetivo alcanzado)" : " (máx. posible hoy)"}`)
 
   return {
     mode: cfg.label,
-    date: new Date().toISOString().split("T")[0],
+    date: today,
+    target_odd: cfg.target,
+    reached_target: reached,
+    fallback_reason: reached
+      ? undefined
+      : `Los partidos de hoy no alcanzan la cuota objetivo ${cfg.target.toFixed(1)} — combinada con la cuota máxima posible (${roundedOdd.toFixed(2)}) usando ${chosen.length} partido(s) real(es) de hoy. Cero cuotas inventadas.`,
     legs: chosen.map((l) => ({
       match: l.match, league: l.league, selection: l.selection,
       odd: l.odd, prob: Math.round(l.prob * 100), market: l.market,
       reasoning: l.reasoning,
     })),
-    combined_odd: Math.round(chosen.reduce((a, l) => a * l.odd, 1) * 100) / 100,
+    combined_odd: roundedOdd,
     combined_prob: Math.round(chosen.reduce((a, l) => a * l.prob, 1) * 1000) / 10,
   }
+}
+
+/**
+ * Subconjunto de `legs` partidos (el pool ya viene con una sola entrada por
+ * partido) cuyo producto de cuotas queda más cerca del target en escala log.
+ * DFS exhaustivo acotado (legs ≤ 4, pool ≤ 40 → a lo sumo ~92k combinaciones).
+ * MEJOR ESFUERZO: si ninguna combinación alcanza el target, el de producto
+ * máximo es el más cercano "por debajo" y gana. Desempate: mayor probabilidad.
+ */
+function bestSubsetForTarget(entries: PoolEntry[], legs: number, target: number): PoolEntry[] {
+  if (entries.length <= legs) return entries
+  const lnT = Math.log(target)
+  const n = entries.length
+  let best: PoolEntry[] | null = null
+  let bestScore = Infinity
+  let bestProb = -Infinity
+  const idx: number[] = new Array(legs)
+  const dfs = (start: number, depth: number, lnProd: number, probProd: number) => {
+    if (depth === legs) {
+      const score = Math.abs(lnProd - lnT)
+      if (score < bestScore - 1e-9 || (Math.abs(score - bestScore) < 1e-9 && probProd > bestProb)) {
+        bestScore = score; bestProb = probProd
+        best = idx.map((i) => entries[i])
+      }
+      return
+    }
+    for (let i = start; i < n; i++) {
+      idx[depth] = i
+      dfs(i + 1, depth + 1, lnProd + Math.log(entries[i].odd), probProd * entries[i].prob)
+    }
+  }
+  dfs(0, 0, 0, 1)
+  return best ?? entries.slice(0, legs)
 }
 
 // ─── Retos V2 ────────────────────────────────────────────────────────────────
