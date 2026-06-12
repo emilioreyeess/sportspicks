@@ -19,9 +19,12 @@ interface Result {
   fallback_reason?: string
 }
 
+// FASE 4: el filtro "Mundial" se eliminó — no tenía inventario suficiente para
+// los objetivos de Balanceada/Soñadora y rompía el motor. Las combinadas se
+// generan SIEMPRE sobre el pool global (que ya incluye los partidos del Mundial
+// con cuota real), garantizando volumen para el "Mejor Esfuerzo".
 const LEAGUES = [
   { id: "", label: "Todas las ligas", flag: "🌍" },
-  { id: "wc", label: "Mundial 2026", flag: "🏆" },
   { id: "1", label: "LaLiga", flag: "🇪🇸" },
   { id: "2", label: "Premier League", flag: "🏴󠁧󠁢󠁥󠁮󠁧󠁿" },
   { id: "3", label: "Bundesliga", flag: "🇩🇪" },
@@ -92,40 +95,14 @@ export default function CombinadasClient() {
     if (freeAtLimit) { upgrade.show("combinadas_unlimited"); return }
     setLoading(true); setError(""); setResult(null)
     try {
-      if (leagueId === "wc") {
-        // Mundial 2026 — motor Poisson propio
-        const tierMap: Record<ModeKey, string> = { safe: "segura", balanced: "balanceada", dream: "soñadora" }
-        const res = await fetch(`/api/world-cup/combinadas?tier=${tierMap[targetMode]}&t=${Date.now()}`, { cache: "no-store" })
-        const wc = await res.json()
-        console.log("JSON DE COMBINADA (WC):", JSON.stringify(wc, null, 2))
-        if (!wc || wc.error || !(wc.legs?.length)) { setError(EMPTY_MSG); return }
-        // Mapear WCCombinada → Result
-        const mapped: Result = {
-          mode: wc.tierLabel ?? targetMode,
-          date: wc.generatedAt,
-          legs: (wc.legs ?? []).map((leg: any) => ({
-            match:     `${leg.homeCode} vs ${leg.awayCode}`,
-            league:    "Mundial 2026 🏆",
-            selection: leg.marketLabel,
-            odd:       leg.impliedOdds,
-            prob:      Math.round(leg.modelProb * 100),
-            market:    leg.market,
-            reasoning: leg.justification,
-          })),
-          combined_odd:  wc.combinedImpliedOdds,
-          combined_prob: Math.round(wc.combinedProb * 100),
-        }
-        setResult(mapped)
+      // SIEMPRE el pool global del motor (incluye partidos del Mundial con cuota
+      // real). Sin rama "Mundial": garantiza volumen para el "Mejor Esfuerzo".
+      const data = await getCombinada(targetMode, leagueId)
+      // FASE 3: respuesta vacía/sin legs → mensaje limpio (sin mock estático).
+      if (data?.error || !(data?.legs?.length)) setError(EMPTY_MSG)
+      else {
+        setResult(data)
         if (!isPremium) { incrementTodayCount(); setTodayCount(getTodayCount()) }
-      } else {
-        const data = await getCombinada(targetMode, leagueId)
-        console.log("JSON DE COMBINADA:", JSON.stringify(data, null, 2))
-        // FASE 3: respuesta vacía/sin legs → mensaje limpio (sin mock estático).
-        if (data?.error || !(data?.legs?.length)) setError(EMPTY_MSG)
-        else {
-          setResult(data)
-          if (!isPremium) { incrementTodayCount(); setTodayCount(getTodayCount()) }
-        }
       }
     } catch {
       setError(EMPTY_MSG)

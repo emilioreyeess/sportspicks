@@ -44,14 +44,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const supabase = createBrowserSupabase()
     let active = true
 
-    supabase.auth.getUser().then(({ data }) => {
+    // FASE 1 (doble-login): el estado inicial sale de getSession() — LEE LA COOKIE
+    // recién fijada por /auth/callback de forma local y síncrona, sin la carrera de
+    // red de getUser() que podía devolver null en el PRIMER render tras el OAuth y
+    // dejar al usuario como "no autenticado" (obligándole a loguearse otra vez).
+    // onAuthStateChange (incl. INITIAL_SESSION) mantiene el estado sincronizado.
+    supabase.auth.getSession().then(({ data }) => {
       if (!active) return
-      const s = toSession(data?.user)
+      const s = toSession(data?.session?.user)
       setSession(s)
       setStatus(s ? "authenticated" : "unauthenticated")
     })
 
     const { data: sub } = supabase.auth.onAuthStateChange((_event, sess) => {
+      if (!active) return
       const s = toSession(sess?.user)
       setSession(s)
       setStatus(s ? "authenticated" : "unauthenticated")

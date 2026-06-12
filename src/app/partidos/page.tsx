@@ -38,7 +38,8 @@ function todayMadrid(): string {
 function statusLabel(status: string | null): { text: string; tone: "live" | "done" | "scheduled" } {
   const s = (status ?? "").toUpperCase()
   if (["1H", "2H", "HT", "ET", "P", "LIVE", "BT"].includes(s)) return { text: "EN JUEGO", tone: "live" }
-  if (["FT", "AET", "PEN"].includes(s)) return { text: "FINALIZADO", tone: "done" }
+  // "FINISHED" = valor de nuestro cron de resultados; FT/AET/PEN = API-Football.
+  if (["FT", "AET", "PEN", "FINISHED"].includes(s)) return { text: "FINALIZADO", tone: "done" }
   if (["PST", "CANC", "ABD", "SUSP"].includes(s)) return { text: "SUSPENDIDO", tone: "done" }
   return { text: "PROGRAMADO", tone: "scheduled" }
 }

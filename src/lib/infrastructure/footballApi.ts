@@ -21,7 +21,10 @@ import { isMatchValid } from "@/lib/infrastructure/footballFilter"
 const API_BASE = "https://v3.football.api-sports.io"
 
 /** Antigüedad máxima de un fixture cacheado antes de refrescar (6h). */
-const FIXTURES_STALE_TTL_MS = 6 * 60 * 60 * 1000
+// TTL corto: en día de partidos los estados (EN JUEGO/FINALIZADO) y el marcador
+// cambian rápido. 15 min evita "fechas/estados congelados" sin saturar la API
+// (solo refresca cuando alguien abre /partidos y el dato supera el TTL).
+const FIXTURES_STALE_TTL_MS = 15 * 60 * 1000
 
 // ── Tipos de dominio ──────────────────────────────────────────────────────────
 

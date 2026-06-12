@@ -176,7 +176,8 @@ function LeagueLogo({ url, name }: { url: string | null; name: string }) {
   )
 }
 
-const FINISHED = new Set(["FT", "AET", "PEN"])
+// "FINISHED" = valor que escribe nuestro cron de resultados; FT/AET/PEN = API-Football.
+const FINISHED = new Set(["FT", "AET", "PEN", "FINISHED"])
 const LIVE_STATUS = new Set(["1H", "2H", "HT", "ET", "P", "LIVE", "BT"])
 
 function MatchRow({ f, isPremium, intl }: { f: Fixture; isPremium: boolean; intl: boolean }) {
@@ -192,7 +193,9 @@ function MatchRow({ f, isPremium, intl }: { f: Fixture; isPremium: boolean; intl
   const stCode = (f.status ?? "").toUpperCase()
   const finished = FINISHED.has(stCode)
   const live = LIVE_STATUS.has(stCode)
-  const gh = s?.goals?.home, ga = s?.goals?.away
+  // Goles: API-Football los pone en stats.goals; nuestro cron en stats.result.
+  const gh = s?.goals?.home ?? (s as any)?.result?.home
+  const ga = s?.goals?.away ?? (s as any)?.result?.away
   const center = (finished || live) && gh != null && ga != null ? `${gh} - ${ga}` : fmtTime(f.match_date)
   // Sub-etiqueta limpia (nunca el código crudo NS/FT al usuario).
   const sub = live ? "EN VIVO" : finished ? "FINAL" : null

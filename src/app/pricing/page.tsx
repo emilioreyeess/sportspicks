@@ -20,7 +20,6 @@ const TABLE_ROWS = [
   { label: "Combinada Segura",           free: true,         premium: true,          pro: true },
   { label: "Combinada Balanceada",       free: true,         premium: true,          pro: true },
   { label: "Combinada Soñadora",         free: false,        premium: true,          pro: true },
-  { label: "Combinada IA por prompt",    free: false,        premium: true,          pro: true },
   { label: "Combinadas al día",          free: "2",          premium: "Ilimitadas",  pro: "Ilimitadas" },
   { label: "Bot IA",                     free: "3/día",      premium: "15/día",      pro: "Sin límite" },
   { label: "Estadísticas avanzadas",     free: false,        premium: true,          pro: true },
@@ -471,7 +470,7 @@ function PlanCard({ planId, billing, currentPlan, justSet, checkoutLoading, onCh
           <div className="mt-3 pt-3 border-t border-white/[0.05]">
             <p className="apple-eyebrow text-zinc-700 mb-2">No incluye</p>
             <ul className="space-y-1.5">
-              {["Análisis completo de picks", "Combinada Soñadora", "Combinada IA por prompt", "Estadísticas avanzadas", "Alertas de valor"].map((n) => (
+              {["Análisis completo de picks", "Combinada Soñadora", "Estadísticas avanzadas", "Alertas de valor"].map((n) => (
                 <li key={n} className="flex items-start gap-2 text-[12px] text-zinc-700">
                   <Icon name="close" className="w-3.5 h-3.5 mt-0.5 shrink-0" strokeWidth={2} />
                   <span className="line-through decoration-zinc-800">{n}</span>
