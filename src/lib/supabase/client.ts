@@ -43,39 +43,9 @@ export function createServiceClient() {
   })
 }
 
-// ─── Helpers tipados ─────────────────────────────────────────────────────────
-
-/** Actualiza el plan de un usuario tras un checkout de Stripe exitoso */
-export async function upsertUserPlan(
-  email: string,
-  plan: "free" | "premium" | "pro",
-  stripeCustomerId: string,
-) {
-  const sb = createServiceClient()
-  const { error } = await sb
-    .from("user_profiles")
-    .upsert(
-      {
-        email,
-        plan,
-        stripe_customer_id: stripeCustomerId,
-        updated_at: new Date().toISOString(),
-      },
-      { onConflict: "email" },
-    )
-  if (error) throw new Error(`[Supabase] upsertUserPlan failed: ${error.message}`)
-}
-
-/** Resuelve el plan de un usuario por email (fallback: "free") */
-export async function getUserPlan(email: string): Promise<"free" | "premium" | "pro"> {
-  const sb = createServiceClient()
-  const { data, error } = await sb
-    .from("user_profiles")
-    .select("plan")
-    .eq("email", email)
-    .maybeSingle()
-  if (error || !data) return "free"
-  const plan = data.plan as string
-  if (plan === "premium" || plan === "pro") return plan
-  return "free"
-}
+// ─── Plan del usuario ────────────────────────────────────────────────────────
+// FASE 4 (saneamiento): se eliminaron `getUserPlan` y `upsertUserPlan`. Eran
+// código MUERTO (cero callers) que apuntaba a la tabla `user_profiles`, que NO
+// existe en Supabase (devolvía 404). La fuente de verdad del plan es:
+//   1) plan-grants.ts (grants manuales)  2) Stripe  → resueltos en /api/auth/plan
+//   y vía getGrantedPlan() en los endpoints gateados. Nada lee `user_profiles`.
