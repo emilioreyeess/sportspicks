@@ -275,8 +275,11 @@ export async function analyzeMatch(args: {
    *  permite Elo, se usan cuando faltan datos de forma para emitir 1X2. */
   homeCode?: string | null
   awayCode?: string | null
+  /** Cuotas reales 1X2 (casa de apuestas). Fuente de la verdad para anclar la
+   *  probabilidad en el Mundial con muestra fina (N<3). Null → solo Poisson. */
+  odds?: { home?: number | null; draw?: number | null; away?: number | null } | null
 }): Promise<MatchAnalysis> {
-  const { league, home, away, homeCode, awayCode } = args
+  const { league, home, away, homeCode, awayCode, odds } = args
   const ctxProfile = getMatchContext(league)
 
   // Pesos aprendidos por mercado (consulta OBLIGATORIA antes de emitir prob.)
@@ -407,6 +410,26 @@ export async function analyzeMatch(args: {
     let c2 = calibrate(pAway, 1 / 3, w1x2)
     const s = c1 + cX + c2
     c1 /= s; cX /= s; c2 /= s
+
+    // ── FASE 1: ANCLAJE A PROBABILIDAD IMPLÍCITA (Mundial, muestra fina N<3) ──
+    // La Poisson sobre 1-2 partidos es ruido → anclamos fuerte al mercado real:
+    //   1) prob. implícita cruda  pᵢ = 1 / cuotaᵢ
+    //   2) normaliza quitando el vig (margen):  mᵢ = pᵢ / (p_home + p_draw + p_away)
+    //   3) blending  final = mᵢ * 0.85 + poissonᵢ * 0.15
+    // Fallback: si faltan cuotas o son ≤1 → se mantiene SOLO la Poisson.
+    if (isWorldCup && (homePlayed < MIN_GAMES_FOR_ANALYSIS || awayPlayed < MIN_GAMES_FOR_ANALYSIS)
+        && odds && typeof odds.home === "number" && typeof odds.draw === "number" && typeof odds.away === "number"
+        && odds.home > 1 && odds.draw > 1 && odds.away > 1) {
+      const ph = 1 / odds.home, px = 1 / odds.draw, pa = 1 / odds.away   // implícita cruda (con vig)
+      const vig = ph + px + pa
+      const mHome = ph / vig, mDraw = px / vig, mAway = pa / vig          // normalizada, suma 1 (sin vig)
+      c1 = mHome * 0.85 + c1 * 0.15
+      cX = mDraw * 0.85 + cX * 0.15
+      c2 = mAway * 0.85 + c2 * 0.15
+      const bs = c1 + cX + c2
+      c1 /= bs; cX /= bs; c2 /= bs                                        // renormaliza defensivamente
+    }
+
     out.prob1 = pct(c1); out.probX = pct(cX); out.prob2 = pct(c2)
 
     // BTTS

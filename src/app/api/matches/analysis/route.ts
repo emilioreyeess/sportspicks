@@ -16,6 +16,8 @@ import { fetchTeamModel, analyzeMatch } from "@/lib/analysis/match-model"
 import { logPredictions, type PredictionInput } from "@/lib/learning/supabase-ml"
 import { getMatchContext } from "@/lib/match-context"
 import { inferTeamCode } from "@/lib/world-cup/elo"
+import { createServiceClient } from "@/lib/supabase/client"
+import { resolveWcCode } from "@/lib/world-cup/name-to-code"
 
 export const runtime = "nodejs"
 export const maxDuration = 30
@@ -26,6 +28,44 @@ const VALID_SLUGS = new Set([
   "esp.1", "eng.1", "ger.1", "ita.1", "fra.1", "por.1", "ned.1",
   "usa.1", "mex.1", "bra.1", "arg.1", "fifa.friendly",
 ])
+
+/**
+ * Lee las cuotas 1X2 reales de un partido del Mundial desde la tabla `fixtures`
+ * (las refresca el cron de sync). Cruza por código FIFA (los nombres ESPN ≠ los
+ * de API-Football) y acepta el orden invertido (local/visitante).
+ * Devuelve null si no hay fila, no hay cuotas, o ante cualquier error → el motor
+ * usa Poisson puro como fallback. NUNCA inventa cuotas.
+ */
+async function fetchWcOdds(
+  homeName?: string | null,
+  awayName?: string | null,
+): Promise<{ home: number | null; draw: number | null; away: number | null } | null> {
+  if (!homeName || !awayName) return null
+  const hc = resolveWcCode(homeName)
+  const ac = resolveWcCode(awayName)
+  if (!hc || !ac) return null
+  try {
+    const sb = createServiceClient()
+    const { data } = await sb
+      .from("fixtures")
+      .select("home_team, away_team, stats")
+      .eq("league", "World Cup")
+      .limit(400)
+    const hit = (data ?? []).find((f: { home_team?: string; away_team?: string }) => {
+      const fh = resolveWcCode(f.home_team ?? "")
+      const fa = resolveWcCode(f.away_team ?? "")
+      return (fh === hc && fa === ac) || (fh === ac && fa === hc)
+    }) as { stats?: { odds?: { home?: number; draw?: number; away?: number } } } | undefined
+    const o = hit?.stats?.odds
+    if (!o) return null
+    const num = (v: unknown) => (typeof v === "number" && isFinite(v) && v > 1 ? v : null)
+    const home = num(o.home), draw = num(o.draw), away = num(o.away)
+    if (home == null && draw == null && away == null) return null
+    return { home, draw, away }
+  } catch {
+    return null
+  }
+}
 
 export async function GET(req: NextRequest) {
   const ip = getClientIp(req)
@@ -57,7 +97,14 @@ export async function GET(req: NextRequest) {
     // material de fallback cuando es un internacional con poca historia.
     const homeCode = inferTeamCode(hname || home?.name)
     const awayCode = inferTeamCode(aname || away?.name)
-    const analysis = await analyzeMatch({ league: slug, home, away, homeCode, awayCode })
+
+    // FASE 1 — Cuotas reales (fuente de verdad). Solo Mundial: leemos las cuotas
+    // 1X2 de la tabla `fixtures` (refrescadas por el cron) cruzando por código
+    // FIFA. Si no hay fila o cuotas → odds=null → el motor cae a Poisson puro.
+    const odds = /world/i.test(slug)
+      ? await fetchWcOdds(hname || home?.name, aname || away?.name)
+      : null
+    const analysis = await analyzeMatch({ league: slug, home, away, homeCode, awayCode, odds })
 
     // ── Registrar predicciones en el ML loop (solo si el partido no ha empezado) ──
     //   · No registrar si el motor no tuvo datos suficientes (amistosos sin
