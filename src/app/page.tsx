@@ -118,24 +118,8 @@ function HallOfFame() {
               </span>
             </div>
           )) : (
-            [
-              { match: "Real Madrid vs Barça", pick: "Over 2.5",    odds: "1.82", result: "WIN"  },
-              { match: "PSG vs Bayern",         pick: "Ambos marcan", odds: "1.68", result: "WIN"  },
-              { match: "Man City vs Arsenal",   pick: "Local",        odds: "1.52", result: "LOSS" },
-            ].map((p) => (
-              <div key={p.match} className="py-2.5 flex items-center gap-3">
-                <div className="flex-1 min-w-0">
-                  <p className="text-[13px] font-medium text-white truncate">{p.match}</p>
-                  <div className="flex items-center gap-2 mt-1">
-                    <span className="text-[12px] text-zinc-500">{p.pick}</span>
-                    <span className="text-[12px] font-semibold text-emerald-400/90">@{p.odds}</span>
-                  </div>
-                </div>
-                <span className={`text-[10px] font-semibold px-2.5 py-1 rounded-full shrink-0 ${R[p.result]}`}>
-                  {p.result}
-                </span>
-              </div>
-            ))
+            // CERO MOCKS: si no hay picks reales resueltos de ayer, estado vacío sutil.
+            <p className="py-3 text-[12px] text-zinc-600">Sin actividad ayer</p>
           )}
         </div>
       </div>

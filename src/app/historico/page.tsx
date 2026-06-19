@@ -322,6 +322,10 @@ function PickRow({ pick }: { pick: HistoryPick }) {
 }
 
 function DaySection({ day }: { day: DayBlock }) {
+  // FASE 3: EXTERMINIO de VOID — los picks anulados/aplazados NO se renderizan.
+  const visiblePicks = day.picks.filter((p) => p.result !== "VOID")
+  // Si tras quitar los VOID no queda nada que mostrar, se oculta el día entero.
+  if (visiblePicks.length === 0) return null
   const settled = day.wins + day.losses
   const wr = settled > 0 ? Math.round((day.wins / settled) * 100) : null
   return (
@@ -334,12 +338,7 @@ function DaySection({ day }: { day: DayBlock }) {
             <strong className="text-emerald-400">{day.wins}</strong>W
             <span className="text-zinc-700 mx-1">·</span>
             <strong className="text-rose-400">{day.losses}</strong>L
-            {day.voids > 0 && (
-              <>
-                <span className="text-zinc-700 mx-1">·</span>
-                <strong className="text-zinc-400">{day.voids}</strong>V
-              </>
-            )}
+            {/* FASE 3: oculto el contador de VOID — basura visual fuera. */}
           </span>
           {wr != null && (
             <span className={`font-semibold ${wr >= 50 ? "text-emerald-400" : "text-rose-400"}`}>
@@ -349,7 +348,7 @@ function DaySection({ day }: { day: DayBlock }) {
         </div>
       </div>
       <Card variant="default" className="overflow-hidden">
-        {day.picks.map((p) => <PickRow key={p.id} pick={p} />)}
+        {visiblePicks.map((p) => <PickRow key={p.id} pick={p} />)}
       </Card>
     </section>
   )

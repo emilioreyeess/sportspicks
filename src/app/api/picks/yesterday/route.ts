@@ -11,32 +11,52 @@
  * (clave sp_picks_YYYY-MM-DD guardada por value/page.tsx al cargar picks de hoy).
  */
 import { NextRequest, NextResponse } from "next/server"
-import { getYesterdayAsync } from "@/lib/store"
-import { refreshYesterdayPicks } from "@/lib/yesterday-refresh"
+import { createServiceClient } from "@/lib/supabase/client"
 
 export const runtime = "nodejs"
+export const dynamic = "force-dynamic"   // nunca cachear: datos reales del día anterior
 export const revalidate = 0
 
+/**
+ * GET /api/picks/yesterday — "Histórico de ayer" 100% REAL desde `predictions_log`.
+ *
+ * REGLA (cero mocks): solo picks cuyo kickoff cae AYER (ventana UTC dinámica) y con
+ * estado RESUELTO 'won'|'lost' (se excluyen 'pending' y 'void'). Los 3 más recientes.
+ * Mapea won→WIN, lost→LOSS para el cliente. Si no hay, devuelve picks: [].
+ */
 export async function GET() {
-  const yest = await getYesterdayAsync()
+  // ── Cálculo DINÁMICO de "ayer" en UTC estricto ──
+  const now = new Date()
+  const todayStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()))
+  const yesterdayStart = new Date(todayStart.getTime() - 86_400_000)
+  const fromIso = yesterdayStart.toISOString()   // ayer 00:00:00Z
+  const toIso = todayStart.toISOString()         // hoy  00:00:00Z (exclusivo)
 
-  // Si hay PENDING en el snapshot, re-verifica contra ESPN (throttled a 5 min
-  // por instancia para no martillear). El refresh hidrata el store interno;
-  // re-leemos después para devolver el snapshot actualizado al cliente.
-  if (yest.date && yest.picks.length) {
-    const hasPending = yest.picks.some((p: any) => p?.result === "PENDING")
-    if (hasPending) {
-      try {
-        const r = await refreshYesterdayPicks({ minPending: 1 })
-        if (r.ran) {
-          const fresh = await getYesterdayAsync()
-          return NextResponse.json({ date: fresh.date, picks: fresh.picks, refreshed: true })
-        }
-      } catch { /* si el refresh falla devolvemos el snapshot tal cual */ }
-    }
-    return NextResponse.json({ date: yest.date, picks: yest.picks })
+  try {
+    const sb = createServiceClient()
+    const { data, error } = await sb
+      .from("predictions_log")
+      .select("id, home_team, away_team, pick, odds, model_prob, status, kickoff_iso")
+      .in("status", ["won", "lost"])             // SOLO resueltos (sin pending/void)
+      .gte("kickoff_iso", fromIso)
+      .lt("kickoff_iso", toIso)
+      .order("kickoff_iso", { ascending: false })
+      .limit(3)
+    if (error || !data) return NextResponse.json({ date: fromIso.slice(0, 10), picks: [] })
+
+    const picks = data.map((p: any) => ({
+      id: p.id,
+      home_team: p.home_team,
+      away_team: p.away_team,
+      selection: p.pick,
+      best_odd: typeof p.odds === "number" ? p.odds : Number(p.odds),
+      model_prob: typeof p.model_prob === "number" ? p.model_prob * (p.model_prob <= 1 ? 100 : 1) : 0,
+      result: p.status === "won" ? "WIN" : "LOSS",
+    }))
+    return NextResponse.json({ date: fromIso.slice(0, 10), picks })
+  } catch {
+    return NextResponse.json({ date: fromIso.slice(0, 10), picks: [] })
   }
-  return NextResponse.json({ date: null, picks: [] })
 }
 
 const ALL_SLUGS = ["esp.1", "eng.1", "ger.1", "ita.1", "fra.1", "usa.1", "mex.1", "por.1", "ned.1", "arg.1", "bra.1", "tur.1", "sau.1", "fra.2"]
