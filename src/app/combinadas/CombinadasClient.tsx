@@ -19,6 +19,16 @@ interface Result {
   fallback_reason?: string
 }
 
+/** FASE 3.3: kickoff ISO → "25 jun · 18:00" (hora local del navegador). */
+function fmtKickoff(iso?: string): string {
+  if (!iso) return ""
+  const d = new Date(iso)
+  if (isNaN(d.getTime())) return ""
+  const date = d.toLocaleDateString("es-ES", { day: "numeric", month: "short" })
+  const time = d.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })
+  return `${date} · ${time}`
+}
+
 // FASE 4: el filtro "Mundial" se eliminó — no tenía inventario suficiente para
 // los objetivos de Balanceada/Soñadora y rompía el motor. Las combinadas se
 // generan SIEMPRE sobre el pool global (que ya incluye los partidos del Mundial
@@ -254,7 +264,9 @@ function CombinadaResult({ result, accent, bar }: {
                 {i + 1}
               </span>
               <div className="min-w-0">
-                <p className="text-[10px] text-zinc-600 uppercase tracking-wide">{leg.league} · {leg.market}</p>
+                <p className="text-[10px] text-zinc-600 uppercase tracking-wide">
+                  {leg.league} · {leg.market}{leg.kickoff ? ` · ${fmtKickoff(leg.kickoff)}` : ""}
+                </p>
                 <p className="text-sm text-white font-semibold truncate">{leg.match}</p>
                 <p className={`text-xs font-medium mt-0.5 flex items-center gap-1 ${accent}`}>
                   <Icon name="check" className="w-3 h-3" strokeWidth={2.5} /> {leg.selection}

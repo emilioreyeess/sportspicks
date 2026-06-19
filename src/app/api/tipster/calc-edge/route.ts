@@ -7,6 +7,7 @@
  */
 import { NextRequest } from "next/server"
 import Anthropic from "@anthropic-ai/sdk"
+import { MODEL_HAIKU } from "@/lib/ai-models"
 import { consume, getClientIp, tooManyRequests } from "@/lib/rate-limit"
 import { withLlmCache } from "@/lib/infrastructure/llmCache"
 
@@ -69,7 +70,7 @@ Responde SOLO con JSON, sin markdown ni explicaciones:
     const raw = await withLlmCache(prompt, async () => {
       const client = new Anthropic({ apiKey })
       const msg = await client.messages.create({
-        model: "claude-haiku-4-5-20251001",
+        model: MODEL_HAIKU,
         max_tokens: 256,
         messages: [{ role: "user", content: prompt }],
       })

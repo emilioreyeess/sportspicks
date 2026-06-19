@@ -7,6 +7,7 @@
 import { NextRequest } from "next/server"
 import { createServiceClient } from "@/lib/supabase/client"
 import { withLlmCache } from "@/lib/infrastructure/llmCache"
+import { MODEL_HAIKU } from "@/lib/ai-models"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -86,7 +87,7 @@ export async function GET(req: NextRequest) {
           const Anthropic = (await import("@anthropic-ai/sdk")).default
           const client = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY })
           const summary = await client.messages.create({
-            model: "claude-haiku-4-5-20251001",
+            model: MODEL_HAIKU,
             max_tokens: 200,
             messages: [{ role: "user", content: summaryPrompt }],
           })

@@ -1,4 +1,5 @@
 import Anthropic from "@anthropic-ai/sdk"
+import { MODEL_SONNET } from "@/lib/ai-models"
 import { getServerSession } from "@/lib/auth-server"
 import { consume, getClientIp, tooManyRequests } from "@/lib/rate-limit"
 import { getStore } from "@/lib/store"
@@ -6,6 +7,8 @@ import { createServiceClient } from "@/lib/supabase/client"
 import { getGrantedPlan } from "@/lib/plan-grants"
 import type { Fixture, FixtureStats, StandingRow } from "@/lib/infrastructure/footballApi"
 import { fetchFixtureOddsAF } from "@/lib/infrastructure/footballApi"
+import { WC_TEAMS } from "@/lib/world-cup/static-data"
+import { resolveWcCode } from "@/lib/world-cup/name-to-code"
 
 export const runtime = "nodejs"
 export const maxDuration = 60
@@ -414,6 +417,52 @@ El pipeline de picks aún no ha generado resultados para hoy (${today}).
   }
 }
 
+/**
+ * FASE 4.1 — Inyecta la CLASIFICACIÓN ACTUAL del Mundial en texto plano para el
+ * System Prompt. Calcula los puntos por grupo desde los partidos finalizados de
+ * la BD (mismo criterio que /api/world-cup/live). Devuelve "" si no hay partidos
+ * jugados aún (no ensucia el prompt).
+ */
+async function buildWcStandingsContext(): Promise<string> {
+  try {
+    const sb = createServiceClient()
+    const { data } = await sb
+      .from("fixtures")
+      .select("home_team, away_team, stats")
+      .eq("league", "World Cup")
+      .limit(200)
+    const rows = data ?? []
+    type S = { pts: number; w: number; d: number; l: number; gf: number; ga: number }
+    const tbl = new Map<string, S>()
+    for (const t of WC_TEAMS) tbl.set(t.code, { pts: 0, w: 0, d: 0, l: 0, gf: 0, ga: 0 })
+    for (const f of rows as any[]) {
+      const res = f.stats?.result ?? f.stats?.goals
+      if (!res || res.home == null || res.away == null) continue
+      const hc = resolveWcCode(f.home_team), ac = resolveWcCode(f.away_team)
+      if (!hc || !ac) continue
+      const h = tbl.get(hc), a = tbl.get(ac); if (!h || !a) continue
+      const hg = Number(res.home), ag = Number(res.away)
+      h.gf += hg; h.ga += ag; a.gf += ag; a.ga += hg
+      if (hg > ag) { h.w++; h.pts += 3; a.l++ } else if (hg < ag) { a.w++; a.pts += 3; h.l++ } else { h.d++; a.d++; h.pts++; a.pts++ }
+    }
+    if (![...tbl.values()].some((s) => s.w + s.d + s.l > 0)) return ""
+    const byGroup = new Map<string, { name: string; s: S }[]>()
+    for (const t of WC_TEAMS) {
+      if (!t.group) continue
+      if (!byGroup.has(t.group)) byGroup.set(t.group, [])
+      byGroup.get(t.group)!.push({ name: t.name, s: tbl.get(t.code)! })
+    }
+    const lines = ["\n═══════════════════════════════════", "CLASIFICACIÓN ACTUAL DEL MUNDIAL (datos reales de nuestra BD)", "═══════════════════════════════════"]
+    for (const g of [...byGroup.keys()].sort()) {
+      const teams = byGroup.get(g)!.sort((x, y) => y.s.pts - x.s.pts || (y.s.gf - y.s.ga) - (x.s.gf - x.s.ga) || y.s.gf - x.s.gf)
+      lines.push(`Grupo ${g}: ` + teams.map((t) => `${t.name} ${t.s.pts}pts`).join(", "))
+    }
+    return lines.join("\n")
+  } catch {
+    return ""
+  }
+}
+
 const SYSTEM_PROMPT = `Eres PicksBot, analista de datos deportivos de SportsPicks Analytics. Riguroso y basado SOLO en datos reales.
 
 TIENES ACCESO a los datos del Mundial 2026 en tu base de datos (72 partidos y las plantillas ya cargados). Las fechas de los cruces YA están asignadas. CONSULTA tus herramientas ANTES de decir que no tienes datos — nunca afirmes que no sabes del Mundial sin haber llamado a get_fixtures_db con world_cup=true.
@@ -432,6 +481,10 @@ FORMATO DE RESPUESTA — OBLIGATORIO (Markdown limpio):
 - Estructura típica: una línea de veredicto + 2-4 guiones (o una tabla) + una línea breve de cierre/confianza.
 - TERMINANTEMENTE PROHIBIDO: bloques de código (no uses comillas triples \`\`\` jamás), JSON crudo, IDs de base de datos (team_id, league_id, fixture_id), nombres de campos o herramientas internas (form, stats, get_fixtures_db, headtohead) y cualquier carácter raro o símbolo decorativo. Traduce TODO a lenguaje natural (ej. racha "WWDLW" → "4 victorias en sus últimos 5, en buena forma").
 - Cita la fuente de forma natural y breve: "según nuestros datos, **[equipo]** es 2º con 9 pts".
+
+MERCADOS — DIVERSIFICA (FASE 4): para CADA pick evalúa SIEMPRE los mercados alternativos —**Over/Under 2.5** y **BTTS (Ambos Marcan)**— además del **1X2**. Propón el mercado con MEJOR valor matemático; no recurras por defecto al ganador 1X2.
+
+REGLAS DE ACERO: Conoces la clasificación y urgencia de los equipos, pero ERES UN MOTOR ESTADÍSTICO. No justifiques un pick solo por 'necesidad de ganar'. Filtra y descarta estrictamente cualquier pick con Edge <= 0 o cuotas inventadas. El valor matemático tiene prioridad absoluta sobre la narrativa.
 
 Idioma: español. Sin promesas de resultados ni garantías. Apuesta responsable, +18.`
 
@@ -563,13 +616,16 @@ export async function POST(req: Request) {
         try {
           let currentMessages = [...messages]
           let iteration = 0
+          // FASE 4.1: clasificación REAL del Mundial inyectada en texto plano (una
+          // sola vez por turno) → el motor razona con los puntos actuales.
+          const wcStandingsCtx = await buildWcStandingsContext()
           while (iteration < 10) {
             iteration++
             const response = await client.messages.create({
-              model: "claude-sonnet-4-5-20250929",
+              model: MODEL_SONNET,   // FASE 2: motor central del pick → Sonnet
               max_tokens: 2500,
               // Prompt caching: system prompt + tools se cachean 5 min → ~80% ahorro en tokens de entrada
-              system: [{ type: "text", text: SYSTEM_PROMPT + buildTodayContext(), cache_control: { type: "ephemeral" } }] as any,
+              system: [{ type: "text", text: SYSTEM_PROMPT + buildTodayContext() + wcStandingsCtx, cache_control: { type: "ephemeral" } }] as any,
               tools: [...TOOLS.slice(0, -1), { ...TOOLS[TOOLS.length - 1], cache_control: { type: "ephemeral" } }] as any,
               messages: currentMessages,
             })

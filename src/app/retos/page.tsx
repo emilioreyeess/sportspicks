@@ -93,8 +93,13 @@ function calcUserSim(history: HistoryEntry[], stake: number): SimResult {
 }
 
 function formatTime(iso: string) {
-  try { return new Date(iso).toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" }) }
-  catch { return "" }
+  // FASE 3.3: fecha + hora legibles ("25 jun · 18:00") en hora local del navegador.
+  try {
+    const d = new Date(iso)
+    const date = d.toLocaleDateString("es-ES", { day: "numeric", month: "short" })
+    const time = d.toLocaleTimeString("es-ES", { hour: "2-digit", minute: "2-digit" })
+    return `${date} · ${time}`
+  } catch { return "" }
 }
 
 /* ════════════════════════════════════════════════════════════════════════════

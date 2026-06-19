@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server"
 import Anthropic from "@anthropic-ai/sdk"
+import { MODEL_HAIKU } from "@/lib/ai-models"
 import { consume, getClientIp, tooManyRequests } from "@/lib/rate-limit"
 
 export const runtime = "nodejs"
@@ -143,7 +144,7 @@ Recuerda: solo razona sobre estos números. Nada fuera de ellos.`
 
       try {
         const stream = await client.messages.stream({
-          model: "claude-sonnet-4-5-20250929",
+          model: MODEL_HAIKU,
           max_tokens: 1200,
           system,
           messages: [{ role: "user", content: userMsg }],

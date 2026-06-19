@@ -16,6 +16,7 @@
  */
 
 import Anthropic from "@anthropic-ai/sdk"
+import { MODEL_HAIKU } from "@/lib/ai-models"
 import {
   FINAL_GATE_THRESHOLDS,
   type FinalGateInput,
@@ -116,7 +117,7 @@ Pregunta final.`
   try {
     const client = new Anthropic({ apiKey, timeout: timeoutMs })
     const response = await client.messages.create({
-      model: "claude-haiku-4-5",
+      model: MODEL_HAIKU,
       max_tokens: 200,
       system: LLM_VERIFICATION_PROMPT,
       messages: [{ role: "user", content: userMessage }],

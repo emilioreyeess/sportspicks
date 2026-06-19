@@ -13,13 +13,14 @@
  */
 import { NextRequest, NextResponse } from "next/server"
 import Anthropic from "@anthropic-ai/sdk"
+import { MODEL_HAIKU } from "@/lib/ai-models"
 import { createServiceClient } from "@/lib/supabase/client"
 
 export const runtime = "nodejs"
 export const maxDuration = 60
 export const dynamic = "force-dynamic"
 
-const REFEREE_MODEL = "claude-sonnet-4-5-20250929"   // snapshot validado
+const REFEREE_MODEL = MODEL_HAIKU   // snapshot validado
 const FINISHED = new Set(["FT", "AET", "PEN"])
 const MAX_PER_RUN = 15   // límite de llamadas al LLM por ejecución (timeout-safe)
 

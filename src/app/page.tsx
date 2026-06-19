@@ -177,6 +177,104 @@ function TipsterQuickAccess() {
   )
 }
 
+/* ── FASE 3.1: Banner de Confianza — ROI global auditado desde la BD ────────── */
+function TrustBanner() {
+  const [roi, setRoi] = useState<number | null>(null)
+  const [wr, setWr] = useState<number | null>(null)
+  useEffect(() => {
+    fetch("/api/picks/stats", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => { if (d) { setRoi(d.roi_pct ?? null); setWr(d.winrate_pct ?? null) } })
+      .catch(() => {})
+  }, [])
+  return (
+    <section className="max-w-5xl mx-auto px-4 sm:px-6 pt-4">
+      <div className="rounded-2xl bg-emerald-500/[0.06] border border-emerald-700/30 px-5 py-4 flex items-center justify-between gap-4 flex-wrap">
+        <div className="flex items-center gap-3 min-w-0">
+          <span className="grid place-items-center w-9 h-9 rounded-xl bg-emerald-500/15 shrink-0">
+            <Icon name="shield" className="w-[18px] h-[18px] text-emerald-400" strokeWidth={2.2} />
+          </span>
+          <div className="min-w-0">
+            <p className="text-[11px] font-bold uppercase tracking-wider text-emerald-400/90">Resultados Auditados</p>
+            <p className="text-[13px] text-zinc-300 leading-tight mt-0.5">
+              ROI global <strong className="text-white">{roi != null ? `${roi > 0 ? "+" : ""}${roi.toFixed(1)}%` : "—"}</strong>
+              {wr != null && <span className="text-zinc-500"> · acierto {wr.toFixed(0)}%</span>}
+            </p>
+          </div>
+        </div>
+        <Link href="/historico" className="shrink-0 text-[12px] font-semibold text-emerald-400 hover:text-emerald-300 tap">
+          Ver Histórico →
+        </Link>
+      </div>
+    </section>
+  )
+}
+
+/* ── FASE 3.2: Mundial Hoy — partidos del día + barras 1X2/BTTS del modelo ──── */
+function Bar({ label, pct, color }: { label: string; pct: number | null; color: string }) {
+  return (
+    <div className="flex items-center gap-2">
+      <span className="text-[10px] text-zinc-500 w-24 shrink-0">{label}</span>
+      <div className="flex-1 h-2 bg-white/[0.06] rounded-full overflow-hidden">
+        <div className={`h-full ${color} rounded-full transition-all`} style={{ width: `${pct ?? 0}%` }} />
+      </div>
+      <span className="text-[10px] font-semibold text-zinc-400 w-9 text-right shrink-0">{pct != null ? `${pct}%` : "—"}</span>
+    </div>
+  )
+}
+
+function MundialHoy() {
+  const [matches, setMatches] = useState<any[]>([])
+  const [openId, setOpenId] = useState<string | null>(null)
+  useEffect(() => {
+    fetch("/api/world-cup/live", { cache: "no-store" })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        const today = new Date().toISOString().slice(0, 10)
+        setMatches((d?.fixtures ?? []).filter((f: any) => (f.kickoffISO ?? "").slice(0, 10) === today))
+      })
+      .catch(() => {})
+  }, [])
+  if (matches.length === 0) return null
+  const impl = (o: number | null) => (o && o > 1 ? 1 / o : null)
+  return (
+    <section className="max-w-5xl mx-auto px-4 sm:px-6 pt-10 pb-2">
+      <div className="flex items-center gap-2 mb-4">
+        <span className="text-base">🏆</span>
+        <p className="text-[14px] font-semibold text-white">Mundial hoy</p>
+      </div>
+      <div className="space-y-2">
+        {matches.map((m: any) => {
+          const odds = m.odds ?? {}
+          const ph = impl(odds.home), pd = impl(odds.draw), pa = impl(odds.away)
+          const sum = (ph ?? 0) + (pd ?? 0) + (pa ?? 0)
+          const norm = (p: number | null) => (p != null && sum > 0 ? Math.round((p / sum) * 100) : null)
+          const btts = impl(odds.bttsYes)
+          const open = openId === m.matchId
+          return (
+            <div key={m.matchId} className="rounded-2xl bg-zinc-900/40 border border-white/[0.05] px-4 py-3">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-[13px] font-semibold text-white truncate">{m.homeName} vs {m.awayName}</p>
+                <button onClick={() => setOpenId(open ? null : m.matchId)} className="shrink-0 text-[11px] font-semibold text-emerald-400 hover:text-emerald-300 tap">
+                  {open ? "Ocultar" : "Análisis"}
+                </button>
+              </div>
+              {open && (
+                <div className="mt-3 space-y-1.5">
+                  <Bar label="Victoria local" pct={norm(ph)} color="bg-emerald-500" />
+                  <Bar label="Empate" pct={norm(pd)} color="bg-zinc-500" />
+                  <Bar label="Victoria visitante" pct={norm(pa)} color="bg-sky-500" />
+                  <Bar label="Ambos marcan" pct={btts != null ? Math.round(btts * 100) : null} color="bg-amber-500" />
+                </div>
+              )}
+            </div>
+          )
+        })}
+      </div>
+    </section>
+  )
+}
+
 /* ══════════════════════════════════════════════════════════════════════════════
    MAIN PAGE
 ══════════════════════════════════════════════════════════════════════════════ */
@@ -294,8 +392,14 @@ export default function HomePage() {
         </div>
       </section>
 
+      {/* ── FASE 3.1: Banner de Confianza (ROI global auditado) ───────────── */}
+      <TrustBanner />
+
       {/* ── Hall of Fame ──────────────────────────────────────────────────── */}
       <HallOfFame />
+
+      {/* ── FASE 3.2: Mundial Hoy (partidos del día + barras de análisis) ──── */}
+      <MundialHoy />
 
       {/* ── Partidos de Hoy (STEP 4) — realtime + análisis IA ─────────────── */}
       <TodayMatches />

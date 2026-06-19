@@ -14,6 +14,7 @@ import { getServerSession } from "@/lib/auth-server"
 import { createServiceClient } from "@/lib/supabase/client"
 import { getGrantedPlan } from "@/lib/plan-grants"
 import Anthropic from "@anthropic-ai/sdk"
+import { MODEL_HAIKU } from "@/lib/ai-models"
 import { consume, getClientIp, tooManyRequests } from "@/lib/rate-limit"
 
 export const runtime = "nodejs"
@@ -178,7 +179,7 @@ ${recentLosses || "Sin pérdidas recientes"}
         controller.enqueue(encoder.encode(`data: ${JSON.stringify({ text })}\n\n`))
       try {
         const stream = await client.messages.create({
-          model: "claude-haiku-4-5-20251001",
+          model: MODEL_HAIKU,
           max_tokens: 1200,
           stream: true,
           messages: [{
