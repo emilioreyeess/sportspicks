@@ -319,10 +319,16 @@ export async function analyzeMatch(args: {
   const homePlayed = home?.played ?? 0
   const awayPlayed = away?.played ?? 0
 
+  // BYPASS MUNDIAL: la fase de grupos arranca con 1-2 partidos jugados, por lo que
+  // el mínimo de 3 (correcto para ligas largas) reventaría TODO el torneo. Para el
+  // Mundial (slug fifa.world / "world cup") baja el mínimo a 1; el resto intacto.
+  const isWorldCup = /world/i.test(league)
+  const minGames = isWorldCup ? 1 : MIN_GAMES_FOR_ANALYSIS
+
   const dataIsThin =
     !home || !away ||
-    homePlayed < MIN_GAMES_FOR_ANALYSIS ||
-    awayPlayed < MIN_GAMES_FOR_ANALYSIS
+    homePlayed < minGames ||
+    awayPlayed < minGames
 
   if (dataIsThin) {
     if (
