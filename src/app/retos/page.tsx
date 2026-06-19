@@ -6,6 +6,8 @@ import { DisclaimerBanner } from "@/components/legal/DisclaimerBanner"
 import { PageHeader, Card, Button, Badge, Alert, EmptyState, Spinner } from "@/components/ui/primitives"
 import { Icon } from "@/components/ui/icons"
 import { usePlan } from "@/lib/plan"
+import { useRetoTracker } from "@/lib/hooks/useRetoTracker"
+import { evaluateExpiry, expiryBanner } from "@/lib/expiry"
 import Link from "next/link"
 
 /* ────────────────────────────────────────────────────────────────────────────
@@ -133,8 +135,16 @@ function ComboDisplay({ combo, color }: { combo: RetoCombo; color: ColorKey }) {
       )}
 
       {/* Each pick */}
-      {combo.picks.map((pick, i) => (
-        <div key={i} className="rounded-2xl bg-zinc-900/40 overflow-hidden">
+      {combo.picks.map((pick, i) => {
+        // FASE 2 "Llegas Tarde": el pick expira si su Edge ≤ 0 (o la cuota cae ≥5%).
+        const exp = evaluateExpiry({ initialOdds: pick.odd, currentOdds: pick.odd, edgePct: pick.edge })
+        return (
+        <div key={i} className={`rounded-2xl bg-zinc-900/40 overflow-hidden ${exp.expired ? "opacity-50 border border-rose-500/50" : ""}`}>
+          {exp.expired && (
+            <div className="px-5 py-2 bg-rose-500/[0.12] border-b border-rose-700/40">
+              <p className="text-[11px] font-bold text-rose-300">⏰ {expiryBanner(exp)}</p>
+            </div>
+          )}
           <div className="px-5 py-4">
             <div className="flex items-start gap-3">
               <span className={`shrink-0 grid place-items-center w-7 h-7 rounded-lg text-[12px] font-bold mt-0.5 ${tone.soft} ${tone.text}`}>
@@ -204,7 +214,8 @@ function ComboDisplay({ combo, color }: { combo: RetoCombo; color: ColorKey }) {
             </div>
           )}
         </div>
-      ))}
+        )
+      })}
     </div>
   )
 }
@@ -440,6 +451,8 @@ function RetoCard({
 }) {
   const color = (challenge.color as ColorKey) ?? "emerald"
   const tone = TONE[color]
+  // FASE 2: el reto de hoy expira si alguna pata tiene Edge ≤ 0 → no se puede seguir.
+  const comboExpired = (challenge.daily_combo?.picks ?? []).some((p) => evaluateExpiry({ edgePct: p.edge }).expired)
   const progress = getProgress(challenge.id)
   const sim = calcUserSim(progress.history, challenge.simulation.stake)
   const wins = progress.history.filter((h) => h.result === "WIN").length
@@ -564,14 +577,73 @@ function RetoCard({
           ) : canEnroll ? (
             <Button
               variant={color === "violet" ? "violet" : "premium"}
-              size="lg" full onClick={onEnroll}>
-              Unirse al reto {challenge.emoji}
+              size="lg" full onClick={onEnroll}
+              disabled={comboExpired}>
+              {comboExpired ? "Valor expirado — no disponible" : `Unirse al reto ${challenge.emoji}`}
             </Button>
           ) : (
             <Button variant="premium" size="lg" full iconLeft="crown" href="/pricing">
               {challenge.id === "pro" ? "Requiere Pro" : "Requiere Premium"}
             </Button>
           )}
+        </div>
+      </div>
+    </Card>
+  )
+}
+
+/* ── FASE 1: Panel "Mi Progreso" — tracker client-side (localStorage) ───────── */
+function MiProgreso() {
+  const { dineroAcumulado, diasRacha, hydrated, checkIn, reset, todayCheckIn } = useRetoTracker()
+  const [amount, setAmount] = useState("")
+  if (!hydrated) return null   // evita flash de hidratación SSR
+
+  const onBet = () => {
+    const n = parseFloat(amount.replace(",", "."))
+    checkIn("bet", isFinite(n) && n > 0 ? n : undefined)
+    setAmount("")
+  }
+
+  return (
+    <Card variant="default" className="px-5 py-4">
+      <div className="flex items-center justify-between gap-3 mb-3">
+        <p className="text-[13px] font-semibold text-white">Mi Progreso</p>
+        <button onClick={reset} className="text-[11px] text-zinc-600 hover:text-rose-400 tap transition-colors">
+          Resetear reto
+        </button>
+      </div>
+
+      <div className="grid grid-cols-2 gap-3 mb-4">
+        <div className="rounded-xl bg-white/[0.03] px-3.5 py-3">
+          <p className="text-[10px] uppercase tracking-wider text-zinc-600">Dinero jugado</p>
+          <p className="text-xl font-bold text-white tabular-nums">{dineroAcumulado.toFixed(2)}€</p>
+        </div>
+        <div className="rounded-xl bg-white/[0.03] px-3.5 py-3">
+          <p className="text-[10px] uppercase tracking-wider text-zinc-600">Racha</p>
+          <p className="text-xl font-bold text-emerald-400 tabular-nums">{diasRacha} {diasRacha === 1 ? "día" : "días"}</p>
+        </div>
+      </div>
+
+      <div className="flex flex-wrap items-center gap-2">
+        <button
+          onClick={() => checkIn("ia")}
+          className={`flex-1 min-w-[130px] py-2.5 rounded-xl text-xs font-bold tap transition-colors ${todayCheckIn?.iaFollowed ? "bg-emerald-500/20 text-emerald-300" : "bg-white/[0.05] text-zinc-300 hover:bg-white/[0.08]"}`}
+        >
+          {todayCheckIn?.iaFollowed ? "✓ Seguí a la IA" : "Seguí a la IA"}
+        </button>
+        <div className="flex items-center gap-1.5 flex-1 min-w-[190px]">
+          <input
+            type="number" inputMode="decimal" min="0" step="0.5"
+            value={amount} onChange={(e) => setAmount(e.target.value)}
+            placeholder="€"
+            className="w-16 bg-white/[0.04] rounded-xl px-3 py-2.5 text-xs text-white outline-none focus:bg-white/[0.06]"
+          />
+          <button
+            onClick={onBet}
+            className={`flex-1 py-2.5 rounded-xl text-xs font-bold tap transition-colors ${todayCheckIn?.betPlaced ? "bg-emerald-500/20 text-emerald-300" : "bg-emerald-600 hover:bg-emerald-500 text-white"}`}
+          >
+            {todayCheckIn?.betPlaced ? "✓ Aposté mi pick" : "Aposté mi pick"}
+          </button>
         </div>
       </div>
     </Card>
@@ -652,6 +724,7 @@ export default function RetosPage() {
       />
 
       <div className="space-y-5">
+        <MiProgreso />
         <DisclaimerBanner variant="retos" />
 
         {milestones.length > 0 && (

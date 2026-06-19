@@ -6,6 +6,7 @@ import { PageHeader, Card } from "@/components/ui/primitives"
 import { Icon } from "@/components/ui/icons"
 import { usePlan } from "@/lib/plan"
 import { useUpgradeModal } from "@/components/premium"
+import { evaluateExpiry, expiryBanner, edgeFromProbOdds } from "@/lib/expiry"
 import Link from "next/link"
 
 interface Leg {
@@ -226,8 +227,20 @@ export default function CombinadasClient() {
 function CombinadaResult({ result, accent, bar }: {
   result: Result; accent: string; bar: string
 }) {
+  // FASE 2 "Llegas Tarde": una pata expira si su Edge (prob modelo − implícita de
+  // la cuota) cae a ≤ 0 (o la cuota baja ≥5%, si hubiera cuota en vivo).
+  const legExpiry = result.legs.map((l) =>
+    evaluateExpiry({ initialOdds: l.odd, currentOdds: l.odd, edgePct: edgeFromProbOdds(l.prob, l.odd) }),
+  )
+  const expiredLeg = legExpiry.find((e) => e.expired) ?? null
+
   return (
-    <Card className="overflow-hidden animate-scale-in">
+    <Card className={`overflow-hidden animate-scale-in ${expiredLeg ? "opacity-50 border border-rose-500/50" : ""}`}>
+      {expiredLeg && (
+        <div className="px-5 py-2.5 bg-rose-500/[0.12] border-b border-rose-700/40">
+          <p className="text-[11px] font-bold text-rose-300">⏰ {expiryBanner(expiredLeg)}</p>
+        </div>
+      )}
       {result.fallback_reason && (
         <div className="px-5 py-2.5 bg-amber-400/[0.08]">
           <p className="text-[11px] text-amber-400/90">ℹ️ {result.fallback_reason}</p>

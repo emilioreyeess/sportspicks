@@ -455,7 +455,8 @@ async function buildWcStandingsContext(): Promise<string> {
     const lines = ["\n═══════════════════════════════════", "CLASIFICACIÓN ACTUAL DEL MUNDIAL (datos reales de nuestra BD)", "═══════════════════════════════════"]
     for (const g of [...byGroup.keys()].sort()) {
       const teams = byGroup.get(g)!.sort((x, y) => y.s.pts - x.s.pts || (y.s.gf - y.s.ga) - (x.s.gf - x.s.ga) || y.s.gf - x.s.gf)
-      lines.push(`Grupo ${g}: ` + teams.map((t) => `${t.name} ${t.s.pts}pts`).join(", "))
+      // FASE 3: incluye GF/GC (ya calculados) sin stats basura.
+      lines.push(`Grupo ${g}: ` + teams.map((t) => `${t.name} ${t.s.pts}pts (GF:${t.s.gf}, GC:${t.s.ga})`).join(", "))
     }
     return lines.join("\n")
   } catch {
