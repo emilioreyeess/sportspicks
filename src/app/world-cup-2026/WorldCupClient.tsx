@@ -43,18 +43,24 @@ export default function WorldCupClient() {
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const [bracketRes, teamsRes] = await Promise.all([
+      const [bracketRes, teamsRes, liveRes] = await Promise.all([
         fetch("/api/world-cup/bracket").then((r) => r.json()),
         fetch("/api/world-cup/teams").then((r) => r.json()),
+        // Datos REALES de Supabase (calendario + clasificación calculada del cron).
+        fetch("/api/world-cup/live", { cache: "no-store" }).then((r) => r.json()).catch(() => ({})),
       ])
       const teamMap = new Map<string, WCTeam>()
       for (const t of teamsRes.teams ?? []) teamMap.set(t.code, t)
       setTeams(teamMap)
       setByGroup(teamsRes.byGroup ?? {})
-      const fixList: WCFixture[] = bracketRes.knockoutFixtures ?? []
-      setFixtures(fixList.slice(0, 20))
-      setKnockout(fixList)
-      setWcGroups(bracketRes.groups ?? [])
+      // Partidos: calendario REAL del Mundial (fase de grupos) desde Supabase.
+      setFixtures((liveRes.fixtures as WCFixture[]) ?? [])
+      // Grupos: clasificación REAL (puntos/victorias/goles) calculada de resultados.
+      // Si /live no trae standings, caemos al bracket (vacío hasta que arranque).
+      setWcGroups(liveRes.standings?.length ? liveRes.standings : (bracketRes.groups ?? []))
+      // Eliminatorias siguen del bracket.
+      const knockoutList: WCFixture[] = bracketRes.knockoutFixtures ?? []
+      setKnockout(knockoutList)
       setDrawCompleted(!!bracketRes.drawCompleted)
     } catch {
       // non-critical
