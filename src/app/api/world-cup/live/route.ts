@@ -44,11 +44,16 @@ function mapStatus(s: string): "scheduled" | "live" | "final" | "postponed" {
 
 /** Marcador del partido desde stats.result (cron) o stats.goals (API), o null. */
 function scoreOf(stats: any): { home: number; away: number } | null {
-  const r = stats?.result
-  if (r && r.home != null && r.away != null) return { home: Number(r.home), away: Number(r.away) }
-  const g = stats?.goals
-  if (g && g.home != null && g.away != null) return { home: Number(g.home), away: Number(g.away) }
-  return null
+  // ESCUDO anti-NaN: solo acepta el marcador si AMBOS goles son números finitos.
+  // Una cadena rota en stats.result se descarta (→ null) en vez de inyectar NaN
+  // y corromper la clasificación de todo el grupo.
+  const pick = (o: any): { home: number; away: number } | null => {
+    if (!o || o.home == null || o.away == null) return null
+    const home = Number(o.home), away = Number(o.away)
+    if (!Number.isFinite(home) || !Number.isFinite(away)) return null
+    return { home, away }
+  }
+  return pick(stats?.result) ?? pick(stats?.goals)
 }
 
 export async function GET() {

@@ -163,10 +163,14 @@ const AF_BASE = "https://v3.football.api-sports.io"
 /** Resuelve el team_id (API-Football) de un equipo buscándolo en nuestra tabla fixtures. */
 async function resolveTeamId(sb: any, name: string): Promise<{ id: number; label: string } | null> {
   const q = `%${name.trim()}%`
-  const asHome = await sb.from("fixtures").select("home_team, stats").ilike("home_team", q).limit(1)
+  // Concurrente: dispara ambas lecturas (como local y como visitante) a la vez.
+  // Se mantiene la prioridad original (home gana sobre away si ambas aciertan).
+  const [asHome, asAway] = await Promise.all([
+    sb.from("fixtures").select("home_team, stats").ilike("home_team", q).limit(1),
+    sb.from("fixtures").select("away_team, stats").ilike("away_team", q).limit(1),
+  ])
   const h = asHome.data?.[0]
   if (h?.stats?.home?.id) return { id: Number(h.stats.home.id), label: h.home_team }
-  const asAway = await sb.from("fixtures").select("away_team, stats").ilike("away_team", q).limit(1)
   const a = asAway.data?.[0]
   if (a?.stats?.away?.id) return { id: Number(a.stats.away.id), label: a.away_team }
   return null
@@ -289,24 +293,23 @@ async function getCombinadaOdds(matchesStr: string): Promise<string> {
       .limit(800)
     const fixtures = data ?? []
 
-    const lines: string[] = []
-    let anyOdds = false
-    for (const raw of pairs) {
+    // Concurrente: todas las cuotas de la combinada se piden EN PARALELO
+    // (Promise.all) en vez de en serie. El .map preserva el orden de `pairs`,
+    // así que las líneas del informe salen en el orden que pidió el usuario.
+    const results = await Promise.all(pairs.map(async (raw): Promise<{ line: string; hasOdds: boolean }> => {
       const sp = splitPair(raw)
-      if (!sp) { lines.push(`- "${raw}": no pude interpretar el partido.`); continue }
+      if (!sp) return { line: `- "${raw}": no pude interpretar el partido.`, hasOdds: false }
       const a = norm(sp[0]), b = norm(sp[1])
       const fx = fixtures.find((f: any) => {
         const h = norm(f.home_team ?? ""), aw = norm(f.away_team ?? "")
         return ((h.includes(a) || a.includes(h)) && (aw.includes(b) || b.includes(aw))) ||
                ((h.includes(b) || b.includes(h)) && (aw.includes(a) || a.includes(aw)))
       })
-      if (!fx?.fixture_id) { lines.push(`- ${raw}: partido no encontrado en la BD.`); continue }
+      if (!fx?.fixture_id) return { line: `- ${raw}: partido no encontrado en la BD.`, hasOdds: false }
       const odds = await fetchFixtureOddsAF(Number(fx.fixture_id))
       if (!odds || (odds.home == null && odds.away == null)) {
-        lines.push(`- ${fx.home_team} vs ${fx.away_team}: SIN cuotas oficiales en la BD.`)
-        continue
+        return { line: `- ${fx.home_team} vs ${fx.away_team}: SIN cuotas oficiales en la BD.`, hasOdds: false }
       }
-      anyOdds = true
       const parts = [
         odds.home != null ? `1 @${odds.home}` : null,
         odds.draw != null ? `X @${odds.draw}` : null,
@@ -314,8 +317,11 @@ async function getCombinadaOdds(matchesStr: string): Promise<string> {
         odds.over25 != null ? `Over2.5 @${odds.over25}` : null,
         odds.under25 != null ? `Under2.5 @${odds.under25}` : null,
       ].filter(Boolean).join(" · ")
-      lines.push(`- ${fx.home_team} vs ${fx.away_team}: ${parts}`)
-    }
+      return { line: `- ${fx.home_team} vs ${fx.away_team}: ${parts}`, hasOdds: true }
+    }))
+
+    const lines = results.map((r) => r.line)
+    const anyOdds = results.some((r) => r.hasOdds)
 
     if (!anyOdds) return NO_ODDS_MSG
     return `Cuotas REALES (API-Football) para la combinada:\n${lines.join("\n")}\nConstruye la combinada SOLO con estas cuotas reales. Excluye cualquier partido marcado "SIN cuotas". NUNCA inventes una cuota.`
@@ -438,10 +444,13 @@ async function buildWcStandingsContext(): Promise<string> {
     for (const f of rows as any[]) {
       const res = f.stats?.result ?? f.stats?.goals
       if (!res || res.home == null || res.away == null) continue
+      const hg = Number(res.home), ag = Number(res.away)
+      // ESCUDO anti-NaN: si la API mandó una cadena rota, se descarta la fila
+      // entera en vez de propagar NaN y corromper la tabla del grupo completa.
+      if (!Number.isFinite(hg) || !Number.isFinite(ag)) continue
       const hc = resolveWcCode(f.home_team), ac = resolveWcCode(f.away_team)
       if (!hc || !ac) continue
       const h = tbl.get(hc), a = tbl.get(ac); if (!h || !a) continue
-      const hg = Number(res.home), ag = Number(res.away)
       h.gf += hg; h.ga += ag; a.gf += ag; a.ga += hg
       if (hg > ag) { h.w++; h.pts += 3; a.l++ } else if (hg < ag) { a.w++; a.pts += 3; h.l++ } else { h.d++; a.d++; h.pts++; a.pts++ }
     }
