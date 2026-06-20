@@ -21,8 +21,40 @@ export const maxDuration = 60
 export const dynamic = "force-dynamic"
 
 const REFEREE_MODEL = MODEL_HAIKU   // snapshot validado
-const FINISHED = new Set(["FT", "AET", "PEN"])
 const MAX_PER_RUN = 15   // límite de llamadas al LLM por ejecución (timeout-safe)
+
+// FASE 1 (fix): estado robusto de "partido finalizado". Acepta TODOS los valores
+// de cualquier proveedor — la misma lista que usamos para la clasificación (standings):
+//   · "finished"  → valor NORMALIZADO que escriben nuestros crons (update-results /
+//                   sync-football) en `fixtures.status`.
+//   · FT/AET/PEN  → short de API-Football.
+//   · nombres largos ("Match Finished", "Full Time", …) por si llega el long form.
+// Antes el check era `new Set(["FT","AET","PEN"]).has(status.toUpperCase())`: como la
+// tabla guarda "finished", NINGÚN partido pasaba el filtro y los picks se quedaban
+// "pending" para siempre. Este era el origen del bug de "atascados en pendiente".
+const FINISHED_STATUSES = new Set([
+  "finished", "ft", "aet", "pen", "pen.",
+  "match finished", "full time", "after extra time", "penalties", "awarded", "wo",
+])
+const isFinished = (s: unknown): boolean =>
+  FINISHED_STATUSES.has(String(s ?? "").toLowerCase().trim())
+
+/**
+ * Marcador del partido: lee `stats.result` (lo que ESCRIBEN nuestros crons) y, como
+ * respaldo, `stats.goals` (forma directa de la API). Escudo anti-NaN: solo devuelve
+ * un marcador si AMBOS goles son números finitos. Antes solo se leía `stats.goals`,
+ * por lo que los fixtures liquidados por cron (que usan `stats.result`) nunca tenían
+ * marcador → el árbitro los saltaba aunque el estado fuese correcto.
+ */
+function scoreOf(stats: any): { home: number; away: number } | null {
+  const pick = (o: any): { home: number; away: number } | null => {
+    if (!o || o.home == null || o.away == null) return null
+    const home = Number(o.home), away = Number(o.away)
+    if (!Number.isFinite(home) || !Number.isFinite(away)) return null
+    return { home, away }
+  }
+  return pick(stats?.result) ?? pick(stats?.goals)
+}
 
 const norm = (s: string) =>
   (s ?? "").toLowerCase().normalize("NFD").replace(/[^a-z0-9 ]/g, " ").replace(/\s+/g, " ").trim()
@@ -128,12 +160,13 @@ export async function GET(req: NextRequest) {
         }
         if (!fx) continue
 
-        // Solo si el partido está FINALIZADO.
-        if (!FINISHED.has(String(fx.status ?? "").toUpperCase())) continue
+        // Solo si el partido está FINALIZADO (estado robusto multi-proveedor).
+        if (!isFinished(fx.status)) continue
         out.finished++
 
-        const gh = fx.stats?.goals?.home, ga = fx.stats?.goals?.away
-        if (gh == null || ga == null) continue   // sin marcador fiable → no inventamos
+        const score = scoreOf(fx.stats)
+        if (!score) continue   // sin marcador fiable → no inventamos
+        const { home: gh, away: ga } = score
 
         if (llmCalls >= MAX_PER_RUN) break
         llmCalls++
