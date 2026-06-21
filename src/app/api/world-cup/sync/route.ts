@@ -330,6 +330,13 @@ function parseOdd(s: string | null): number | null {
 const WC_KICKOFF = new Date("2026-06-11T20:00:00-04:00").getTime()
 const TWO_DAYS_MS = 2 * 24 * 60 * 60 * 1000
 
+// Guard de cuota: si el consumo de API-Football supera este % del límite diario,
+// entramos en MODO SUPERVIVENCIA — solo marcadores básicos (fixtures.status +
+// fixtures.result) para que los picks se sigan resolviendo; se posponen los datos
+// pesados (cuotas, convocatorias, alineaciones, estadísticas avanzadas) hasta que
+// el contador diario de API-Football se reinicie.
+const QUOTA_SURVIVAL_THRESHOLD = 0.85
+
 export async function GET(req: NextRequest) {
   if (!isAuthorized(req)) {
     return Response.json({ error: "Unauthorized" }, { status: 401 })
@@ -349,28 +356,38 @@ export async function GET(req: NextRequest) {
   const log: SyncLog = []
   const t0 = Date.now()
 
-  // 0. Check quota
+  // 0. Guard de cuota (modo supervivencia a ≥85% de consumo).
+  let survival = false
+  let quotaDetail = "api-football disabled"
   if (isApiFootballEnabled()) {
     const quota = await getQuota()
-    if (quota) {
-      log.push({ phase: "quota", status: "ok", detail: `${quota.remaining}/${quota.limit} requests remaining` })
-      if (quota.remaining < 20) {
-        return Response.json({
-          ok: false, error: "quota_low",
-          detail: `Only ${quota.remaining} API-Football requests remaining today.`,
-          log,
-        }, { status: 429 })
-      }
+    if (quota && quota.limit > 0) {
+      const pct = quota.current / quota.limit
+      survival = pct >= QUOTA_SURVIVAL_THRESHOLD
+      quotaDetail = `${quota.current}/${quota.limit} usados (${Math.round(pct * 100)}%)`
+      log.push({
+        phase: "quota",
+        status: survival ? "skip" : "ok",
+        detail: survival
+          ? `${quotaDetail} — MODO SUPERVIVENCIA: solo marcadores básicos`
+          : quotaDetail,
+      })
+    } else {
+      log.push({ phase: "quota", status: "skip", detail: "sin datos de cuota — sync completo" })
     }
   }
 
   const sb = await getSupabase()
 
-  // 1. Fixtures (tabla wc_matches específica del Mundial)
+  // ── LIGERO (SIEMPRE) ─────────────────────────────────────────────────────────
+  // Marcadores básicos: lo único imprescindible para que el árbitro liquide picks.
+
+  // 1. Fixtures → wc_matches (status + marcador). Cae a ESPN (sin coste de cuota)
+  //    si API-Football no responde, así que sigue vivo incluso a cuota agotada.
   const fixtures = await syncFixtures(sb, log)
 
-  // 1b. MISMOS fixtures → tabla general `fixtures` (la que lee el bot/RAG) con
-  //     stats.league_id=1, para curar la ceguera del bot ante el Mundial.
+  // 1b. MISMOS fixtures → tabla general `fixtures` (status + stats.result): ESTA es
+  //     la tabla que lee /api/bets/settle. Sin esto los picks no se resuelven.
   const wcDb = await ingestWorldCupFixtures(2026)
   log.push({
     phase: "fixtures_table",
@@ -379,38 +396,52 @@ export async function GET(req: NextRequest) {
     count: wcDb.count,
   })
 
-  // 1c. Convocatorias (squads) → tabla wc_squads (degrada si aún no se publican).
-  const sq = await syncWorldCupSquads()
-  log.push({
-    phase: "squads",
-    status: sq.error ? "error" : "ok",
-    detail: sq.error ?? `${sq.teams} equipos · ${sq.players} jugadores`,
-    count: sq.players,
-  })
+  if (survival) {
+    // ── PESADO POSPUESTO ─────────────────────────────────────────────────────
+    // A ≥85% de cuota abortamos convocatorias, cuotas, alineaciones y estadísticas
+    // avanzadas. Se reanudan solas en la próxima corrida cuando el contador diario
+    // de API-Football se reinicie.
+    log.push({
+      phase: "heavy_sync",
+      status: "skip",
+      detail: `pospuesto por cuota (${quotaDetail} ≥ ${Math.round(QUOTA_SURVIVAL_THRESHOLD * 100)}%): squads, wc_odds, odds, lineups, stats`,
+    })
+  } else {
+    // ── PESADO (cuota holgada) ───────────────────────────────────────────────
+    // 1c. Convocatorias (squads) → tabla wc_squads (degrada si aún no se publican).
+    const sq = await syncWorldCupSquads()
+    log.push({
+      phase: "squads",
+      status: sq.error ? "error" : "ok",
+      detail: sq.error ?? `${sq.teams} equipos · ${sq.players} jugadores`,
+      count: sq.players,
+    })
 
-  // 1d. Cuotas del Mundial → fixtures.stats.odds (alimenta UI Partidos/Combinadas).
-  const wcOdds = await ingestWorldCupOdds()
-  log.push({
-    phase: "wc_odds",
-    status: wcOdds.errors > 0 && wcOdds.updated === 0 ? "error" : "ok",
-    detail: `${wcOdds.withOdds}/${wcOdds.scanned} con cuotas · ${wcOdds.updated} actualizados · ${wcOdds.errors} errores`,
-    count: wcOdds.updated,
-  })
+    // 1d. Cuotas del Mundial → fixtures.stats.odds (alimenta UI Partidos/Combinadas).
+    const wcOdds = await ingestWorldCupOdds()
+    log.push({
+      phase: "wc_odds",
+      status: wcOdds.errors > 0 && wcOdds.updated === 0 ? "error" : "ok",
+      detail: `${wcOdds.withOdds}/${wcOdds.scanned} con cuotas · ${wcOdds.updated} actualizados · ${wcOdds.errors} errores`,
+      count: wcOdds.updated,
+    })
 
-  // 2. Odds (only if API-Football, upcoming ≤48h)
-  await syncOdds(sb, fixtures, log)
+    // 2. Odds (only if API-Football, upcoming ≤48h)
+    await syncOdds(sb, fixtures, log)
 
-  // 3. Lineups (≤24h)
-  await syncLineups(sb, fixtures, log)
+    // 3. Lineups (≤24h)
+    await syncLineups(sb, fixtures, log)
 
-  // 4. Match stats (completed)
-  await syncMatchStats(sb, fixtures, log)
+    // 4. Match stats (completed)
+    await syncMatchStats(sb, fixtures, log)
+  }
 
   // 5. Bust KV cache so next hub load gets fresh data
   await bustKvCache(log)
 
   return Response.json({
     ok: true,
+    survival,
     durationMs: Date.now() - t0,
     apiFootballEnabled: isApiFootballEnabled(),
     log,
