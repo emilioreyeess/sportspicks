@@ -215,73 +215,32 @@ export default function ValuePage() {
         const loadedPicks = r.picks ?? []
         setPicks(loadedPicks)
         setNote(r.note)
-        // Persistir en localStorage con clave por fecha (sp_picks_YYYY-MM-DD)
-        // para que mañana "ayer" los encuentre aunque hoy se carguen picks nuevos.
-        // También guardamos sp_picks_today como alias rápido para el mismo día.
-        if (loadedPicks.length > 0 && r.date) {
-          try {
-            const payload = JSON.stringify({ date: r.date, picks: loadedPicks })
-            localStorage.setItem(`sp_picks_${r.date}`, payload)   // clave permanente por fecha
-            localStorage.setItem("sp_picks_today", payload)        // alias para compatibilidad
-          } catch { /* quota exceeded — ignorar */ }
-        }
       })
       .catch(() => setNote("No se pudieron cargar los picks en este momento."))
       .finally(() => setLoading(false))
   }, [])
 
-  // Carga los picks de ayer desde el store del servidor (+ fallback localStorage + ESPN)
+  // Carga los value picks de ayer — FUENTE ÚNICA: la base de datos real
+  // (/api/picks/yesterday → predictions_log, source='value_pick'). Si está vacía,
+  // estado vacío limpio. PROHIBIDO el render de fallback (localStorage / mocks):
+  // la pestaña "Ayer" es 100% DB.
   useEffect(() => {
     if (tab !== "ayer" || yesterdayPicks.length > 0 || loadingYesterday) return
     setLoadingYesterday(true)
 
     const yesterday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10)
 
-    // 1️⃣ Intentar store del servidor primero (sobrevive cold starts vía /tmp)
     fetch("/api/picks/yesterday")
-      .then(r => r.ok ? r.json() : null)
-      .then(d => {
-        if (d?.picks?.length) {
-          setYesterdayPicks(d.picks.map((p: any) => ({ ...p, date: d.date ?? yesterday })))
-          setYesterdayDate(d.date ?? yesterday)
-          setLoadingYesterday(false)
-          return
-        }
-
-        // 2️⃣ Fallback: localStorage picks enriquecidos vía ESPN
-        // Intentar primero clave por fecha (nueva), luego alias legacy
-        try {
-          const rawByDate = localStorage.getItem(`sp_picks_${yesterday}`)
-          const rawLegacy  = localStorage.getItem("sp_picks_today")
-          const raw = rawByDate ?? rawLegacy
-          if (!raw) { setLoadingYesterday(false); return }
-          const saved: { date: string; picks: any[] } = JSON.parse(raw)
-          if (saved.date !== yesterday || !saved.picks?.length) { setLoadingYesterday(false); return }
-
-          setYesterdayDate(saved.date)
-          // Pedir al servidor que resuelva WIN/LOSS consultando ESPN
-          fetch("/api/picks/yesterday", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ date: saved.date, picks: saved.picks }),
-          })
-            .then((r) => r.json())
-            .then((data) => {
-              setYesterdayPicks(data.picks ?? [])
-              setYesterdayDate(data.date ?? saved.date)
-            })
-            .catch(() => {
-              // Si falla el servidor, mostrar los picks sin resultado
-              setYesterdayPicks(saved.picks.map((p: any) => ({ ...p, result: "PENDING" })))
-            })
-            .finally(() => setLoadingYesterday(false))
-        } catch {
-          setLoadingYesterday(false)
-        }
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        const picks = Array.isArray(d?.picks) ? d.picks : []
+        setYesterdayPicks(picks.map((p: any) => ({ ...p, date: d?.date ?? yesterday })))
+        setYesterdayDate(d?.date ?? yesterday)
       })
       .catch(() => {
-        setLoadingYesterday(false)
+        // Red caída → estado vacío. Nunca mostramos datos falsos.
       })
+      .finally(() => setLoadingYesterday(false))
   }, [tab])
 
   useEffect(() => {
@@ -446,8 +405,8 @@ export default function ValuePage() {
             </div>
           ) : yesterdayPicks.length === 0 ? (
             <EmptyState emoji="📋"
-              title="Sin picks de ayer"
-              hint="Los picks del día anterior con sus resultados aparecerán aquí a partir de medianoche." />
+              title="No hubo Value Picks ayer"
+              hint="Solo mostramos value picks reales del día anterior. Cuando los haya, aparecerán aquí con su resultado verificado." />
           ) : (
             <>
               <YesterdayStats picks={yesterdayPicks} />

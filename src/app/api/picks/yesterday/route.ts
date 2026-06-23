@@ -1,29 +1,31 @@
 /**
- * GET  /api/picks/yesterday — lee picks del día anterior.
- * POST /api/picks/yesterday — recibe picks del cliente y los enriquece con resultados ESPN.
+ * GET /api/picks/yesterday — "Value Picks de ayer", 100% REAL desde `predictions_log`.
  *
- * Fuentes GET en orden de fiabilidad:
- *  1. In-memory store (instancia caliente)
- *  2. /tmp/sp-yesterday.json (cold restart misma instancia)
- *  3. Vercel KV "picks:yesterday" (compartido, multi-instancia — activo desde 31/05/2026)
+ * REGLA (cero mocks / cero fallback):
+ *  - SOLO filas con source='value_pick' → los value picks que emite el pipeline
+ *    diario (tienen cuota real). Se EXCLUYE source='analysis_view': predicciones
+ *    que se loguean al abrir el análisis de un partido, SIN cuota (odds NULL). Si
+ *    se colaban, aparecían "partidos fantasma" a cuota 0 (p.ej. France–Iraq) y
+ *    DESPLAZABAN a los value picks reales (Shamrock Rovers) por el límite.
+ *  - Ventana de fecha = AYER en UTC estricto (consistente con la noción de "hoy"
+ *    del pipeline, que también usa el día UTC).
+ *  - Se incluye 'pending': si el cron de settle aún no resolvió un value pick
+ *    válido de ayer, debe verse como Pendiente, no desaparecer.
  *
- * Si ninguna fuente tiene datos, el cliente cae al fallback de localStorage
- * (clave sp_picks_YYYY-MM-DD guardada por value/page.tsx al cargar picks de hoy).
+ * Si no hay value picks de ayer → picks: []. La UI muestra el estado vacío limpio
+ * ("No hubo Value Picks ayer"). NUNCA se hace render de datos falsos ni de fallback.
  */
-import { NextRequest, NextResponse } from "next/server"
+import { NextResponse } from "next/server"
 import { createServiceClient } from "@/lib/supabase/client"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"   // nunca cachear: datos reales del día anterior
 export const revalidate = 0
 
-/**
- * GET /api/picks/yesterday — "Histórico de ayer" 100% REAL desde `predictions_log`.
- *
- * REGLA (cero mocks): solo picks cuyo kickoff cae AYER (ventana UTC dinámica) y con
- * estado RESUELTO 'won'|'lost' (se excluyen 'pending' y 'void'). Los 3 más recientes.
- * Mapea won→WIN, lost→LOSS para el cliente. Si no hay, devuelve picks: [].
- */
+const STATUS_MAP: Record<string, "WIN" | "LOSS" | "VOID" | "PENDING"> = {
+  won: "WIN", lost: "LOSS", void: "VOID", pending: "PENDING",
+}
+
 export async function GET() {
   // ── Cálculo DINÁMICO de "ayer" en UTC estricto ──
   const now = new Date()
@@ -36,118 +38,32 @@ export async function GET() {
     const sb = createServiceClient()
     const { data, error } = await sb
       .from("predictions_log")
-      .select("id, home_team, away_team, pick, odds, model_prob, status, kickoff_iso")
-      .in("status", ["won", "lost"])             // SOLO resueltos (sin pending/void)
+      .select("id, league, home_team, away_team, market, pick, odds, model_prob, status, kickoff_iso")
+      .eq("source", "value_pick")                        // SOLO value picks reales (no analysis_view)
+      .in("status", ["won", "lost", "void", "pending"])  // incluye pending → no descartar picks válidos sin settle
       .gte("kickoff_iso", fromIso)
       .lt("kickoff_iso", toIso)
       .order("kickoff_iso", { ascending: false })
-      .limit(3)
+      .limit(20)
     if (error || !data) return NextResponse.json({ date: fromIso.slice(0, 10), picks: [] })
 
-    const picks = data.map((p: any) => ({
-      id: p.id,
-      home_team: p.home_team,
-      away_team: p.away_team,
-      selection: p.pick,
-      best_odd: typeof p.odds === "number" ? p.odds : Number(p.odds),
-      model_prob: typeof p.model_prob === "number" ? p.model_prob * (p.model_prob <= 1 ? 100 : 1) : 0,
-      result: p.status === "won" ? "WIN" : "LOSS",
-    }))
+    const picks = data.map((p: any) => {
+      const odd = typeof p.odds === "number" ? p.odds : Number(p.odds)
+      return {
+        id: p.id,
+        league_name: p.league ?? undefined,
+        home_team: p.home_team,
+        away_team: p.away_team,
+        market: p.market ?? undefined,
+        selection: p.pick,
+        // Cuota SOLO si es un número real (>1). Nunca renderizar "@ 0" desde un NULL.
+        best_odd: Number.isFinite(odd) && odd > 1 ? odd : undefined,
+        model_prob: typeof p.model_prob === "number" ? p.model_prob * (p.model_prob <= 1 ? 100 : 1) : 0,
+        result: STATUS_MAP[p.status] ?? "PENDING",
+      }
+    })
     return NextResponse.json({ date: fromIso.slice(0, 10), picks })
   } catch {
     return NextResponse.json({ date: fromIso.slice(0, 10), picks: [] })
   }
-}
-
-const ALL_SLUGS = ["esp.1", "eng.1", "ger.1", "ita.1", "fra.1", "usa.1", "mex.1", "por.1", "ned.1", "arg.1", "bra.1", "tur.1", "sau.1", "fra.2"]
-
-function normTeam(s: string): string {
-  return (s || "").toLowerCase()
-    .normalize("NFD").replace(/[̀-ͯ]/g, "")
-    .replace(/[^a-z0-9 ]/g, "").trim()
-}
-
-function evaluateResult(
-  pick: any,
-  homeScore: number,
-  awayScore: number,
-): "WIN" | "LOSS" | "VOID" {
-  const { market, selection, home_team, away_team } = pick
-  const total = homeScore + awayScore
-
-  if (market === "1X2") {
-    if (selection === `Gana ${home_team}`) return homeScore > awayScore ? "WIN" : "LOSS"
-    if (selection === `Gana ${away_team}`) return awayScore > homeScore ? "WIN" : "LOSS"
-    if (selection === "Empate")            return homeScore === awayScore ? "WIN" : "LOSS"
-    return "VOID"
-  }
-  if (market === "Over/Under 2.5") {
-    if (selection === "Over 2.5 Goles")  return total > 2 ? "WIN" : "LOSS"
-    if (selection === "Under 2.5 Goles") return total < 3 ? "WIN" : "LOSS"
-    return "VOID"
-  }
-  if (market === "Hándicap") {
-    const m = selection.match(/hándicap ([+-]?\d+\.?\d*)$/)
-    if (!m) return "VOID"
-    const line = parseFloat(m[1])
-    const isHome = selection.startsWith(home_team)
-    const adj = isHome ? homeScore + line : awayScore + line
-    const opp = isHome ? awayScore : homeScore
-    if (adj > opp) return "WIN"
-    if (adj < opp) return "LOSS"
-    return "VOID"
-  }
-  return "VOID"
-}
-
-export async function POST(req: NextRequest) {
-  let body: { date?: string; picks?: any[] }
-  try { body = await req.json() } catch { return NextResponse.json({ error: "Body inválido" }, { status: 400 }) }
-
-  const { date, picks } = body
-  if (!date || !Array.isArray(picks) || picks.length === 0) {
-    return NextResponse.json({ date: date ?? null, picks: [] })
-  }
-
-  const yyyymmdd = date.replace(/-/g, "")
-
-  // Descargar marcadores finales del día en paralelo para todas las ligas
-  const resultMap = new Map<string, { homeScore: number; awayScore: number }>()
-
-  await Promise.all(ALL_SLUGS.map(async (slug) => {
-    try {
-      const res = await fetch(
-        `https://site.api.espn.com/apis/site/v2/sports/soccer/${slug}/scoreboard?dates=${yyyymmdd}`,
-        { signal: AbortSignal.timeout(6000) },
-      )
-      if (!res.ok) return
-      const data = await res.json()
-      for (const ev of data?.events ?? []) {
-        const comp = ev.competitions?.[0]
-        if (!comp?.status?.type?.completed) continue
-        const home = comp.competitors?.find((c: any) => c.homeAway === "home")
-        const away = comp.competitors?.find((c: any) => c.homeAway === "away")
-        if (!home || !away) continue
-        const key = `${normTeam(home.team.displayName)}|${normTeam(away.team.displayName)}`
-        resultMap.set(key, {
-          homeScore: parseInt(home.score ?? "0", 10),
-          awayScore: parseInt(away.score ?? "0", 10),
-        })
-      }
-    } catch { /* ignorar ligas con error */ }
-  }))
-
-  const resolved = picks.map((pick) => {
-    const key = `${normTeam(pick.home_team)}|${normTeam(pick.away_team)}`
-    const match = resultMap.get(key)
-    if (!match) return { ...pick, result: "PENDING" }
-    return {
-      ...pick,
-      result: evaluateResult(pick, match.homeScore, match.awayScore),
-      home_score: match.homeScore,
-      away_score: match.awayScore,
-    }
-  })
-
-  return NextResponse.json({ date, picks: resolved })
 }
