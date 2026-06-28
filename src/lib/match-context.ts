@@ -60,7 +60,7 @@ const PROFILES: Record<MatchContext, Omit<MatchContextProfile, "context">> = {
   // Clubes (liga regular). Es la calibración por defecto.
   club: {
     significance: 1.00,
-    minEdge: 3.0,
+    minEdge: 1.5,   // FASE 1: 3.0 → 1.5 (más volumen; admite value picks conservadores)
     qualityGate: 56,
     historyWeight: 1.00,
     allowEloFallback: false,
@@ -71,7 +71,7 @@ const PROFILES: Record<MatchContext, Omit<MatchContextProfile, "context">> = {
   // más en Elo. NO descartamos el partido (lo queremos para calibrar pre-WC).
   international_friendly: {
     significance: 0.55,
-    minEdge: 5.0,
+    minEdge: 3.0,   // FASE 1: 5.0 → 3.0 (más volumen; sigue por encima de clubes por la varianza)
     qualityGate: 62,
     historyWeight: 0.40,
     allowEloFallback: true,
@@ -82,7 +82,7 @@ const PROFILES: Record<MatchContext, Omit<MatchContextProfile, "context">> = {
   // que clubes (las selecciones juegan menos seguido).
   international_competitive: {
     significance: 1.15,
-    minEdge: 3.5,
+    minEdge: 2.0,   // FASE 1: 3.5 → 2.0 (más volumen)
     qualityGate: 58,
     historyWeight: 0.75,
     allowEloFallback: true,

@@ -32,15 +32,29 @@ const LEAGUE_MAP: Record<string, string> = {
 }
 
 // ─── Value engine — umbrales (relajados para asegurar volumen diario) ──────────
-// MIN_EDGE bajado 3 → 2 → 1.5: selección más inclusiva para asegurar volumen tras
-// restaurar la fuente de cuotas (core fallback). El gate de calidad sigue filtrando.
-const MIN_EDGE = 1.5
+// MIN_EDGE bajado 3 → 2 → 1.5 → 1.0 (FASE 1): selección más inclusiva para subir el
+// volumen diario favoreciendo picks conservadores de cuota baja. Los umbrales
+// EFECTIVOS por contexto viven en match-context.ts (club/friendly/competitive) y
+// también se bajaron. El gate de integridad (value_edge > 0) sigue intacto.
+const MIN_EDGE = 1.0
 const MAX_EDGE = 15
 const MIN_ODD = 1.40
 const QUALITY_GATE = 52   // back to 52 — un punto menos de fricción para recuperar volumen
 const MAX_PICKS = 10
 // Minimum odds for a handicap pick where the selected team is a clear underdog 1X2
 const MIN_ODD_HANDICAP_UNDERDOG = 1.75
+
+// ─── FASE 2 — Corrección de Poisson + diversificación de mercados ──────────────
+// (a) Corrección Dixon-Coles: el Poisson INDEPENDIENTE ignora la correlación entre
+//     marcadores bajos y SOBREESTIMA sistemáticamente el Under 2.5 (falsos positivos).
+//     Deflactamos pUnder con un factor conservador ANTES de evaluar el pick, de modo
+//     que el edge que ve el usuario use ya la probabilidad corregida (prob y edge
+//     quedan consistentes — no se "maquilla" nada, se calibra un sesgo conocido).
+const POISSON_UNDER_CORRECTION = 0.90   // ×0.90 sobre pUnder (deflación de bajo marcador)
+// (b) Silos estancos: penalización (en puntos de quality, SOLO para el ranking de
+//     selección — nunca toca la prob/edge mostrados) por cada pick del mismo mercado
+//     ya elegido en la jornada. Evita saturar el día de Over/Under y empuja al 1X2.
+const DIVERSIFICATION_PENALTY = 8
 /** Mínimo de partidos jugados por equipo (ambos) para que el motor evalúe un
  *  partido. Si cualquiera de los dos tiene menos historia que esto (debutantes
  *  de copa, equipos recién ascendidos sin muestra), el partido se omite del
@@ -371,13 +385,18 @@ function buildCandidates(m: MatchModel): Candidate[] {
     })
   }
 
-  // Under 2.5 — solo si el modelo proyecta CLARAMENTE pocos goles
-  if (expTotal <= 2.30 && (home.cleanSheetPct >= 0.30 || away.cleanSheetPct >= 0.30) && mdl.pUnder >= 0.58) {
+  // Under 2.5 — solo si el modelo proyecta CLARAMENTE pocos goles.
+  // FASE 2(a): pUnder CORREGIDO (Dixon-Coles) para contrarrestar la miopía del Poisson
+  // independiente sobre marcadores bajos. La prob. corregida se usa TANTO en el gate
+  // (≥0.58) COMO en el candidato → el edge resultante ya refleja la corrección, sin
+  // inflar nada. Efecto: exige un pUnder crudo ≥0.644 (0.58/0.90) → menos falsos positivos.
+  const pUnderAdj = mdl.pUnder * POISSON_UNDER_CORRECTION
+  if (expTotal <= 2.30 && (home.cleanSheetPct >= 0.30 || away.cleanSheetPct >= 0.30) && pUnderAdj >= 0.58) {
     const defCtx = (home.cleanSheetPct + away.cleanSheetPct) / 2
     cands.push({
-      market: "Over/Under 2.5", selection: "Under 2.5 Goles", key: "under25", prob: mdl.pUnder,
+      market: "Over/Under 2.5", selection: "Under 2.5 Goles", key: "under25", prob: pUnderAdj,
       contextScore: clamp((defCtx - 0.2) * 180 + (2.5 - expTotal) * 45 + 42, 0, 100),
-      story: `Pronóstico claro de pocos goles: el modelo proyecta ${expTotal.toFixed(2)} y al menos una defensa mantiene la portería a 0 con frecuencia.`,
+      story: `Pronóstico claro de pocos goles: el modelo proyecta ${expTotal.toFixed(2)} y al menos una defensa mantiene la portería a 0 con frecuencia (prob. ajustada Dixon-Coles).`,
       extra: [
         `Goles esperados (Poisson): ${m.homeName} ${mdl.lambdaHome.toFixed(2)} — ${m.awayName} ${mdl.lambdaAway.toFixed(2)}`,
         `Portería a 0 reciente: ${m.homeName} ${Math.round(home.cleanSheetPct * 100)}% · ${m.awayName} ${Math.round(away.cleanSheetPct * 100)}%`,
@@ -524,11 +543,14 @@ function toEvalMatch(m: MatchModel): EvalMatch {
 export function computeValuePicks(data: DailyData): { picks: any[]; note?: string; auditTrail: any[] } {
   const picks: any[] = []
   const auditTrail: any[] = []   // motivos de rechazo de cada candidato (admin only)
+  // FASE 2(b) — Silos estancos: nº de picks ya elegidos por mercado en la jornada.
+  // Penaliza el RANKING de selección de mercados saturados (no la prob/edge mostrados).
+  const marketTally: Record<string, number> = {}
 
   for (const m of data.matches) {
     const evalMatch = toEvalMatch(m)
     interface BestEntry {
-      c: Candidate; odd: number; edge: number; quality: number
+      c: Candidate; odd: number; edge: number; quality: number; adjScore: number
       evaluation: PickEvaluation
     }
     let best: BestEntry | null = null
@@ -577,8 +599,12 @@ export function computeValuePicks(data: DailyData): { picks: any[]; note?: strin
         continue
       }
 
-      if (!best || evalCand.baseQuality > best.quality) {
-        best = { c, odd, edge: evalCand.edge, quality: evalCand.baseQuality, evaluation }
+      // Silos estancos (FASE 2b): el ranking resta DIVERSIFICATION_PENALTY por cada
+      // pick del mismo mercado ya elegido hoy. SOLO decide qué mercado gana este
+      // partido — `best.quality` sigue siendo el real, así prob/edge no se tocan.
+      const adjScore = evalCand.baseQuality - DIVERSIFICATION_PENALTY * (marketTally[c.market] ?? 0)
+      if (!best || adjScore > best.adjScore) {
+        best = { c, odd, edge: evalCand.edge, quality: evalCand.baseQuality, adjScore, evaluation }
       }
     }
     if (!best) continue
@@ -627,6 +653,8 @@ export function computeValuePicks(data: DailyData): { picks: any[]; note?: strin
         `Score de calidad: ${best.quality}/100 · Riesgo ${risk === "low" ? "🟢 conservador" : risk === "mid" ? "🟡 medio" : "🔴 alto"}`,
       ],
     })
+    // Silos estancos: registra el mercado del pick para penalizarlo en los siguientes partidos.
+    marketTally[best.c.market] = (marketTally[best.c.market] ?? 0) + 1
   }
 
   picks.sort((a, b) => b.quality_score - a.quality_score)
@@ -645,8 +673,8 @@ export function computeValuePicks(data: DailyData): { picks: any[]; note?: strin
         const odd = m.odds[c.key]
         if (!odd || !isFinite(odd) || odd < MIN_ODD) continue
         const evalCand = toEvalCandidate(c, m, odd)
-        // Relaxed: edge >= 1.5 (was 3), quality >= 40 (was 52)
-        if (evalCand.edge < 1.5 || evalCand.edge > MAX_EDGE) continue
+        // Relaxed: edge >= 1.0 (FASE 1, was 1.5), quality >= 40 (was 52)
+        if (evalCand.edge < 1.0 || evalCand.edge > MAX_EDGE) continue
         if (evalCand.baseQuality < 40) continue
         if (!commonSensePass(c, m)) continue
         const consensusProb = evalCand.prob
