@@ -702,7 +702,7 @@ function FormBasedAnalysis({ homeCode, awayCode }: { homeCode?: string; awayCode
 
   if (!data) return (
     <div className="border-t border-white/[0.04] px-5 sm:px-6 py-4">
-      <p className="text-[12px] text-zinc-500">Datos disponibles al inicio del torneo (11 jun 2026).</p>
+      <p className="text-[12px] text-zinc-500">Análisis estadístico en proceso.</p>
     </div>
   )
 
@@ -728,7 +728,7 @@ function FormBasedAnalysis({ homeCode, awayCode }: { homeCode?: string; awayCode
             <p className="text-[10px] text-zinc-500">{form.goalsForAvg.toFixed(2)} GF · {form.goalsAgainstAvg.toFixed(2)} GA</p>
           </div>
         ) : (
-          <p className="text-[10px] text-zinc-500 mt-2">Forma disponible al inicio del torneo</p>
+          <p className="text-[10px] text-zinc-500 mt-2">Forma reciente no disponible todavía</p>
         )}
       </div>
     )
