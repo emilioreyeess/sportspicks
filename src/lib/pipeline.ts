@@ -26,6 +26,9 @@ import {
   setYesterdayResults,
 } from "@/lib/store"
 import { getMatchContext, isInternational, type MatchContext, type MatchContextProfile } from "@/lib/match-context"
+import { WC_TEAMS } from "@/lib/world-cup/static-data"
+import { resolveWcCode } from "@/lib/world-cup/name-to-code"
+import type { Confederation } from "@/lib/world-cup/types"
 
 const LEAGUE_MAP: Record<string, string> = {
   "1": "esp.1", "2": "eng.1", "3": "ger.1", "4": "ita.1", "5": "fra.1",
@@ -55,6 +58,34 @@ const POISSON_UNDER_CORRECTION = 0.90   // ×0.90 sobre pUnder (deflación de ba
 //     selección — nunca toca la prob/edge mostrados) por cada pick del mismo mercado
 //     ya elegido en la jornada. Evita saturar el día de Over/Under y empuja al 1X2.
 const DIVERSIFICATION_PENALTY = 8
+
+// ─── OPCIÓN C — Pesos por confederación (del modelo XGBoost del analista) ──────
+// SOLO se aplican a partidos de SELECCIONES (Mundial / internacionales): la fuerza
+// base (λ de goles esperados) de cada equipo se multiplica por el peso de su
+// confederación ANTES de que el Poisson derive las probabilidades 1X2 / Over-Under.
+// En partidos de CLUBES NO aplica (peso 1.0) — la confederación no tiene sentido ahí
+// y multiplicarla corrompería los value picks domésticos.
+// Fuente exacta: pesos_continente en Data_Cleaning.py:61 del repo Simulaciones_Mundial.
+const CONFEDERATION_WEIGHT: Record<Confederation, number> = {
+  UEFA: 1.00,      // Europa
+  CONMEBOL: 0.95,  // Sudamérica
+  CONCACAF: 0.75,  // Norte/Centroamérica
+  AFC: 0.70,       // Asia
+  CAF: 0.60,       // África
+  OFC: 0.50,       // Oceanía
+}
+const CONFEDERATION_WEIGHT_FALLBACK = 0.75   // sin dato de confederación
+
+// Código FIFA (3 letras) → confederación, leído de la BD real de selecciones (WC_TEAMS).
+const CONFED_BY_CODE = new Map<string, Confederation>(WC_TEAMS.map((t) => [t.code, t.confederation]))
+
+/** Peso de confederación de una selección por su nombre: resuelve nombre → código WC
+ *  → confederación del objeto WCTeam real. Fallback 0.75 si la selección no se reconoce. */
+function confederationWeight(teamName: string): number {
+  const code = resolveWcCode(teamName)
+  const confed = code ? CONFED_BY_CODE.get(code) : undefined
+  return confed ? CONFEDERATION_WEIGHT[confed] : CONFEDERATION_WEIGHT_FALLBACK
+}
 /** Mínimo de partidos jugados por equipo (ambos) para que el motor evalúe un
  *  partido. Si cualquiera de los dos tiene menos historia que esto (debutantes
  *  de copa, equipos recién ascendidos sin muestra), el partido se omite del
@@ -237,8 +268,13 @@ async function fetchDailyData(): Promise<DailyData> {
     const homeMotiv = classifyMotivation(m.homeId, table)
     const awayMotiv = classifyMotivation(m.awayId, table)
     const effAvg = leagueAvgBySlug[m.slug] ?? globalAvg
-    const mdl = modelMatch(m.home, m.away, homeMotiv, awayMotiv, effAvg)
     const contextProfile = getMatchContext(m.slug, { name: m.ev?.name ?? null })
+    // OPCIÓN C: multiplicador de confederación SOLO en partidos de selecciones
+    // (Mundial/internacionales). En clubes los pesos quedan en 1.0 (sin efecto).
+    const intlMatch = isInternational(contextProfile.context)
+    const wHome = intlMatch ? confederationWeight(m.homeName) : 1
+    const wAway = intlMatch ? confederationWeight(m.awayName) : 1
+    const mdl = modelMatch(m.home, m.away, homeMotiv, awayMotiv, effAvg, wHome, wAway)
     return {
       id: m.ev.id, slug: m.slug,
       homeName: m.homeName, awayName: m.awayName,

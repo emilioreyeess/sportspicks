@@ -369,7 +369,11 @@ export interface ModelOut {
 export function modelMatch(
   home: TeamForm, away: TeamForm,
   homeMotiv: Motivation, awayMotiv: Motivation,
-  leagueAvg: number
+  leagueAvg: number,
+  // OPCIÓN C — pesos por confederación (1.0 = sin efecto, p.ej. clubes). En
+  // partidos de selecciones se pasa el peso del analista para ponderar la fuerza
+  // base ANTES del Poisson. Default 1.0 → comportamiento idéntico al anterior.
+  confedWeightHome = 1, confedWeightAway = 1,
 ): ModelOut {
   const la = clamp(leagueAvg, 1.0, 2.0)
 
@@ -378,8 +382,10 @@ export function modelMatch(
   const aGF = shrink(away.goalsFor, away.gamesPlayed, la)
   const aGA = shrink(away.goalsAgainst, away.gamesPlayed, la)
 
-  let lh = (hGF * aGA) / la * 1.10 * homeMotiv.factor
-  let lw = (aGF * hGA) / la * 0.92 * awayMotiv.factor
+  // La fuerza base (goles esperados) se multiplica por el peso de confederación
+  // ANTES de derivar las probabilidades Poisson (1X2 / Over-Under).
+  let lh = (hGF * aGA) / la * 1.10 * homeMotiv.factor * confedWeightHome
+  let lw = (aGF * hGA) / la * 0.92 * awayMotiv.factor * confedWeightAway
   lh = clamp(lh, 0.15, 4.5)
   lw = clamp(lw, 0.15, 4.5)
 
