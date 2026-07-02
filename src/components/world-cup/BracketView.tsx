@@ -72,7 +72,7 @@ export function BracketView({ teams, groups, knockoutFixtures, onSelectMatch }: 
                 const inner = (
                   <>
                     <p className="text-[10px] font-black uppercase tracking-widest text-amber-400 mb-2">
-                      {f.stage.replace("-", " ")}
+                      {f.stage.replace(/-/g, " ")}
                     </p>
                     <KOFixtureRow team={homeTeam} score={f.result?.homeScore} />
                     <KOFixtureRow team={awayTeam} score={f.result?.awayScore} />

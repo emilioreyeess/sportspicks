@@ -15,6 +15,7 @@ import { NextResponse } from "next/server"
 import { createServiceClient } from "@/lib/supabase/client"
 import { WC_TEAMS } from "@/lib/world-cup/static-data"
 import { resolveWcCode } from "@/lib/world-cup/name-to-code"
+import type { WCStage } from "@/lib/world-cup/types"
 
 export const runtime = "nodejs"
 export const dynamic = "force-dynamic"
@@ -56,6 +57,33 @@ function scoreOf(stats: any): { home: number; away: number } | null {
   return pick(stats?.result) ?? pick(stats?.goals)
 }
 
+/**
+ * FASE 1 — Aislamiento de la fase de grupos. SOLO los partidos cuyo `round` indica
+ * fase de grupos ("Group Stage - N") suman a la clasificación. Las eliminatorias
+ * (Round of 32/16, cuartos, semis, final) se EXCLUYEN: antes se sumaban y producían
+ * jornadas irreales (J4) y puntos imposibles (12) en la tabla de grupos.
+ */
+function isGroupStage(round: string): boolean {
+  return /group/i.test(round ?? "")
+}
+
+/**
+ * FASE 2 — Deriva la FASE real (WCStage) desde el texto `round` de la API-Football
+ * (guardado en stats.round). El orden importa: "final" se comprueba al final porque
+ * "Semi-finals", "Quarter-finals" y "3rd Place Final" también contienen "final".
+ */
+function mapRoundToStage(round: string): WCStage {
+  const r = (round ?? "").toLowerCase()
+  if (!r || r.includes("group")) return "group"
+  if (r.includes("32")) return "round-of-32"
+  if (r.includes("16")) return "round-of-16"
+  if (r.includes("quarter")) return "quarter-final"
+  if (r.includes("semi")) return "semi-final"
+  if (r.includes("third") || r.includes("3rd")) return "third-place"
+  if (r.includes("final")) return "final"
+  return "group"
+}
+
 export async function GET() {
   try {
     const sb = createServiceClient()
@@ -75,10 +103,13 @@ export async function GET() {
       const homeCode = resolveWcCode(f.home_team) ?? f.home_team
       const awayCode = resolveWcCode(f.away_team) ?? f.away_team
       const sc = scoreOf(f.stats)
+      // FASE 2: fase real derivada de stats.round (antes se forzaba "group" para
+      // TODOS los partidos → el bracket nunca recibía eliminatorias reales).
+      const stage = mapRoundToStage(String(f.stats?.round ?? ""))
       return {
         matchId: `wc26-${f.fixture_id}`,
-        stage: "group" as const,
-        group: groupByCode.get(homeCode) ?? null,
+        stage,
+        group: stage === "group" ? (groupByCode.get(homeCode) ?? null) : null,
         stageMatchNumber: 0,
         kickoffISO: f.match_date,
         venue: { city: "", country: "", stadium: "" },
@@ -108,8 +139,11 @@ export async function GET() {
       tbl.set(t.code, { teamCode: t.code, played: 0, won: 0, drawn: 0, lost: 0, goalsFor: 0, goalsAgainst: 0, goalDiff: 0, points: 0, position: 0, qualificationStatus: "pending" })
     }
     for (const f of rows as any[]) {
-      // FASE 1: cuenta si el partido está FINALIZADO (cualquier estado de fin) y
-      // tiene marcador (de stats.result o stats.goals). Antes solo miraba result.
+      // FASE 1: SOLO la fase de grupos suma a la tabla. Las eliminatorias (Round of
+      // 32/16, cuartos, semis, final) se ignoran — antes inflaban J y puntos (J4/12).
+      if (!isGroupStage(String(f.stats?.round ?? ""))) continue
+      // cuenta si el partido está FINALIZADO (cualquier estado de fin) y tiene
+      // marcador (de stats.result o stats.goals). Antes solo miraba result.
       const finished = mapStatus(f.status) === "final"
       const sc = scoreOf(f.stats)
       if (!finished && !sc) continue

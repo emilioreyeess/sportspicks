@@ -53,13 +53,19 @@ export default function WorldCupClient() {
       for (const t of teamsRes.teams ?? []) teamMap.set(t.code, t)
       setTeams(teamMap)
       setByGroup(teamsRes.byGroup ?? {})
-      // Partidos: calendario REAL del Mundial (fase de grupos) desde Supabase.
-      setFixtures((liveRes.fixtures as WCFixture[]) ?? [])
+      // Partidos: calendario REAL del Mundial desde Supabase (grupos + eliminatorias).
+      const liveFixtures = (liveRes.fixtures as WCFixture[]) ?? []
+      setFixtures(liveFixtures)
       // Grupos: clasificación REAL (puntos/victorias/goles) calculada de resultados.
       // Si /live no trae standings, caemos al bracket (vacío hasta que arranque).
       setWcGroups(liveRes.standings?.length ? liveRes.standings : (bracketRes.groups ?? []))
-      // Eliminatorias siguen del bracket.
-      const knockoutList: WCFixture[] = bracketRes.knockoutFixtures ?? []
+      // Eliminatorias: cruces REALES de Supabase (stage != group) con equipos,
+      // banderas y marcadores reales. Solo si /live aún no tiene eliminatorias
+      // caemos al bracket (cuadro provisional hasta que arranquen).
+      const liveKnockout = liveFixtures.filter((f) => f.stage && f.stage !== "group")
+      const knockoutList: WCFixture[] = liveKnockout.length
+        ? liveKnockout
+        : (bracketRes.knockoutFixtures ?? [])
       setKnockout(knockoutList)
       setDrawCompleted(!!bracketRes.drawCompleted)
     } catch {
