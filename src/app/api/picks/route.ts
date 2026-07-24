@@ -4,7 +4,9 @@ import { ensureWarm, ensureFresh, runPipeline } from "@/lib/pipeline"
 import { consume, getClientIp, tooManyRequests } from "@/lib/rate-limit"
 
 export const runtime = "nodejs"
-export const maxDuration = 120
+// Hobby corta las funciones a 60s: declarar 120 no daba margen extra, solo un
+// límite irreal. El pipeline en frío tarda ~23s, muy por debajo de este techo.
+export const maxDuration = 60
 // Anti-zombie: jamás servir desde la caché de Next/Vercel.
 export const dynamic = "force-dynamic"
 export const revalidate = 0

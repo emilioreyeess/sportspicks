@@ -9,7 +9,7 @@ import Link from "next/link"
 import { MarkdownArticle } from "@/components/blog/MarkdownArticle"
 import { CONTENT } from "./content"
 
-const BASE = "https://sportspicks.app"
+const BASE = "https://www.sportspicks.es"
 const SLUG = "big-data-analisis-rendimiento"
 const TITLE = "Big data y análisis del rendimiento deportivo"
 const DESCRIPTION =

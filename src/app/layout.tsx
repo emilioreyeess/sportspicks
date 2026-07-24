@@ -25,7 +25,7 @@ export const viewport: Viewport = {
 }
 
 export const metadata: Metadata = {
-  metadataBase: new URL("https://sportspicks.app"),
+  metadataBase: new URL("https://www.sportspicks.es"),
   applicationName: "SportsPicks Analytics",
   title: {
     template: "%s · SportsPicks Analytics",

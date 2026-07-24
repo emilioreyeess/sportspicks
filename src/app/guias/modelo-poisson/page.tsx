@@ -7,7 +7,7 @@
 
 import Link from "next/link"
 
-const BASE       = "https://sportspicks.app"
+const BASE       = "https://www.sportspicks.es"
 const PUBLISHED  = "2026-06-04"
 const MODIFIED   = "2026-06-04"
 

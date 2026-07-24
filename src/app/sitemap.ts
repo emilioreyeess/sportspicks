@@ -1,6 +1,6 @@
 import { MetadataRoute } from "next"
 
-const BASE = "https://sportspicks.app"
+const BASE = "https://www.sportspicks.es"
 
 // Fechas estáticas por sección — `new Date()` en build-time es ignorado por
 // Google (siempre ve la misma fecha = hoy). Usamos fechas de última revisión

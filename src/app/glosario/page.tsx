@@ -7,7 +7,7 @@
  * primitives.tsx usa hooks sin directiva "use client").
  */
 
-const BASE = "https://sportspicks.app"
+const BASE = "https://www.sportspicks.es"
 
 // ── Términos semilla ──────────────────────────────────────────────────────────
 

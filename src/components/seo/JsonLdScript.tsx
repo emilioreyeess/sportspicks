@@ -11,7 +11,7 @@
  * Dataset) para mantener consistencia semántica entre páginas técnicas.
  */
 
-const BASE = "https://sportspicks.app"
+const BASE = "https://www.sportspicks.es"
 const ORG_REF = { "@id": `${BASE}/#organization` }
 
 export function JsonLdScript({ schema }: { schema: Record<string, unknown> }) {

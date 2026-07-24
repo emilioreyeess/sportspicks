@@ -281,7 +281,7 @@ export default function AccountPage() {
                   href={`/profile/${profileId}`}
                   className="flex-1 truncate text-xs text-zinc-400 hover:text-white bg-white/[0.04] rounded-xl px-3 py-2 transition-colors"
                 >
-                  sportspicks.app/profile/{profileId}
+                  www.sportspicks.es/profile/{profileId}
                 </Link>
                 <button
                   onClick={() => {

@@ -13,7 +13,7 @@
  * créalos en los layouts de sección correspondientes.
  */
 
-const BASE = "https://sportspicks.app"
+const BASE = "https://www.sportspicks.es"
 
 const schema = {
   "@context": "https://schema.org",
