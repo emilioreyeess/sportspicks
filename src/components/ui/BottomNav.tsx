@@ -3,19 +3,25 @@
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 import { Icon } from "@/components/ui/icons"
-import { isActive } from "@/components/ui/nav-items"
+import { isActive, WORLD_CUP_ACTIVE } from "@/components/ui/nav-items"
 
 /**
  * Barra inferior móvil — EXACTAMENTE 5 slots (PUNTO 4):
- *   Inicio · Value Picks · Bot IA (central) · Mundial 2026 · Más (hamburguesa)
+ *   Inicio · Value Picks · Bot IA (central) · [Mundial | Combinadas] · Más
  * "Más" NO navega: dispara onMore() → abre el MobileDrawer (Panel lateral).
+ *
+ * El 4º slot lo ocupaba el Mundial 2026; archivado el torneo pasa a Combinadas.
+ * Se reactiva solo con WORLD_CUP_ACTIVE = true en nav-items.ts.
  */
+const WC_TAB  = { href: "/world-cup-2026", icon: "wc2026",     short: "Mundial",    center: false }
+const ALT_TAB = { href: "/combinadas",     icon: "combinadas", short: "Combinadas", center: false }
+
 const TABS = [
-  { href: "/",               icon: "home",   short: "Inicio", center: false },
-  { href: "/value",          icon: "value",  short: "Value",  center: false },
-  { href: "/bot",            icon: "bot",    short: "Bot IA", center: true },
-  { href: "/world-cup-2026", icon: "wc2026", short: "Mundial", center: false },
-] as const
+  { href: "/",      icon: "home",  short: "Inicio", center: false },
+  { href: "/value", icon: "value", short: "Value",  center: false },
+  { href: "/bot",   icon: "bot",   short: "Bot IA", center: true  },
+  WORLD_CUP_ACTIVE ? WC_TAB : ALT_TAB,
+]
 
 function tabColor(href: string) {
   if (href === "/world-cup-2026") return { text: "text-amber-400/90", pill: "ios-tab-active-amber" }

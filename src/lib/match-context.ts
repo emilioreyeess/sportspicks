@@ -60,7 +60,11 @@ const PROFILES: Record<MatchContext, Omit<MatchContextProfile, "context">> = {
   // Clubes (liga regular). Es la calibración por defecto.
   club: {
     significance: 1.00,
-    minEdge: 1.5,   // FASE 1: 3.0 → 1.5 (más volumen; admite value picks conservadores)
+    // Restaurado a 3.0 al volver a temporada regular: bajamos a 1.5 por escasez de
+    // partidos durante el Mundial (1 torneo), y esa restricción desaparece con 34
+    // ligas activas. Un edge de ~1.5 pp sobre cuotas ~1.7 cae dentro del vig de la
+    // casa, así que es más ruido que valor demostrable.
+    minEdge: 3.0,
     qualityGate: 56,
     historyWeight: 1.00,
     allowEloFallback: false,

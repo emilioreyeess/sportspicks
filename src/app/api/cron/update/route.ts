@@ -32,8 +32,10 @@ function dateOffset(offset: number): string {
 
 /** Tarea pesada: refresca fixtures de HOY (próximas 24h). Se ejecuta en segundo plano. */
 async function runUpdate(): Promise<void> {
-  // Solo HOY: payload mínimo para no acercarse a maxDuration=60s ni quemar cuota.
-  const dates = [dateOffset(0)]
+  // HOY + MAÑANA: el pipeline de value picks acepta kickoffs de hoy y mañana
+  // (ventana UTC en fetchDailyData), así que la ingesta debe cubrir ambos días o
+  // los partidos de mañana se descartan por falta de fixture_id → sin cuotas.
+  const dates = [dateOffset(0), dateOffset(1)]
   try {
     // Fetch de fixtures + standings 1×/liga (dedupe global).
     const groups = await fetchFixturesEnrichedForDates(dates)

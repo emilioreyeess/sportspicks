@@ -5,6 +5,7 @@ import { useEffect, useState } from "react"
 import { Icon } from "@/components/ui/icons"
 import { usePlan } from "@/lib/plan"
 import TodayMatches from "@/components/matches/TodayMatches"
+import { WORLD_CUP_ACTIVE } from "@/components/ui/nav-items"
 
 const TOOLS = [
   {
@@ -344,7 +345,38 @@ export default function HomePage() {
         <p className="section-label mb-4 px-0.5">Destacado</p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
 
-          {/* Mundial 2026 */}
+          {/* Destacado principal — Mundial 2026 mientras dura el torneo;
+              archivado el torneo, el tráfico va directo a Value Picks. */}
+          {!WORLD_CUP_ACTIVE ? (
+          <Link href="/value"
+            className="group rounded-3xl border border-white/[0.05] bg-zinc-900/40 p-5 sm:p-6 tap hover:border-white/[0.10] transition-all duration-200">
+            <div className="flex items-start justify-between mb-5">
+              <span className="grid place-items-center w-11 h-11 rounded-2xl bg-emerald-400/10 text-emerald-400/90">
+                <Icon name="value" className="w-5 h-5" strokeWidth={2} />
+              </span>
+              <span className="rounded-full bg-emerald-400/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-emerald-300/90">
+                Diario
+              </span>
+            </div>
+            <h2 className="text-[22px] font-bold tracking-tight text-white leading-none">
+              Value <span className="text-emerald-400/90">Picks</span>
+            </h2>
+            <p className="text-[12px] text-zinc-500 mt-2">Solo publicamos cuando el modelo supera a la cuota real</p>
+            <div className="flex flex-wrap gap-1.5 mt-5 mb-5">
+              {["Premier", "LaLiga", "Serie A", "Bundesliga", "Ligue 1", "Champions"].map((l) => (
+                <span key={l} className="rounded-md bg-white/[0.03] px-2 py-1 text-[10px] font-semibold text-zinc-400">
+                  {l}
+                </span>
+              ))}
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] text-zinc-600">Edge real · contexto de motivación</span>
+              <span className="text-[13px] font-semibold text-emerald-400/90 inline-flex items-center gap-1">
+                Ver picks de hoy <Icon name="arrowRight" className="w-3.5 h-3.5 group-hover:translate-x-0.5 transition-transform" strokeWidth={2.4} />
+              </span>
+            </div>
+          </Link>
+          ) : (
           <Link href="/world-cup-2026"
             className="group rounded-3xl border border-white/[0.05] bg-zinc-900/40 p-5 sm:p-6 tap hover:border-white/[0.10] transition-all duration-200">
             <div className="flex items-start justify-between mb-5">
@@ -374,6 +406,7 @@ export default function HomePage() {
               </span>
             </div>
           </Link>
+          )}
 
           {/* Retos */}
           <Link href="/retos"
